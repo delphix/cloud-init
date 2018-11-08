@@ -65,7 +65,12 @@ output_json = '--json' in sys.argv
 src_version = ci_version.version_string()
 version_long = None
 
-if is_gitdir(_tdir) and which("git"):
+# Delphix: we set our own version
+# pylint: disable=w0125
+if True:
+    version = src_version
+    version_long = None
+elif is_gitdir(_tdir) and which("git"):
     flags = []
     if use_tags:
         flags = ['--tags']
