@@ -1,5 +1,6 @@
 # Copyright (C) 2012 Canonical Ltd.
 # Copyright (C) 2012 Hewlett-Packard Development Company, L.P.
+# Copyright (c) 2018 by Delphix. All rights reserved.
 #
 # Author: Scott Moser <scott.moser@canonical.com>
 # Author: Juerg Hafliger <juerg.haefliger@hp.com>
@@ -8,6 +9,7 @@
 
 import os
 import pwd
+import shlex
 
 from cloudinit import log as logging
 from cloudinit import util
@@ -221,16 +223,32 @@ def extract_authorized_keys(username):
             # The following tokens are defined: %% is replaced by a literal
             # '%', %h is replaced by the home directory of the user being
             # authenticated and %u is replaced by the username of that user.
+            # Note that there may be multiple files defined, separated by
+            # white space. If multiple files are detected, return the first
+            # one.
             ssh_cfg = parse_ssh_config_map(DEF_SSHD_CFG)
-            auth_key_fn = ssh_cfg.get("authorizedkeysfile", '').strip()
+            value = ssh_cfg.get("authorizedkeysfile", '').strip()
+            if value:
+                files = shlex.split(value)
+                if len(files) == 1:
+                    auth_key_fn = files[0]
+                elif len(files) > 1:
+                    auth_key_fn = files[0]
+                    LOG.debug("Entry 'AuthorizedKeysFile' in ssh config "
+                              "defines multiple files. Using the first one: "
+                              "%r.", auth_key_fn)
+                else:
+                    LOG.debug("Entry 'AuthorizedKeysFile' in ssh config "
+                              "has empty value. Using default file.")
             if not auth_key_fn:
                 auth_key_fn = "%h/.ssh/authorized_keys"
+
             auth_key_fn = auth_key_fn.replace("%h", pw_ent.pw_dir)
             auth_key_fn = auth_key_fn.replace("%u", username)
             auth_key_fn = auth_key_fn.replace("%%", '%')
             if not auth_key_fn.startswith('/'):
                 auth_key_fn = os.path.join(pw_ent.pw_dir, auth_key_fn)
-        except (IOError, OSError):
+        except (IOError, OSError, ValueError):
             # Give up and use a default key filename
             auth_key_fn = os.path.join(ssh_dir, 'authorized_keys')
             util.logexc(LOG, "Failed extracting 'AuthorizedKeysFile' in ssh "
