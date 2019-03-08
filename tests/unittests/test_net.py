@@ -22,6 +22,7 @@ import os
 import textwrap
 import yaml
 
+
 DHCP_CONTENT_1 = """
 DEVICE='eth0'
 PROTO='dhcp'
@@ -144,6 +145,7 @@ IPADDR=172.19.1.34
 NETMASK=255.255.252.0
 NM_CONTROLLED=no
 ONBOOT=yes
+STARTMODE=auto
 TYPE=Ethernet
 USERCTL=no
 """.lstrip()),
@@ -177,6 +179,7 @@ IPADDR=172.19.1.34
 NETMASK=255.255.252.0
 NM_CONTROLLED=no
 ONBOOT=yes
+STARTMODE=auto
 TYPE=Ethernet
 USERCTL=no
 """.lstrip()),
@@ -246,6 +249,7 @@ NETMASK=255.255.252.0
 NETMASK1=255.255.255.0
 NM_CONTROLLED=no
 ONBOOT=yes
+STARTMODE=auto
 TYPE=Ethernet
 USERCTL=no
 """.lstrip()),
@@ -281,6 +285,7 @@ NETMASK=255.255.252.0
 NETMASK1=255.255.255.0
 NM_CONTROLLED=no
 ONBOOT=yes
+STARTMODE=auto
 TYPE=Ethernet
 USERCTL=no
 """.lstrip()),
@@ -372,6 +377,7 @@ IPV6_DEFAULTGW=2001:DB8::1
 NETMASK=255.255.252.0
 NM_CONTROLLED=no
 ONBOOT=yes
+STARTMODE=auto
 TYPE=Ethernet
 USERCTL=no
 """.lstrip()),
@@ -409,6 +415,7 @@ IPV6_DEFAULTGW=2001:DB8::1
 NETMASK=255.255.252.0
 NM_CONTROLLED=no
 ONBOOT=yes
+STARTMODE=auto
 TYPE=Ethernet
 USERCTL=no
 """.lstrip()),
@@ -488,8 +495,8 @@ NETWORK_CONFIGS = {
                 address 192.168.21.3/24
                 dns-nameservers 8.8.8.8 8.8.4.4
                 dns-search barley.maas sach.maas
-                post-up route add default gw 65.61.151.37 || true
-                pre-down route del default gw 65.61.151.37 || true
+                post-up route add default gw 65.61.151.37 metric 10000 || true
+                pre-down route del default gw 65.61.151.37 metric 10000 || true
         """).rstrip(' '),
         'expected_netplan': textwrap.dedent("""
             network:
@@ -513,7 +520,8 @@ NETWORK_CONFIGS = {
                             - barley.maas
                             - sach.maas
                         routes:
-                        -   to: 0.0.0.0/0
+                        -   metric: 10000
+                            to: 0.0.0.0/0
                             via: 65.61.151.37
                         set-name: eth99
         """).rstrip(' '),
@@ -524,6 +532,7 @@ NETWORK_CONFIGS = {
                 HWADDR=cf:d6:af:48:e8:80
                 NM_CONTROLLED=no
                 ONBOOT=yes
+                STARTMODE=auto
                 TYPE=Ethernet
                 USERCTL=no"""),
             'ifcfg-eth99': textwrap.dedent("""\
@@ -537,8 +546,10 @@ NETWORK_CONFIGS = {
                 HWADDR=c0:d6:9f:2c:e8:80
                 IPADDR=192.168.21.3
                 NETMASK=255.255.255.0
+                METRIC=10000
                 NM_CONTROLLED=no
                 ONBOOT=yes
+                STARTMODE=auto
                 TYPE=Ethernet
                 USERCTL=no"""),
         },
@@ -561,7 +572,7 @@ NETWORK_CONFIGS = {
                           - gateway: 65.61.151.37
                             netmask: 0.0.0.0
                             network: 0.0.0.0
-                            metric: 2
+                            metric: 10000
                 - type: physical
                   name: eth1
                   mac_address: "cf:d6:af:48:e8:80"
@@ -652,6 +663,7 @@ NETWORK_CONFIGS = {
                 NETMASK=255.255.255.0
                 NM_CONTROLLED=no
                 ONBOOT=yes
+                STARTMODE=auto
                 TYPE=Ethernet
                 USERCTL=no
                 MTU=9000
@@ -691,6 +703,7 @@ NETWORK_CONFIGS = {
                 DEVICE=iface0
                 NM_CONTROLLED=no
                 ONBOOT=yes
+                STARTMODE=auto
                 TYPE=Ethernet
                 USERCTL=no
                 """),
@@ -894,6 +907,7 @@ pre-down route del -net 10.0.0.0 netmask 255.0.0.0 gw 11.0.0.1 metric 3 || true
                 MACADDR=aa:bb:cc:dd:ee:ff
                 NM_CONTROLLED=no
                 ONBOOT=yes
+                STARTMODE=auto
                 TYPE=Bond
                 USERCTL=no"""),
             'ifcfg-bond0.200': textwrap.dedent("""\
@@ -902,6 +916,7 @@ pre-down route del -net 10.0.0.0 netmask 255.0.0.0 gw 11.0.0.1 metric 3 || true
                 NM_CONTROLLED=no
                 ONBOOT=yes
                 PHYSDEV=bond0
+                STARTMODE=auto
                 TYPE=Ethernet
                 USERCTL=no
                 VLAN=yes"""),
@@ -919,6 +934,7 @@ pre-down route del -net 10.0.0.0 netmask 255.0.0.0 gw 11.0.0.1 metric 3 || true
                 NM_CONTROLLED=no
                 ONBOOT=yes
                 PRIO=22
+                STARTMODE=auto
                 STP=no
                 TYPE=Bridge
                 USERCTL=no"""),
@@ -928,6 +944,7 @@ pre-down route del -net 10.0.0.0 netmask 255.0.0.0 gw 11.0.0.1 metric 3 || true
                 HWADDR=c0:d6:9f:2c:e8:80
                 NM_CONTROLLED=no
                 ONBOOT=yes
+                STARTMODE=auto
                 TYPE=Ethernet
                 USERCTL=no"""),
             'ifcfg-eth0.101': textwrap.dedent("""\
@@ -946,6 +963,7 @@ pre-down route del -net 10.0.0.0 netmask 255.0.0.0 gw 11.0.0.1 metric 3 || true
                 NM_CONTROLLED=no
                 ONBOOT=yes
                 PHYSDEV=eth0
+                STARTMODE=auto
                 TYPE=Ethernet
                 USERCTL=no
                 VLAN=yes"""),
@@ -956,6 +974,7 @@ pre-down route del -net 10.0.0.0 netmask 255.0.0.0 gw 11.0.0.1 metric 3 || true
                 MASTER=bond0
                 NM_CONTROLLED=no
                 ONBOOT=yes
+                STARTMODE=auto
                 SLAVE=yes
                 TYPE=Ethernet
                 USERCTL=no"""),
@@ -966,6 +985,7 @@ pre-down route del -net 10.0.0.0 netmask 255.0.0.0 gw 11.0.0.1 metric 3 || true
                 MASTER=bond0
                 NM_CONTROLLED=no
                 ONBOOT=yes
+                STARTMODE=auto
                 SLAVE=yes
                 TYPE=Ethernet
                 USERCTL=no"""),
@@ -976,6 +996,7 @@ pre-down route del -net 10.0.0.0 netmask 255.0.0.0 gw 11.0.0.1 metric 3 || true
                 HWADDR=66:bb:9f:2c:e8:80
                 NM_CONTROLLED=no
                 ONBOOT=yes
+                STARTMODE=auto
                 TYPE=Ethernet
                 USERCTL=no"""),
             'ifcfg-eth4': textwrap.dedent("""\
@@ -985,6 +1006,7 @@ pre-down route del -net 10.0.0.0 netmask 255.0.0.0 gw 11.0.0.1 metric 3 || true
                 HWADDR=98:bb:9f:2c:e8:80
                 NM_CONTROLLED=no
                 ONBOOT=yes
+                STARTMODE=auto
                 TYPE=Ethernet
                 USERCTL=no"""),
             'ifcfg-eth5': textwrap.dedent("""\
@@ -993,6 +1015,7 @@ pre-down route del -net 10.0.0.0 netmask 255.0.0.0 gw 11.0.0.1 metric 3 || true
                 HWADDR=98:bb:9f:2c:e8:8a
                 NM_CONTROLLED=no
                 ONBOOT=no
+                STARTMODE=manual
                 TYPE=Ethernet
                 USERCTL=no""")
         },
@@ -1161,6 +1184,13 @@ pre-down route del -net 10.0.0.0 netmask 255.0.0.0 gw 11.0.0.1 metric 3 || true
                      - gateway: 192.168.0.3
                        netmask: 255.255.255.0
                        network: 10.1.3.0
+                     - gateway: 2001:67c:1562:1
+                       network: 2001:67c:1
+                       netmask: ffff:ffff:0
+                     - gateway: 3001:67c:1562:1
+                       network: 3001:67c:1
+                       netmask: ffff:ffff:0
+                       metric: 10000
                   - type: static
                     address: 192.168.1.2/24
                   - type: static
@@ -1197,6 +1227,11 @@ pre-down route del -net 10.0.0.0 netmask 255.0.0.0 gw 11.0.0.1 metric 3 || true
                      routes:
                      -   to: 10.1.3.0/24
                          via: 192.168.0.3
+                     -   to: 2001:67c:1/32
+                         via: 2001:67c:1562:1
+                     -   metric: 10000
+                         to: 3001:67c:1/32
+                         via: 3001:67c:1562:1
         """),
         'yaml-v2': textwrap.dedent("""
             version: 2
@@ -1228,6 +1263,11 @@ pre-down route del -net 10.0.0.0 netmask 255.0.0.0 gw 11.0.0.1 metric 3 || true
                 routes:
                 -   to: 10.1.3.0/24
                     via: 192.168.0.3
+                -   to: 2001:67c:1562:8007::1/64
+                    via: 2001:67c:1562:8007::aac:40b2
+                -   metric: 10000
+                    to: 3001:67c:1562:8007::1/64
+                    via: 3001:67c:1562:8007::aac:40b2
             """),
         'expected_netplan-v2': textwrap.dedent("""
          network:
@@ -1249,6 +1289,11 @@ pre-down route del -net 10.0.0.0 netmask 255.0.0.0 gw 11.0.0.1 metric 3 || true
                      routes:
                      -   to: 10.1.3.0/24
                          via: 192.168.0.3
+                     -   to: 2001:67c:1562:8007::1/64
+                         via: 2001:67c:1562:8007::aac:40b2
+                     -   metric: 10000
+                         to: 3001:67c:1562:8007::1/64
+                         via: 3001:67c:1562:8007::aac:40b2
              ethernets:
                  eth0:
                      match:
@@ -1282,6 +1327,7 @@ pre-down route del -net 10.0.0.0 netmask 255.0.0.0 gw 11.0.0.1 metric 3 || true
         NETMASK1=255.255.255.0
         NM_CONTROLLED=no
         ONBOOT=yes
+        STARTMODE=auto
         TYPE=Bond
         USERCTL=no
         """),
@@ -1293,6 +1339,7 @@ pre-down route del -net 10.0.0.0 netmask 255.0.0.0 gw 11.0.0.1 metric 3 || true
         NM_CONTROLLED=no
         ONBOOT=yes
         SLAVE=yes
+        STARTMODE=auto
         TYPE=Ethernet
         USERCTL=no
         """),
@@ -1309,6 +1356,7 @@ pre-down route del -net 10.0.0.0 netmask 255.0.0.0 gw 11.0.0.1 metric 3 || true
         NM_CONTROLLED=no
         ONBOOT=yes
         SLAVE=yes
+        STARTMODE=auto
         TYPE=Ethernet
         USERCTL=no
         """),
@@ -1334,6 +1382,7 @@ pre-down route del -net 10.0.0.0 netmask 255.0.0.0 gw 11.0.0.1 metric 3 || true
         NETMASK1=255.255.255.0
         NM_CONTROLLED=no
         ONBOOT=yes
+        STARTMODE=auto
         TYPE=Bond
         USERCTL=no
         """),
@@ -1345,10 +1394,15 @@ pre-down route del -net 10.0.0.0 netmask 255.0.0.0 gw 11.0.0.1 metric 3 || true
         NM_CONTROLLED=no
         ONBOOT=yes
         SLAVE=yes
+        STARTMODE=auto
         TYPE=Ethernet
         USERCTL=no
         """),
             'route6-bond0': textwrap.dedent("""\
+        # Created by cloud-init on instance boot automatically, do not edit.
+        #
+        2001:67c:1/ffff:ffff:0 via 2001:67c:1562:1  dev bond0
+        3001:67c:1/ffff:ffff:0 via 3001:67c:1562:1 metric 10000 dev bond0
             """),
             'route-bond0': textwrap.dedent("""\
         ADDRESS0=10.1.3.0
@@ -1363,6 +1417,7 @@ pre-down route del -net 10.0.0.0 netmask 255.0.0.0 gw 11.0.0.1 metric 3 || true
         NM_CONTROLLED=no
         ONBOOT=yes
         SLAVE=yes
+        STARTMODE=auto
         TYPE=Ethernet
         USERCTL=no
         """),
@@ -1400,6 +1455,7 @@ pre-down route del -net 10.0.0.0 netmask 255.0.0.0 gw 11.0.0.1 metric 3 || true
                 HWADDR=aa:bb:cc:dd:e8:00
                 NM_CONTROLLED=no
                 ONBOOT=yes
+                STARTMODE=auto
                 TYPE=Ethernet
                 USERCTL=no"""),
             'ifcfg-en0.99': textwrap.dedent("""\
@@ -1418,6 +1474,7 @@ pre-down route del -net 10.0.0.0 netmask 255.0.0.0 gw 11.0.0.1 metric 3 || true
                 NM_CONTROLLED=no
                 ONBOOT=yes
                 PHYSDEV=en0
+                STARTMODE=auto
                 TYPE=Ethernet
                 USERCTL=no
                 VLAN=yes"""),
@@ -1459,6 +1516,7 @@ pre-down route del -net 10.0.0.0 netmask 255.0.0.0 gw 11.0.0.1 metric 3 || true
                 NM_CONTROLLED=no
                 ONBOOT=yes
                 PRIO=22
+                STARTMODE=auto
                 STP=no
                 TYPE=Bridge
                 USERCTL=no
@@ -1472,6 +1530,7 @@ pre-down route del -net 10.0.0.0 netmask 255.0.0.0 gw 11.0.0.1 metric 3 || true
                 IPV6INIT=yes
                 NM_CONTROLLED=no
                 ONBOOT=yes
+                STARTMODE=auto
                 TYPE=Ethernet
                 USERCTL=no
                 """),
@@ -1484,6 +1543,7 @@ pre-down route del -net 10.0.0.0 netmask 255.0.0.0 gw 11.0.0.1 metric 3 || true
                 IPV6INIT=yes
                 NM_CONTROLLED=no
                 ONBOOT=yes
+                STARTMODE=auto
                 TYPE=Ethernet
                 USERCTL=no
                 """),
@@ -1558,6 +1618,7 @@ pre-down route del -net 10.0.0.0 netmask 255.0.0.0 gw 11.0.0.1 metric 3 || true
                 NETMASK=255.255.255.0
                 NM_CONTROLLED=no
                 ONBOOT=no
+                STARTMODE=manual
                 TYPE=Ethernet
                 USERCTL=no
                 """),
@@ -1568,6 +1629,7 @@ pre-down route del -net 10.0.0.0 netmask 255.0.0.0 gw 11.0.0.1 metric 3 || true
                 MTU=1480
                 NM_CONTROLLED=no
                 ONBOOT=yes
+                STARTMODE=auto
                 TYPE=Ethernet
                 USERCTL=no
                 """),
@@ -1577,6 +1639,7 @@ pre-down route del -net 10.0.0.0 netmask 255.0.0.0 gw 11.0.0.1 metric 3 || true
                 HWADDR=52:54:00:12:34:ff
                 NM_CONTROLLED=no
                 ONBOOT=no
+                STARTMODE=manual
                 TYPE=Ethernet
                 USERCTL=no
                 """),
@@ -1852,6 +1915,7 @@ class TestRhelSysConfigRendering(CiTestCase):
 
     with_logs = True
 
+    nm_cfg_file = "/etc/NetworkManager/NetworkManager.conf"
     scripts_dir = '/etc/sysconfig/network-scripts'
     header = ('# Created by cloud-init on instance boot automatically, '
               'do not edit.\n#\n')
@@ -1879,14 +1943,24 @@ class TestRhelSysConfigRendering(CiTestCase):
         return dir2dict(dir)
 
     def _compare_files_to_expected(self, expected, found):
+
+        def _try_load(f):
+            ''' Attempt to load shell content, otherwise return as-is '''
+            try:
+                return util.load_shell_content(f)
+            except ValueError:
+                pass
+            # route6- * files aren't shell content, but iproute2 params
+            return f
+
         orig_maxdiff = self.maxDiff
         expected_d = dict(
-            (os.path.join(self.scripts_dir, k), util.load_shell_content(v))
+            (os.path.join(self.scripts_dir, k), _try_load(v))
             for k, v in expected.items())
 
         # only compare the files in scripts_dir
         scripts_found = dict(
-            (k, util.load_shell_content(v)) for k, v in found.items()
+            (k, _try_load(v)) for k, v in found.items()
             if k.startswith(self.scripts_dir))
         try:
             self.maxDiff = None
@@ -1933,6 +2007,7 @@ DEVICE=eth1000
 HWADDR=07-1C-C6-75-A4-BE
 NM_CONTROLLED=no
 ONBOOT=yes
+STARTMODE=auto
 TYPE=Ethernet
 USERCTL=no
 """.lstrip()
@@ -2054,10 +2129,15 @@ IPADDR=10.0.2.15
 NETMASK=255.255.255.0
 NM_CONTROLLED=no
 ONBOOT=yes
+STARTMODE=auto
 TYPE=Ethernet
 USERCTL=no
 """
         self.assertEqual(expected, found[nspath + 'ifcfg-interface0'])
+        # The configuration has no nameserver information make sure we
+        # do not write the resolv.conf file
+        respath = '/etc/resolv.conf'
+        self.assertNotIn(respath, found.keys())
 
     def test_config_with_explicit_loopback(self):
         ns = network_state.parse_net_config_data(CONFIG_V1_EXPLICIT_LOOPBACK)
@@ -2075,6 +2155,7 @@ BOOTPROTO=dhcp
 DEVICE=eth0
 NM_CONTROLLED=no
 ONBOOT=yes
+STARTMODE=auto
 TYPE=Ethernet
 USERCTL=no
 """
@@ -2135,6 +2216,75 @@ USERCTL=no
         found = self._render_and_read(network_config=yaml.load(entry['yaml']))
         self._compare_files_to_expected(entry[self.expected_name], found)
         self._assert_headers(found)
+
+    def test_check_ifcfg_rh(self):
+        """ifcfg-rh plugin is added NetworkManager.conf if conf present."""
+        render_dir = self.tmp_dir()
+        nm_cfg = util.target_path(render_dir, path=self.nm_cfg_file)
+        util.ensure_dir(os.path.dirname(nm_cfg))
+
+        # write a template nm.conf, note plugins is a list here
+        with open(nm_cfg, 'w') as fh:
+            fh.write('# test_check_ifcfg_rh\n[main]\nplugins=foo,bar\n')
+        self.assertTrue(os.path.exists(nm_cfg))
+
+        # render and read
+        entry = NETWORK_CONFIGS['small']
+        found = self._render_and_read(network_config=yaml.load(entry['yaml']),
+                                      dir=render_dir)
+        self._compare_files_to_expected(entry[self.expected_name], found)
+        self._assert_headers(found)
+
+        # check ifcfg-rh is in the 'plugins' list
+        config = sysconfig.ConfigObj(nm_cfg)
+        self.assertIn('ifcfg-rh', config['main']['plugins'])
+
+    def test_check_ifcfg_rh_plugins_string(self):
+        """ifcfg-rh plugin is append when plugins is a string."""
+        render_dir = self.tmp_path("render")
+        os.makedirs(render_dir)
+        nm_cfg = util.target_path(render_dir, path=self.nm_cfg_file)
+        util.ensure_dir(os.path.dirname(nm_cfg))
+
+        # write a template nm.conf, note plugins is a value here
+        util.write_file(nm_cfg, '# test_check_ifcfg_rh\n[main]\nplugins=foo\n')
+
+        # render and read
+        entry = NETWORK_CONFIGS['small']
+        found = self._render_and_read(network_config=yaml.load(entry['yaml']),
+                                      dir=render_dir)
+        self._compare_files_to_expected(entry[self.expected_name], found)
+        self._assert_headers(found)
+
+        # check raw content has plugin
+        nm_file_content = util.load_file(nm_cfg)
+        self.assertIn('ifcfg-rh', nm_file_content)
+
+        # check ifcfg-rh is in the 'plugins' list
+        config = sysconfig.ConfigObj(nm_cfg)
+        self.assertIn('ifcfg-rh', config['main']['plugins'])
+
+    def test_check_ifcfg_rh_plugins_no_plugins(self):
+        """enable_ifcfg_plugin creates plugins value if missing."""
+        render_dir = self.tmp_path("render")
+        os.makedirs(render_dir)
+        nm_cfg = util.target_path(render_dir, path=self.nm_cfg_file)
+        util.ensure_dir(os.path.dirname(nm_cfg))
+
+        # write a template nm.conf, note plugins is missing
+        util.write_file(nm_cfg, '# test_check_ifcfg_rh\n[main]\n')
+        self.assertTrue(os.path.exists(nm_cfg))
+
+        # render and read
+        entry = NETWORK_CONFIGS['small']
+        found = self._render_and_read(network_config=yaml.load(entry['yaml']),
+                                      dir=render_dir)
+        self._compare_files_to_expected(entry[self.expected_name], found)
+        self._assert_headers(found)
+
+        # check ifcfg-rh is in the 'plugins' list
+        config = sysconfig.ConfigObj(nm_cfg)
+        self.assertIn('ifcfg-rh', config['main']['plugins'])
 
 
 class TestOpenSuseSysConfigRendering(CiTestCase):
@@ -2222,6 +2372,7 @@ DEVICE=eth1000
 HWADDR=07-1C-C6-75-A4-BE
 NM_CONTROLLED=no
 ONBOOT=yes
+STARTMODE=auto
 TYPE=Ethernet
 USERCTL=no
 """.lstrip()
@@ -2343,10 +2494,15 @@ IPADDR=10.0.2.15
 NETMASK=255.255.255.0
 NM_CONTROLLED=no
 ONBOOT=yes
+STARTMODE=auto
 TYPE=Ethernet
 USERCTL=no
 """
         self.assertEqual(expected, found[nspath + 'ifcfg-interface0'])
+        # The configuration has no nameserver information make sure we
+        # do not write the resolv.conf file
+        respath = '/etc/resolv.conf'
+        self.assertNotIn(respath, found.keys())
 
     def test_config_with_explicit_loopback(self):
         ns = network_state.parse_net_config_data(CONFIG_V1_EXPLICIT_LOOPBACK)
@@ -2364,6 +2520,7 @@ BOOTPROTO=dhcp
 DEVICE=eth0
 NM_CONTROLLED=no
 ONBOOT=yes
+STARTMODE=auto
 TYPE=Ethernet
 USERCTL=no
 """
@@ -3339,8 +3496,22 @@ class TestGetInterfacesByMac(CiTestCase):
         addnics = ('greptap1', 'lo', 'greptap2')
         self.data['macs'].update(dict((k, empty_mac) for k in addnics))
         self.data['devices'].update(set(addnics))
+        self.data['own_macs'].extend(list(addnics))
         ret = net.get_interfaces_by_mac()
         self.assertEqual('lo', ret[empty_mac])
+
+    def test_skip_all_zeros(self):
+        """Any mac of 00:... should be skipped."""
+        self._mock_setup()
+        emac1, emac2, emac4, emac6 = (
+            '00', '00:00', '00:00:00:00', '00:00:00:00:00:00')
+        addnics = {'empty1': emac1, 'emac2a': emac2, 'emac2b': emac2,
+                   'emac4': emac4, 'emac6': emac6}
+        self.data['macs'].update(addnics)
+        self.data['devices'].update(set(addnics))
+        self.data['own_macs'].extend(addnics.keys())
+        ret = net.get_interfaces_by_mac()
+        self.assertEqual('lo', ret['00:00:00:00:00:00'])
 
     def test_ib(self):
         ib_addr = '80:00:00:28:fe:80:00:00:00:00:00:00:00:11:22:03:00:33:44:56'
