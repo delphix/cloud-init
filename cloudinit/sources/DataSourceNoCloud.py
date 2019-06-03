@@ -170,6 +170,23 @@ class DataSourceNoCloud(sources.DataSource):
         mydata['meta-data'] = util.mergemanydict([mydata['meta-data'],
                                                   defaults])
 
+        # Delphix: when running on ESX, we want to detect when an existing
+        # VM is cloned and apply the new-instance cloud-init logic (we are
+        # especially interested in the network logic). We use the system-uuid
+        # to accomplish this.
+        system_uuid = None
+        try:
+            system_uuid = util.read_dmi_data('system-uuid')
+            system_uuid = system_uuid.lower() if system_uuid else None
+        except Exception:
+            util.logexc(LOG, "Failed to get system uuid from dmi")
+
+        if system_uuid is not None \
+                and mydata['meta-data']['instance-id'] == 'iid-system-uuid':
+            LOG.debug('instance-id set to iid-system-uuid, using system uuid')
+            mydata['meta-data'] = util.mergemanydict(
+                [{'instance-id': system_uuid}, mydata['meta-data']])
+
         self.dsmode = self._determine_dsmode(
             [mydata['meta-data'].get('dsmode')])
 
@@ -220,7 +237,13 @@ class DataSourceNoCloud(sources.DataSource):
         quick_id = _quick_read_instance_id(dirs=dirs)
         if not quick_id:
             return None
-        return quick_id == current
+
+        # Delphix: use the system uuid as instance id when the special value
+        # iid-system-uuid is passed in the seed.
+        if quick_id == 'iid-system-uuid':
+            return sources.instance_id_matches_system_uuid(current)
+        else:
+            return quick_id == current
 
     @property
     def network_config(self):
