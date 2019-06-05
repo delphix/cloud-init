@@ -8,7 +8,9 @@ you need to add the following to config:
 # Your system has configured 'manage_etc_hosts' as True.
 # As a result, if you wish for changes to this file to persist
 # then you will need to either
-# a.) make changes to the master file in /etc/cloud/templates/hosts.redhat.tmpl
+# a.) make changes to the master file in /etc/cloud/templates/hosts.debian.tmpl,
+#     then run "sudo cloud-init single --name update-etc-hosts" to update
+#     /etc/hosts
 # b.) change or remove the value of 'manage_etc_hosts' in
 #     /etc/cloud/cloud.cfg or cloud-config from user-data
 # 
