@@ -32,6 +32,12 @@ debug() {
     echo "$@" >> "$LOG"
 }
 
+disable_in_container() {
+    _RET="unset"
+    systemd-detect-virt --container --quiet && _RET="$DISABLE"
+    return 0
+}
+
 etc_file() {
     local pprefix="${1:-/etc/cloud/cloud-init.}"
     _RET="unset"
@@ -110,7 +116,7 @@ main() {
     debug 2 "$0 $*"
 
     local search result="error" ret=""
-    for search in kernel_cmdline etc_file default; do
+    for search in disable_in_container kernel_cmdline etc_file default; do
         if $search; then
             debug 1 "$search found $_RET"
             [ "$_RET" = "$ENABLE" -o "$_RET" = "$DISABLE" ] &&
