@@ -2,6 +2,7 @@
 [Unit]
 Description=Initial cloud-init job (metadata service crawler)
 DefaultDependencies=no
+After=local-fs.target
 Wants=cloud-init-local.service
 After=cloud-init-local.service
 After=systemd-networkd-wait-online.service
