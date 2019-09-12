@@ -199,7 +199,7 @@ class TestHandleSsh(CiTestCase):
         cfg = {}
         expected_call = [self.test_hostkeys[key_type] for key_type
                          in ['ecdsa', 'ed25519', 'rsa']]
-        cc_ssh.handle("name", cfg, cloud, None, None)
+        cc_ssh.handle("name", cfg, cloud, LOG, None)
         self.assertEqual([mock.call(expected_call)],
                          cloud.datasource.publish_host_keys.call_args_list)
 
@@ -228,7 +228,7 @@ class TestHandleSsh(CiTestCase):
         cfg = {'ssh_publish_hostkeys': {'enabled': True}}
         expected_call = [self.test_hostkeys[key_type] for key_type
                          in ['ecdsa', 'ed25519', 'rsa']]
-        cc_ssh.handle("name", cfg, cloud, None, None)
+        cc_ssh.handle("name", cfg, cloud, LOG, None)
         self.assertEqual([mock.call(expected_call)],
                          cloud.datasource.publish_host_keys.call_args_list)
 
@@ -255,7 +255,7 @@ class TestHandleSsh(CiTestCase):
         cloud.datasource.publish_host_keys = mock.Mock()
 
         cfg = {'ssh_publish_hostkeys': {'enabled': False}}
-        cc_ssh.handle("name", cfg, cloud, None, None)
+        cc_ssh.handle("name", cfg, cloud, LOG, None)
         self.assertFalse(cloud.datasource.publish_host_keys.call_args_list)
         cloud.datasource.publish_host_keys.assert_not_called()
 
@@ -285,7 +285,7 @@ class TestHandleSsh(CiTestCase):
                                         'blacklist': ['dsa', 'rsa']}}
         expected_call = [self.test_hostkeys[key_type] for key_type
                          in ['ecdsa', 'ed25519']]
-        cc_ssh.handle("name", cfg, cloud, None, None)
+        cc_ssh.handle("name", cfg, cloud, LOG, None)
         self.assertEqual([mock.call(expected_call)],
                          cloud.datasource.publish_host_keys.call_args_list)
 
@@ -315,6 +315,6 @@ class TestHandleSsh(CiTestCase):
                                         'blacklist': []}}
         expected_call = [self.test_hostkeys[key_type] for key_type
                          in ['dsa', 'ecdsa', 'ed25519', 'rsa']]
-        cc_ssh.handle("name", cfg, cloud, None, None)
+        cc_ssh.handle("name", cfg, cloud, LOG, None)
         self.assertEqual([mock.call(expected_call)],
                          cloud.datasource.publish_host_keys.call_args_list)
