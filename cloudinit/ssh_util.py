@@ -238,13 +238,15 @@ def extract_authorized_keys(username, sshd_cfg_file=DEF_SSHD_CFG):
     with util.SeLinuxGuard(ssh_dir, recursive=True):
         try:
             ssh_cfg = parse_ssh_config_map(sshd_cfg_file)
-            auth_key_fns = render_authorizedkeysfile_paths(
+            # Delphix: only extract keys from first path as the second path
+            # contains cli keys that should not be manipulated by cloud-init.
+            auth_key_fns = [render_authorizedkeysfile_paths(
                 ssh_cfg.get("authorizedkeysfile", "%h/.ssh/authorized_keys"),
-                pw_ent.pw_dir, username)
+                pw_ent.pw_dir, username)[0]]
 
         except (IOError, OSError):
             # Give up and use a default key filename
-            auth_key_fns[0] = default_authorizedkeys_file
+            auth_key_fns = [default_authorizedkeys_file]
             util.logexc(LOG, "Failed extracting 'AuthorizedKeysFile' in SSH "
                         "config from %r, using 'AuthorizedKeysFile' file "
                         "%r instead", DEF_SSHD_CFG, auth_key_fns[0])

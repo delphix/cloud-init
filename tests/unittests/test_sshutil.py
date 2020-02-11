@@ -384,7 +384,7 @@ class TestMultipleSshAuthorizedKeysFile(test_helpers.CiTestCase):
 
         self.assertEqual("%s/.ssh/authorized_keys" % fpw.pw_dir, auth_key_fn)
         self.assertTrue(VALID_CONTENT['rsa'] in content)
-        self.assertTrue(VALID_CONTENT['dsa'] in content)
+        self.assertFalse(VALID_CONTENT['dsa'] in content)
 
     @patch("cloudinit.ssh_util.pwd.getpwnam")
     def test_multiple_authorizedkeys_file_order2(self, m_getpwnam):
@@ -407,6 +407,6 @@ class TestMultipleSshAuthorizedKeysFile(test_helpers.CiTestCase):
 
         self.assertEqual("%s/.ssh/authorized_keys" % fpw.pw_dir, auth_key_fn)
         self.assertTrue(VALID_CONTENT['rsa'] in content)
-        self.assertTrue(VALID_CONTENT['dsa'] in content)
+        self.assertFalse(VALID_CONTENT['dsa'] in content)
 
 # vi: ts=4 expandtab
