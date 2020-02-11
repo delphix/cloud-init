@@ -1,6 +1,5 @@
 # Copyright (C) 2012 Canonical Ltd.
 # Copyright (C) 2012 Hewlett-Packard Development Company, L.P.
-# Copyright (c) 2018 by Delphix. All rights reserved.
 #
 # Author: Scott Moser <scott.moser@canonical.com>
 # Author: Juerg Hafliger <juerg.haefliger@hp.com>
@@ -9,7 +8,6 @@
 
 import os
 import pwd
-import shlex
 
 from cloudinit import log as logging
 from cloudinit import util
@@ -19,7 +17,7 @@ LOG = logging.getLogger(__name__)
 # See: man sshd_config
 DEF_SSHD_CFG = "/etc/ssh/sshd_config"
 
-# taken from openssh source openssh-7.3p1/sshkey.c:
+# taken from OpenSSH source openssh-7.3p1/sshkey.c:
 # static const struct keytype keytypes[] = { ... }
 VALID_KEY_TYPES = (
     "dsa",
@@ -162,19 +160,19 @@ class AuthKeyLineParser(object):
                            comment=comment, options=options)
 
 
-def parse_authorized_keys(fname):
+def parse_authorized_keys(fnames):
     lines = []
-    try:
-        if os.path.isfile(fname):
-            lines = util.load_file(fname).splitlines()
-    except (IOError, OSError):
-        util.logexc(LOG, "Error reading lines from %s", fname)
-        lines = []
-
     parser = AuthKeyLineParser()
     contents = []
-    for line in lines:
-        contents.append(parser.parse(line))
+    for fname in fnames:
+        try:
+            if os.path.isfile(fname):
+                lines = util.load_file(fname).splitlines()
+                for line in lines:
+                    contents.append(parser.parse(line))
+        except (IOError, OSError):
+            util.logexc(LOG, "Error reading lines from %s", fname)
+
     return contents
 
 
@@ -209,52 +207,52 @@ def update_authorized_keys(old_entries, keys):
 def users_ssh_info(username):
     pw_ent = pwd.getpwnam(username)
     if not pw_ent or not pw_ent.pw_dir:
-        raise RuntimeError("Unable to get ssh info for user %r" % (username))
+        raise RuntimeError("Unable to get SSH info for user %r" % (username))
     return (os.path.join(pw_ent.pw_dir, '.ssh'), pw_ent)
 
 
-def extract_authorized_keys(username):
+def render_authorizedkeysfile_paths(value, homedir, username):
+    # The 'AuthorizedKeysFile' may contain tokens
+    # of the form %T which are substituted during connection set-up.
+    # The following tokens are defined: %% is replaced by a literal
+    # '%', %h is replaced by the home directory of the user being
+    # authenticated and %u is replaced by the username of that user.
+    macros = (("%h", homedir), ("%u", username), ("%%", "%"))
+    if not value:
+        value = "%h/.ssh/authorized_keys"
+    paths = value.split()
+    rendered = []
+    for path in paths:
+        for macro, field in macros:
+            path = path.replace(macro, field)
+        if not path.startswith("/"):
+            path = os.path.join(homedir, path)
+        rendered.append(path)
+    return rendered
+
+
+def extract_authorized_keys(username, sshd_cfg_file=DEF_SSHD_CFG):
     (ssh_dir, pw_ent) = users_ssh_info(username)
-    auth_key_fn = None
+    default_authorizedkeys_file = os.path.join(ssh_dir, 'authorized_keys')
+    auth_key_fns = []
     with util.SeLinuxGuard(ssh_dir, recursive=True):
         try:
-            # The 'AuthorizedKeysFile' may contain tokens
-            # of the form %T which are substituted during connection set-up.
-            # The following tokens are defined: %% is replaced by a literal
-            # '%', %h is replaced by the home directory of the user being
-            # authenticated and %u is replaced by the username of that user.
-            # Note that there may be multiple files defined, separated by
-            # white space. If multiple files are detected, return the first
-            # one.
-            ssh_cfg = parse_ssh_config_map(DEF_SSHD_CFG)
-            value = ssh_cfg.get("authorizedkeysfile", '').strip()
-            if value:
-                files = shlex.split(value)
-                if len(files) == 1:
-                    auth_key_fn = files[0]
-                elif len(files) > 1:
-                    auth_key_fn = files[0]
-                    LOG.debug("Entry 'AuthorizedKeysFile' in ssh config "
-                              "defines multiple files. Using the first one: "
-                              "%r.", auth_key_fn)
-                else:
-                    LOG.debug("Entry 'AuthorizedKeysFile' in ssh config "
-                              "has empty value. Using default file.")
-            if not auth_key_fn:
-                auth_key_fn = "%h/.ssh/authorized_keys"
+            ssh_cfg = parse_ssh_config_map(sshd_cfg_file)
+            # Delphix: only extract keys from first path as the second path
+            # contains cli keys that should not be manipulated by cloud-init.
+            auth_key_fns = [render_authorizedkeysfile_paths(
+                ssh_cfg.get("authorizedkeysfile", "%h/.ssh/authorized_keys"),
+                pw_ent.pw_dir, username)[0]]
 
-            auth_key_fn = auth_key_fn.replace("%h", pw_ent.pw_dir)
-            auth_key_fn = auth_key_fn.replace("%u", username)
-            auth_key_fn = auth_key_fn.replace("%%", '%')
-            if not auth_key_fn.startswith('/'):
-                auth_key_fn = os.path.join(pw_ent.pw_dir, auth_key_fn)
-        except (IOError, OSError, ValueError):
+        except (IOError, OSError):
             # Give up and use a default key filename
-            auth_key_fn = os.path.join(ssh_dir, 'authorized_keys')
-            util.logexc(LOG, "Failed extracting 'AuthorizedKeysFile' in ssh "
+            auth_key_fns = [default_authorizedkeys_file]
+            util.logexc(LOG, "Failed extracting 'AuthorizedKeysFile' in SSH "
                         "config from %r, using 'AuthorizedKeysFile' file "
-                        "%r instead", DEF_SSHD_CFG, auth_key_fn)
-    return (auth_key_fn, parse_authorized_keys(auth_key_fn))
+                        "%r instead", DEF_SSHD_CFG, auth_key_fns[0])
+
+    # always store all the keys in the user's private file
+    return (default_authorizedkeys_file, parse_authorized_keys(auth_key_fns))
 
 
 def setup_user_keys(keys, username, options=None):
@@ -353,7 +351,7 @@ def update_ssh_config(updates, fname=DEF_SSHD_CFG):
 
 
 def update_ssh_config_lines(lines, updates):
-    """Update the ssh config lines per updates.
+    """Update the SSH config lines per updates.
 
     @param lines: array of SshdConfigLine.  This array is updated in place.
     @param updates: dictionary of desired values {Option: value}
