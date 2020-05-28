@@ -14,6 +14,7 @@ Before=sysinit.target
 Conflicts=shutdown.target
 {% endif %}
 RequiresMountsFor=/var/lib/cloud
+ConditionVirtualization=!container
 
 [Service]
 Type=oneshot
