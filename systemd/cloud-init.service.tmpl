@@ -29,6 +29,7 @@ Conflicts=shutdown.target
 Conflicts=shutdown.target
 {% endif %}
 Before=systemd-user-sessions.service
+ConditionVirtualization=!container
 
 [Service]
 Type=oneshot
