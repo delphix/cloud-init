@@ -50,6 +50,7 @@ file).
                            written to /etc/chef/client.rb)
 
     chef:
+      chef_license:
       client_key:
       encrypted_data_bag_secret:
       environment:
@@ -78,8 +79,6 @@ import os
 from cloudinit import templater
 from cloudinit import url_helper
 from cloudinit import util
-
-import six
 
 RUBY_VERSION_DEFAULT = "1.8"
 
@@ -127,6 +126,7 @@ CHEF_RB_TPL_PATH_KEYS = frozenset([
     'file_cache_path',
     'pid_file',
     'encrypted_data_bag_secret',
+    'chef_license',
 ])
 CHEF_RB_TPL_KEYS = list(CHEF_RB_TPL_DEFAULTS.keys())
 CHEF_RB_TPL_KEYS.extend(CHEF_RB_TPL_BOOL_KEYS)
@@ -273,7 +273,7 @@ def run_chef(chef_cfg, log):
         cmd_args = chef_cfg['exec_arguments']
         if isinstance(cmd_args, (list, tuple)):
             cmd.extend(cmd_args)
-        elif isinstance(cmd_args, six.string_types):
+        elif isinstance(cmd_args, str):
             cmd.append(cmd_args)
         else:
             log.warning("Unknown type %s provided for chef"
