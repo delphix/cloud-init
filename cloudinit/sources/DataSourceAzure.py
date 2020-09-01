@@ -1347,9 +1347,8 @@ def parse_network_config(imds_metadata):
                         dev_config['dhcp6'] = True
                         break
                 if dev_config:
-                    mac = ':'.join(re.findall(r'..', intf['macAddress']))
                     dev_config.update(
-                        {'match': {'macaddress': mac.lower()},
+                        {'match': {'name': nicname},
                          'set-name': nicname})
                     netconfig['ethernets'][nicname] = dev_config
             evt.description = "network config from imds"

@@ -2232,7 +2232,7 @@ class TestGenerateFallbackConfig(CiTestCase):
         network_cfg = net.generate_fallback_config(config_driver=True)
         expected = {
             'ethernets': {'eth0': {'dhcp4': True, 'set-name': 'eth0',
-                                   'match': {'macaddress': '00:11:22:33:44:55',
+                                   'match': {'name': 'eth0',
                                              'driver': 'hv_netsvc'}}},
             'version': 2}
         self.assertEqual(expected, network_cfg)
@@ -2291,14 +2291,7 @@ iface eth0 inet dhcp
         with open(os.path.join(render_dir, 'netrules')) as fh:
             contents = fh.read()
         print(contents)
-        expected_rule = [
-            'SUBSYSTEM=="net"',
-            'ACTION=="add"',
-            'DRIVERS=="hv_netsvc"',
-            'ATTR{address}=="00:11:22:33:44:55"',
-            'NAME="eth0"',
-        ]
-        self.assertEqual(", ".join(expected_rule) + '\n', contents.lstrip())
+        self.assertEqual('', contents.lstrip())
 
     @mock.patch("cloudinit.net.sys_dev_path")
     @mock.patch("cloudinit.net.read_sys_net")
@@ -2355,14 +2348,7 @@ iface eth1 inet dhcp
         with open(os.path.join(render_dir, 'netrules')) as fh:
             contents = fh.read()
         print(contents)
-        expected_rule = [
-            'SUBSYSTEM=="net"',
-            'ACTION=="add"',
-            'DRIVERS=="hv_netsvc"',
-            'ATTR{address}=="00:11:22:33:44:55"',
-            'NAME="eth1"',
-        ]
-        self.assertEqual(", ".join(expected_rule) + '\n', contents.lstrip())
+        self.assertEqual('', contents.lstrip())
 
     @mock.patch("cloudinit.util.get_cmdline")
     @mock.patch("cloudinit.util.udevadm_settle")
@@ -2519,7 +2505,6 @@ class TestRhelSysConfigRendering(CiTestCase):
 #
 BOOTPROTO=dhcp
 DEVICE=eth1000
-HWADDR=07-1c-c6-75-a4-be
 NM_CONTROLLED=no
 ONBOOT=yes
 STARTMODE=auto
@@ -3063,7 +3048,6 @@ class TestOpenSuseSysConfigRendering(CiTestCase):
 #
 BOOTPROTO=dhcp
 DEVICE=eth1000
-HWADDR=07-1c-c6-75-a4-be
 NM_CONTROLLED=no
 ONBOOT=yes
 STARTMODE=auto
@@ -3379,7 +3363,7 @@ network:
         eth1000:
             dhcp4: true
             match:
-                macaddress: 07-1c-c6-75-a4-be
+                name: eth1000
             set-name: eth1000
     version: 2
 """
