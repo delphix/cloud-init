@@ -581,7 +581,7 @@ class TestNetworkConfigFromOpcImds(test_helpers.CiTestCase):
         secondary_nic_cfg = network_config['ethernets']['ens3']
         self.assertFalse(secondary_nic_cfg['dhcp4'])
         self.assertFalse(secondary_nic_cfg['dhcp6'])
-        self.assertEqual(mac_addr, secondary_nic_cfg['match']['macaddress'])
+        self.assertEqual('ens3', secondary_nic_cfg['match']['name'])
         self.assertEqual(9000, secondary_nic_cfg['mtu'])
 
         self.assertEqual(1, len(secondary_nic_cfg['addresses']))

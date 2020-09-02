@@ -163,7 +163,7 @@ class TestParseNetworkConfig(CiTestCase):
             'eth0': {'dhcp4': True,
                      'dhcp4-overrides': {'route-metric': 100},
                      'dhcp6': False,
-                     'match': {'macaddress': '00:0d:3a:04:75:98'},
+                     'match': {'name': 'eth0'},
                      'set-name': 'eth0'}}, 'version': 2}
         self.assertEqual(expected, dsaz.parse_network_config(NETWORK_METADATA))
 
@@ -173,15 +173,15 @@ class TestParseNetworkConfig(CiTestCase):
             'eth0': {'dhcp4': True,
                      'dhcp4-overrides': {'route-metric': 100},
                      'dhcp6': False,
-                     'match': {'macaddress': '00:0d:3a:04:75:98'},
+                     'match': {'name': 'eth0'},
                      'set-name': 'eth0'},
             'eth1': {'set-name': 'eth1',
-                     'match': {'macaddress': '22:0d:3a:04:75:98'},
+                     'match': {'name': 'eth1'},
                      'dhcp6': False,
                      'dhcp4': True,
                      'dhcp4-overrides': {'route-metric': 200}},
             'eth2': {'set-name': 'eth2',
-                     'match': {'macaddress': '33:0d:3a:04:75:98'},
+                     'match': {'name': 'eth2'},
                      'dhcp6': False,
                      'dhcp4': True,
                      'dhcp4-overrides': {'route-metric': 300}}}, 'version': 2}
@@ -202,15 +202,15 @@ class TestParseNetworkConfig(CiTestCase):
                      'dhcp4-overrides': {'route-metric': 100},
                      'dhcp6': True,
                      'dhcp6-overrides': {'route-metric': 100},
-                     'match': {'macaddress': '00:0d:3a:04:75:98'},
+                     'match': {'name': 'eth0'},
                      'set-name': 'eth0'},
             'eth1': {'set-name': 'eth1',
-                     'match': {'macaddress': '22:0d:3a:04:75:98'},
+                     'match': {'name': 'eth1'},
                      'dhcp4': True,
                      'dhcp6': False,
                      'dhcp4-overrides': {'route-metric': 200}},
             'eth2': {'set-name': 'eth2',
-                     'match': {'macaddress': '33:0d:3a:04:75:98'},
+                     'match': {'name': 'eth2'},
                      'dhcp4': True,
                      'dhcp4-overrides': {'route-metric': 300},
                      'dhcp6': True,
@@ -244,7 +244,7 @@ class TestParseNetworkConfig(CiTestCase):
                      'dhcp4-overrides': {'route-metric': 100},
                      'dhcp6': True,
                      'dhcp6-overrides': {'route-metric': 100},
-                     'match': {'macaddress': '00:0d:3a:04:75:98'},
+                     'match': {'name': 'eth0'},
                      'set-name': 'eth0'}}, 'version': 2}
         imds_data = copy.deepcopy(NETWORK_METADATA)
         nic1 = imds_data['network']['interface'][0]
@@ -264,7 +264,7 @@ class TestParseNetworkConfig(CiTestCase):
                      'dhcp4-overrides': {'route-metric': 100},
                      'dhcp6': True,
                      'dhcp6-overrides': {'route-metric': 100},
-                     'match': {'macaddress': '00:0d:3a:04:75:98'},
+                     'match': {'name': 'eth0'},
                      'set-name': 'eth0'}}, 'version': 2}
         imds_data = copy.deepcopy(NETWORK_METADATA)
         nic1 = imds_data['network']['interface'][0]
@@ -764,7 +764,7 @@ scbus-1 on xpt0 bus 0
         expected_network_config = {
             'ethernets': {
                 'eth0': {'set-name': 'eth0',
-                         'match': {'macaddress': '00:0d:3a:04:75:98'},
+                         'match': {'name': 'eth0'},
                          'dhcp6': False,
                          'dhcp4': True,
                          'dhcp4-overrides': {'route-metric': 100}}},
@@ -782,17 +782,17 @@ scbus-1 on xpt0 bus 0
         expected_network_config = {
             'ethernets': {
                 'eth0': {'set-name': 'eth0',
-                         'match': {'macaddress': '00:0d:3a:04:75:98'},
+                         'match': {'name': 'eth0'},
                          'dhcp6': False,
                          'dhcp4': True,
                          'dhcp4-overrides': {'route-metric': 100}},
                 'eth1': {'set-name': 'eth1',
-                         'match': {'macaddress': '22:0d:3a:04:75:98'},
+                         'match': {'name': 'eth1'},
                          'dhcp6': False,
                          'dhcp4': True,
                          'dhcp4-overrides': {'route-metric': 200}},
                 'eth2': {'set-name': 'eth2',
-                         'match': {'macaddress': '33:0d:3a:04:75:98'},
+                         'match': {'name': 'eth2'},
                          'dhcp6': False,
                          'dhcp4': True,
                          'dhcp4-overrides': {'route-metric': 300}}},
@@ -1146,7 +1146,7 @@ scbus-1 on xpt0 bus 0
                 'eth0': {'dhcp4': True,
                          'dhcp4-overrides': {'route-metric': 100},
                          'dhcp6': False,
-                         'match': {'macaddress': '00:0d:3a:04:75:98'},
+                         'match': {'name': 'eth0'},
                          'set-name': 'eth0'}},
             'version': 2}
 

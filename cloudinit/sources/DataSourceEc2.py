@@ -754,7 +754,7 @@ def convert_ec2_metadata_network_config(
                 break
         dev_config = {'dhcp4': True,
                       'dhcp6': False,
-                      'match': {'macaddress': mac.lower()},
+                      'match': {'name': nic_name},
                       'set-name': nic_name}
         nic_metadata = macs_metadata.get(mac)
         if nic_metadata.get('ipv6s'):  # Any IPv6 addresses configured
@@ -772,7 +772,7 @@ def convert_ec2_metadata_network_config(
         dhcp_override = {'route-metric': nic_idx * 100}
         dev_config = {'dhcp4': True, 'dhcp4-overrides': dhcp_override,
                       'dhcp6': False,
-                      'match': {'macaddress': mac.lower()},
+                      'match': {'name': nic_name},
                       'set-name': nic_name}
         if nic_metadata.get('ipv6s'):  # Any IPv6 addresses configured
             dev_config['dhcp6'] = True
