@@ -398,7 +398,7 @@ class TestEc2(test_helpers.HttprettyTestCase):
 
         mac1 = '06:17:04:d7:26:09'  # Defined in DEFAULT_METADATA
         expected = {'version': 2, 'ethernets': {'eth9': {
-            'match': {'macaddress': '06:17:04:d7:26:09'}, 'set-name': 'eth9',
+            'match': {'name': 'eth9'}, 'set-name': 'eth9',
             'dhcp4': True, 'dhcp6': True}}}
         patch_path = M_PATH_NET + 'get_interfaces_by_mac'
         get_interface_mac_path = M_PATH_NET + 'get_interface_mac'
@@ -427,7 +427,7 @@ class TestEc2(test_helpers.HttprettyTestCase):
 
         mac1 = '06:17:04:d7:26:08'  # IPv4 only in DEFAULT_METADATA
         expected = {'version': 2, 'ethernets': {'eth9': {
-            'match': {'macaddress': mac1.lower()}, 'set-name': 'eth9',
+            'match': {'name': 'eth9'}, 'set-name': 'eth9',
             'dhcp4': True, 'dhcp6': False}}}
         patch_path = M_PATH_NET + 'get_interfaces_by_mac'
         get_interface_mac_path = M_PATH_NET + 'get_interface_mac'
@@ -463,7 +463,7 @@ class TestEc2(test_helpers.HttprettyTestCase):
 
         mac1 = '0a:07:84:3d:6e:38'  # 1 secondary IPv4 and 2 secondary IPv6
         expected = {'version': 2, 'ethernets': {'eth9': {
-            'match': {'macaddress': mac1}, 'set-name': 'eth9',
+            'match': {'name': 'eth9'}, 'set-name': 'eth9',
             'addresses': ['172.31.45.70/20',
                           '2600:1f16:292:100:f152:2222:3333:4444/128',
                           '2600:1f16:292:100:f153:12a3:c37c:11f9/128'],
@@ -515,7 +515,7 @@ class TestEc2(test_helpers.HttprettyTestCase):
             'Refreshing stale metadata from prior to upgrade',
             self.logs.getvalue())
         expected = {'version': 2, 'ethernets': {'eth9': {
-            'match': {'macaddress': mac1}, 'set-name': 'eth9',
+            'match': {'name': 'eth9'}, 'set-name': 'eth9',
             'dhcp4': True, 'dhcp6': True}}}
         self.assertEqual(expected, ds.network_config)
 
@@ -814,7 +814,7 @@ class TestConvertEc2MetadataNetworkConfig(test_helpers.CiTestCase):
 
         # DE:AD:BE:EF:FF:FF represented by OS but not in metadata
         expected = {'version': 2, 'ethernets': {'eth9': {
-            'match': {'macaddress': self.mac1}, 'set-name': 'eth9',
+            'match': {'name': 'eth9'}, 'set-name': 'eth9',
             'dhcp4': True, 'dhcp6': False}}}
         self.assertEqual(
             expected,
@@ -830,7 +830,7 @@ class TestConvertEc2MetadataNetworkConfig(test_helpers.CiTestCase):
         nic1_metadata['ipv6s'] = '2620:0:1009:fd00:e442:c88d:c04d:dc85/64'
         nic1_metadata.pop('public-ipv4s')
         expected = {'version': 2, 'ethernets': {'eth9': {
-            'match': {'macaddress': self.mac1}, 'set-name': 'eth9',
+            'match': {'name': 'eth9'}, 'set-name': 'eth9',
             'dhcp4': True, 'dhcp6': True}}}
         self.assertEqual(
             expected,
@@ -846,7 +846,7 @@ class TestConvertEc2MetadataNetworkConfig(test_helpers.CiTestCase):
         nic1_metadata['local-ipv4s'] = '172.3.3.15'
         nic1_metadata.pop('public-ipv4s')
         expected = {'version': 2, 'ethernets': {'eth9': {
-            'match': {'macaddress': self.mac1}, 'set-name': 'eth9',
+            'match': {'name': 'eth9'}, 'set-name': 'eth9',
             'dhcp4': True, 'dhcp6': False}}}
         self.assertEqual(
             expected,
@@ -863,7 +863,7 @@ class TestConvertEc2MetadataNetworkConfig(test_helpers.CiTestCase):
 
         # When no ipv4 or ipv6 content but fallback_nic set, set dhcp4 config.
         expected = {'version': 2, 'ethernets': {'eth9': {
-            'match': {'macaddress': self.mac1}, 'set-name': 'eth9',
+            'match': {'name': 'eth9'}, 'set-name': 'eth9',
             'dhcp4': True, 'dhcp6': False}}}
         self.assertEqual(
             expected,
@@ -880,7 +880,7 @@ class TestConvertEc2MetadataNetworkConfig(test_helpers.CiTestCase):
         nic1_metadata.pop('public-ipv4s')
         nic1_metadata['local-ipv4s'] = '10.0.0.42'  # Local ipv4 only on vpc
         expected = {'version': 2, 'ethernets': {'eth9': {
-            'match': {'macaddress': self.mac1}, 'set-name': 'eth9',
+            'match': {'name': 'eth9'}, 'set-name': 'eth9',
             'dhcp4': True, 'dhcp6': True}}}
         self.assertEqual(
             expected,
@@ -901,11 +901,11 @@ class TestConvertEc2MetadataNetworkConfig(test_helpers.CiTestCase):
         nic1_metadata['local-ipv4s'] = '10.0.0.42'  # Local ipv4 only on vpc
         expected = {'version': 2, 'ethernets': {
             'eth9': {
-                'match': {'macaddress': self.mac1}, 'set-name': 'eth9',
+                'match': {'name': 'eth9'}, 'set-name': 'eth9',
                 'dhcp4': True, 'dhcp4-overrides': {'route-metric': 100},
                 'dhcp6': True, 'dhcp6-overrides': {'route-metric': 100}},
             'eth10': {
-                'match': {'macaddress': mac2}, 'set-name': 'eth10',
+                'match': {'name': 'eth10'}, 'set-name': 'eth10',
                 'dhcp4': True, 'dhcp4-overrides': {'route-metric': 200},
                 'dhcp6': False}}}
         self.assertEqual(
@@ -921,7 +921,7 @@ class TestConvertEc2MetadataNetworkConfig(test_helpers.CiTestCase):
             network_metadata_both['interfaces']['macs'][self.mac1])
         nic1_metadata['ipv6s'] = '2620:0:1009:fd00:e442:c88d:c04d:dc85/64'
         expected = {'version': 2, 'ethernets': {'eth9': {
-            'match': {'macaddress': self.mac1}, 'set-name': 'eth9',
+            'match': {'name': 'eth9'}, 'set-name': 'eth9',
             'dhcp4': True, 'dhcp6': True}}}
         self.assertEqual(
             expected,
@@ -931,7 +931,7 @@ class TestConvertEc2MetadataNetworkConfig(test_helpers.CiTestCase):
     def test_convert_ec2_metadata_gets_macs_from_get_interfaces_by_mac(self):
         """Convert Ec2 Metadata calls get_interfaces_by_mac by default."""
         expected = {'version': 2, 'ethernets': {'eth9': {
-            'match': {'macaddress': self.mac1},
+            'match': {'name': 'eth9'},
             'set-name': 'eth9', 'dhcp4': True, 'dhcp6': False}}}
         patch_path = M_PATH_NET + 'get_interfaces_by_mac'
         with mock.patch(patch_path) as m_get_interfaces_by_mac:

@@ -107,7 +107,7 @@ def _add_network_config_from_opc_imds(network_config):
             network_config['ethernets'][name] = {
                 'addresses': [vnic_dict['privateIp']],
                 'mtu': MTU, 'dhcp4': False, 'dhcp6': False,
-                'match': {'macaddress': mac_address}}
+                'match': {'name': name}, 'set-name': name}
 
 
 def _ensure_netfailover_safe(network_config):
