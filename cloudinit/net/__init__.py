@@ -273,9 +273,15 @@ def generate_fallback_config(blacklist_drivers=None, config_driver=None):
     if not target_name:
         # can't read any interfaces addresses (or there are none); give up
         return None
-    target_mac = read_sys_net_safe(target_name, 'address')
+
+    #
+    # Always match on the name, rather than the MAC address. This way,
+    # if the MAC address changes (which is possible VM environments),
+    # the network configuration will still apply.
+    #
     cfg = {'dhcp4': True, 'set-name': target_name,
-           'match': {'macaddress': target_mac.lower()}}
+           'match': {'name': target_name}}
+
     if config_driver:
         driver = device_driver(target_name)
         if driver:

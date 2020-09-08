@@ -640,7 +640,7 @@ scbus-1 on xpt0 bus 0
         expected_network_config = {
             'ethernets': {
                 'eth0': {'set-name': 'eth0',
-                         'match': {'macaddress': '00:0d:3a:04:75:98'},
+                         'match': {'name': 'eth0'},
                          'dhcp4': True,
                          'dhcp4-overrides': {'route-metric': 100}}},
             'version': 2}
@@ -657,15 +657,15 @@ scbus-1 on xpt0 bus 0
         expected_network_config = {
             'ethernets': {
                 'eth0': {'set-name': 'eth0',
-                         'match': {'macaddress': '00:0d:3a:04:75:98'},
+                         'match': {'name': 'eth0'},
                          'dhcp4': True,
                          'dhcp4-overrides': {'route-metric': 100}},
                 'eth1': {'set-name': 'eth1',
-                         'match': {'macaddress': '22:0d:3a:04:75:98'},
+                         'match': {'name': 'eth1'},
                          'dhcp4': True,
                          'dhcp4-overrides': {'route-metric': 200}},
                 'eth2': {'set-name': 'eth2',
-                         'match': {'macaddress': '33:0d:3a:04:75:98'},
+                         'match': {'name': 'eth2'},
                          'dhcp4': True,
                          'dhcp4-overrides': {'route-metric': 300}}},
             'version': 2}
@@ -983,7 +983,7 @@ scbus-1 on xpt0 bus 0
             'ethernets': {
                 'eth0': {'dhcp4': True,
                          'dhcp4-overrides': {'route-metric': 100},
-                         'match': {'macaddress': '00:0d:3a:04:75:98'},
+                         'match': {'name': 'eth0'},
                          'set-name': 'eth0'}},
             'version': 2}
 

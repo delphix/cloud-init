@@ -212,7 +212,7 @@ class TestGenerateFallbackConfig(CiTestCase):
         mac = 'aa:bb:cc:aa:bb:cc'
         write_file(os.path.join(self.sysdir, 'eth1', 'address'), mac)
         expected = {
-            'ethernets': {'eth1': {'match': {'macaddress': mac},
+            'ethernets': {'eth1': {'match': {'name': 'eth1'},
                                    'dhcp4': True, 'set-name': 'eth1'}},
             'version': 2}
         self.assertEqual(expected, net.generate_fallback_config())
@@ -223,7 +223,7 @@ class TestGenerateFallbackConfig(CiTestCase):
         mac = 'aa:bb:cc:aa:bb:cc'
         write_file(os.path.join(self.sysdir, 'eth0', 'address'), mac)
         expected = {
-            'ethernets': {'eth0': {'match': {'macaddress': mac}, 'dhcp4': True,
+            'ethernets': {'eth0': {'match': {'name': 'eth0'}, 'dhcp4': True,
                                    'set-name': 'eth0'}},
             'version': 2}
         self.assertEqual(expected, net.generate_fallback_config())
@@ -234,7 +234,7 @@ class TestGenerateFallbackConfig(CiTestCase):
         write_file(os.path.join(self.sysdir, 'eth0', 'address'), mac)
         expected = {
             'ethernets': {
-                'eth0': {'dhcp4': True, 'match': {'macaddress': mac},
+                'eth0': {'dhcp4': True, 'match': {'name': 'eth0'},
                          'set-name': 'eth0'}},
             'version': 2}
         valid_operstates = ['dormant', 'down', 'lowerlayerdown', 'unknown']
