@@ -250,7 +250,7 @@ class TestMaybeInstallUATools(CiTestCase):
         super(TestMaybeInstallUATools, self).setUp()
         self.tmp = self.tmp_dir()
 
-    @mock.patch('%s.util.which' % MPATH)
+    @mock.patch('%s.subp.which' % MPATH)
     def test_maybe_install_ua_tools_noop_when_ua_tools_present(self, m_which):
         """Do nothing if ubuntu-advantage-tools already exists."""
         m_which.return_value = '/usr/bin/ubuntu-advantage'  # already installed
@@ -259,7 +259,7 @@ class TestMaybeInstallUATools(CiTestCase):
             'Some apt error')
         maybe_install_ua_tools(cloud=FakeCloud(distro))  # No RuntimeError
 
-    @mock.patch('%s.util.which' % MPATH)
+    @mock.patch('%s.subp.which' % MPATH)
     def test_maybe_install_ua_tools_raises_update_errors(self, m_which):
         """maybe_install_ua_tools logs and raises apt update errors."""
         m_which.return_value = None
@@ -271,7 +271,7 @@ class TestMaybeInstallUATools(CiTestCase):
         self.assertEqual('Some apt error', str(context_manager.exception))
         self.assertIn('Package update failed\nTraceback', self.logs.getvalue())
 
-    @mock.patch('%s.util.which' % MPATH)
+    @mock.patch('%s.subp.which' % MPATH)
     def test_maybe_install_ua_raises_install_errors(self, m_which):
         """maybe_install_ua_tools logs and raises package install errors."""
         m_which.return_value = None
@@ -285,7 +285,7 @@ class TestMaybeInstallUATools(CiTestCase):
         self.assertIn(
             'Failed to install ubuntu-advantage-tools\n', self.logs.getvalue())
 
-    @mock.patch('%s.util.which' % MPATH)
+    @mock.patch('%s.subp.which' % MPATH)
     def test_maybe_install_ua_tools_happy_path(self, m_which):
         """maybe_install_ua_tools installs ubuntu-advantage-tools."""
         m_which.return_value = None
