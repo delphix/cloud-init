@@ -288,7 +288,7 @@ class TestParseNetworkConfig(CiTestCase):
                 'dhcp4-overrides': {'route-metric': 100},
                 'dhcp6': False,
                 'match': {
-                    'macaddress': '00:0d:3a:04:75:98',
+                    'name': 'eth0',
                     'driver': 'hv_netvsc',
                 },
                 'set-name': 'eth0'
