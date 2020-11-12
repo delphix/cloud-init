@@ -8,11 +8,10 @@ import copy
 import httpretty as hp
 import json
 import re
+from io import StringIO
+from urllib.parse import urlparse
 
 from cloudinit.tests import helpers as test_helpers
-
-from six.moves.urllib.parse import urlparse
-from six import StringIO, text_type
 
 from cloudinit import helpers
 from cloudinit import settings
@@ -280,7 +279,7 @@ class TestOpenStackDataSource(test_helpers.HttprettyTestCase):
         self.assertEqual(2, len(ds_os_local.files))
         self.assertEqual(VENDOR_DATA, ds_os_local.vendordata_pure)
         self.assertIsNone(ds_os_local.vendordata_raw)
-        m_dhcp.assert_called_with('eth9')
+        m_dhcp.assert_called_with('eth9', None)
 
     def test_bad_datasource_meta(self):
         os_files = copy.deepcopy(OS_FILES)
@@ -511,6 +510,24 @@ class TestDetectOpenStack(test_helpers.CiTestCase):
             'Expected detect_openstack == True on OpenTelekomCloud')
 
     @test_helpers.mock.patch(MOCK_PATH + 'util.read_dmi_data')
+    def test_detect_openstack_sapccloud_chassis_asset_tag(self, m_dmi,
+                                                          m_is_x86):
+        """Return True on OpenStack reporting SAP CCloud VM asset-tag."""
+        m_is_x86.return_value = True
+
+        def fake_dmi_read(dmi_key):
+            if dmi_key == 'system-product-name':
+                return 'VMware Virtual Platform'  # SAP CCloud uses VMware
+            if dmi_key == 'chassis-asset-tag':
+                return 'SAP CCloud VM'
+            assert False, 'Unexpected dmi read of %s' % dmi_key
+
+        m_dmi.side_effect = fake_dmi_read
+        self.assertTrue(
+            ds.detect_openstack(),
+            'Expected detect_openstack == True on SAP CCloud VM')
+
+    @test_helpers.mock.patch(MOCK_PATH + 'util.read_dmi_data')
     def test_detect_openstack_oraclecloud_chassis_asset_tag(self, m_dmi,
                                                             m_is_x86):
         """Return True on OpenStack reporting Oracle cloud asset-tag."""
@@ -569,8 +586,7 @@ class TestMetadataReader(test_helpers.HttprettyTestCase):
         'uuid': 'b0fa911b-69d4-4476-bbe2-1c92bff6535c'}
 
     def register(self, path, body=None, status=200):
-        content = (body if not isinstance(body, text_type)
-                   else body.encode('utf-8'))
+        content = body if not isinstance(body, str) else body.encode('utf-8')
         hp.register_uri(
             hp.GET, self.burl + "openstack" + path, status=status,
             body=content)

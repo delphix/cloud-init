@@ -1,9 +1,11 @@
 # This file is part of cloud-init. See LICENSE file for license information.
 
 from cloudinit.url_helper import (
-    NOT_FOUND, UrlError, oauth_headers, read_file_or_url, retry_on_url_exc)
+    NOT_FOUND, UrlError, REDACTED, oauth_headers, read_file_or_url,
+    retry_on_url_exc)
 from cloudinit.tests.helpers import CiTestCase, mock, skipIf
 from cloudinit import util
+from cloudinit import version
 
 import httpretty
 import requests
@@ -15,6 +17,9 @@ try:
     _missing_oauthlib_dep = False
 except ImportError:
     _missing_oauthlib_dep = True
+
+
+M_PATH = 'cloudinit.url_helper.'
 
 
 class TestOAuthHeaders(CiTestCase):
@@ -46,6 +51,9 @@ class TestOAuthHeaders(CiTestCase):
 
 
 class TestReadFileOrUrl(CiTestCase):
+
+    with_logs = True
+
     def test_read_file_or_url_str_from_file(self):
         """Test that str(result.contents) on file is text version of contents.
         It should not be "b'data'", but just "'data'" """
@@ -66,6 +74,83 @@ class TestReadFileOrUrl(CiTestCase):
         result = read_file_or_url(url)
         self.assertEqual(result.contents, data)
         self.assertEqual(str(result), data.decode('utf-8'))
+
+    @httpretty.activate
+    def test_read_file_or_url_str_from_url_redacting_headers_from_logs(self):
+        """Headers are redacted from logs but unredacted in requests."""
+        url = 'http://hostname/path'
+        headers = {'sensitive': 'sekret', 'server': 'blah'}
+        httpretty.register_uri(httpretty.GET, url)
+
+        read_file_or_url(url, headers=headers, headers_redact=['sensitive'])
+        logs = self.logs.getvalue()
+        for k in headers.keys():
+            self.assertEqual(headers[k], httpretty.last_request().headers[k])
+        self.assertIn(REDACTED, logs)
+        self.assertNotIn('sekret', logs)
+
+    @httpretty.activate
+    def test_read_file_or_url_str_from_url_redacts_noheaders(self):
+        """When no headers_redact, header values are in logs and requests."""
+        url = 'http://hostname/path'
+        headers = {'sensitive': 'sekret', 'server': 'blah'}
+        httpretty.register_uri(httpretty.GET, url)
+
+        read_file_or_url(url, headers=headers)
+        for k in headers.keys():
+            self.assertEqual(headers[k], httpretty.last_request().headers[k])
+        logs = self.logs.getvalue()
+        self.assertNotIn(REDACTED, logs)
+        self.assertIn('sekret', logs)
+
+    @mock.patch(M_PATH + 'readurl')
+    def test_read_file_or_url_passes_params_to_readurl(self, m_readurl):
+        """read_file_or_url passes all params through to readurl."""
+        url = 'http://hostname/path'
+        response = 'This is my url content\n'
+        m_readurl.return_value = response
+        params = {'url': url, 'timeout': 1, 'retries': 2,
+                  'headers': {'somehdr': 'val'},
+                  'data': 'data', 'sec_between': 1,
+                  'ssl_details': {'cert_file': '/path/cert.pem'},
+                  'headers_cb': 'headers_cb', 'exception_cb': 'exception_cb'}
+        self.assertEqual(response, read_file_or_url(**params))
+        params.pop('url')  # url is passed in as a positional arg
+        self.assertEqual([mock.call(url, **params)], m_readurl.call_args_list)
+
+    def test_wb_read_url_defaults_honored_by_read_file_or_url_callers(self):
+        """Readurl param defaults used when unspecified by read_file_or_url
+
+        Param defaults tested are as follows:
+            retries: 0, additional headers None beyond default, method: GET,
+            data: None, check_status: True and allow_redirects: True
+        """
+        url = 'http://hostname/path'
+
+        m_response = mock.MagicMock()
+
+        class FakeSession(requests.Session):
+            @classmethod
+            def request(cls, **kwargs):
+                self.assertEqual(
+                    {'url': url, 'allow_redirects': True, 'method': 'GET',
+                     'headers': {
+                         'User-Agent': 'Cloud-Init/%s' % (
+                             version.version_string())}},
+                    kwargs)
+                return m_response
+
+        with mock.patch(M_PATH + 'requests.Session') as m_session:
+            error = requests.exceptions.HTTPError('broke')
+            m_session.side_effect = [error, FakeSession()]
+            # assert no retries and check_status == True
+            with self.assertRaises(UrlError) as context_manager:
+                response = read_file_or_url(url)
+            self.assertEqual('broke', str(context_manager.exception))
+            # assert default headers, method, url and allow_redirects True
+            # Success on 2nd call with FakeSession
+            response = read_file_or_url(url)
+        self.assertEqual(m_response, response._response)
 
 
 class TestRetryOnUrlExc(CiTestCase):

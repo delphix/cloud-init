@@ -21,7 +21,17 @@ key, and the fqdn of the cloud wil be used. If a fqdn specified with the
 the ``fqdn`` config key. If both ``fqdn`` and ``hostname`` are set, ``fqdn``
 will be used.
 
-**Internal name:** per instance
+This module will run in the init-local stage before networking is configured
+if the hostname is set by metadata or user data on the local system.
+
+This will occur on datasources like nocloud and ovf where metadata and user
+data are available locally. This ensures that the desired hostname is applied
+before any DHCP requests are preformed on these platforms where dynamic DNS is
+based on initial hostname.
+
+**Internal name:** ``cc_set_hostname``
+
+**Module frequency:** per always
 
 **Supported distros:** all
 
@@ -45,7 +55,6 @@ class SetHostnameError(Exception):
     This may happen if we attempt to set the hostname early in cloud-init's
     init-local timeframe as certain services may not be running yet.
     """
-    pass
 
 
 def handle(name, cfg, cloud, log, _args):
@@ -76,7 +85,7 @@ def handle(name, cfg, cloud, log, _args):
     except Exception as e:
         msg = "Failed to set the hostname to %s (%s)" % (fqdn, hostname)
         util.logexc(log, msg)
-        raise SetHostnameError("%s: %s" % (msg, e))
+        raise SetHostnameError("%s: %s" % (msg, e)) from e
     write_json(prev_fn, {'hostname': hostname, 'fqdn': fqdn})
 
 # vi: ts=4 expandtab

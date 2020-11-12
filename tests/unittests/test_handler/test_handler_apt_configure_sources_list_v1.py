@@ -7,16 +7,13 @@ import logging
 import os
 import shutil
 import tempfile
-
-try:
-    from unittest import mock
-except ImportError:
-    import mock
+from unittest import mock
 
 from cloudinit import cloud
 from cloudinit import distros
 from cloudinit import helpers
 from cloudinit import templater
+from cloudinit import subp
 from cloudinit import util
 
 from cloudinit.config import cc_apt_configure
@@ -70,7 +67,7 @@ class TestAptSourceConfigSourceList(t_help.FilesystemMockingTestCase):
     """
     def setUp(self):
         super(TestAptSourceConfigSourceList, self).setUp()
-        self.subp = util.subp
+        self.subp = subp.subp
         self.new_root = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.new_root)
 
@@ -78,7 +75,7 @@ class TestAptSourceConfigSourceList(t_help.FilesystemMockingTestCase):
         get_rel = rpatcher.start()
         get_rel.return_value = {'codename': "fakerelease"}
         self.addCleanup(rpatcher.stop)
-        apatcher = mock.patch("cloudinit.util.get_architecture")
+        apatcher = mock.patch("cloudinit.util.get_dpkg_architecture")
         get_arch = apatcher.start()
         get_arch.return_value = 'amd64'
         self.addCleanup(apatcher.stop)
@@ -104,6 +101,7 @@ class TestAptSourceConfigSourceList(t_help.FilesystemMockingTestCase):
             cfg = {'apt_mirror_search': mirror}
         else:
             cfg = {'apt_mirror': mirror}
+
         mycloud = self._get_cloud(distro)
 
         with mock.patch.object(util, 'write_file') as mockwf:
@@ -111,8 +109,9 @@ class TestAptSourceConfigSourceList(t_help.FilesystemMockingTestCase):
                                    return_value="faketmpl") as mocklf:
                 with mock.patch.object(os.path, 'isfile',
                                        return_value=True) as mockisfile:
-                    with mock.patch.object(templater, 'render_string',
-                                           return_value="fake") as mockrnd:
+                    with mock.patch.object(
+                        templater, 'render_string',
+                            return_value='fake') as mockrnd:
                         with mock.patch.object(util, 'rename'):
                             cc_apt_configure.handle("test", cfg, mycloud,
                                                     LOG, None)
@@ -180,7 +179,7 @@ class TestAptSourceConfigSourceList(t_help.FilesystemMockingTestCase):
 
         # the second mock restores the original subp
         with mock.patch.object(util, 'write_file') as mockwrite:
-            with mock.patch.object(util, 'subp', self.subp):
+            with mock.patch.object(subp, 'subp', self.subp):
                 with mock.patch.object(Distro, 'get_primary_arch',
                                        return_value='amd64'):
                     cc_apt_configure.handle("notimportant", cfg, mycloud,

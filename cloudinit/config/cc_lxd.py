@@ -48,6 +48,7 @@ lxd-bridge will be configured accordingly.
 """
 
 from cloudinit import log as logging
+from cloudinit import subp
 from cloudinit import util
 import os
 
@@ -66,36 +67,36 @@ def handle(name, cfg, cloud, log, args):
                   name)
         return
     if not isinstance(lxd_cfg, dict):
-        log.warn("lxd config must be a dictionary. found a '%s'",
-                 type(lxd_cfg))
+        log.warning("lxd config must be a dictionary. found a '%s'",
+                    type(lxd_cfg))
         return
 
     # Grab the configuration
     init_cfg = lxd_cfg.get('init')
     if not isinstance(init_cfg, dict):
-        log.warn("lxd/init config must be a dictionary. found a '%s'",
-                 type(init_cfg))
+        log.warning("lxd/init config must be a dictionary. found a '%s'",
+                    type(init_cfg))
         init_cfg = {}
 
     bridge_cfg = lxd_cfg.get('bridge', {})
     if not isinstance(bridge_cfg, dict):
-        log.warn("lxd/bridge config must be a dictionary. found a '%s'",
-                 type(bridge_cfg))
+        log.warning("lxd/bridge config must be a dictionary. found a '%s'",
+                    type(bridge_cfg))
         bridge_cfg = {}
 
     # Install the needed packages
     packages = []
-    if not util.which("lxd"):
+    if not subp.which("lxd"):
         packages.append('lxd')
 
-    if init_cfg.get("storage_backend") == "zfs" and not util.which('zfs'):
+    if init_cfg.get("storage_backend") == "zfs" and not subp.which('zfs'):
         packages.append('zfsutils-linux')
 
     if len(packages):
         try:
             cloud.distro.install_packages(packages)
-        except util.ProcessExecutionError as exc:
-            log.warn("failed to install packages %s: %s", packages, exc)
+        except subp.ProcessExecutionError as exc:
+            log.warning("failed to install packages %s: %s", packages, exc)
             return
 
     # Set up lxd if init config is given
@@ -104,20 +105,20 @@ def handle(name, cfg, cloud, log, args):
             'network_address', 'network_port', 'storage_backend',
             'storage_create_device', 'storage_create_loop',
             'storage_pool', 'trust_password')
-        util.subp(['lxd', 'waitready', '--timeout=300'])
+        subp.subp(['lxd', 'waitready', '--timeout=300'])
         cmd = ['lxd', 'init', '--auto']
         for k in init_keys:
             if init_cfg.get(k):
                 cmd.extend(["--%s=%s" %
                             (k.replace('_', '-'), str(init_cfg[k]))])
-        util.subp(cmd)
+        subp.subp(cmd)
 
     # Set up lxd-bridge if bridge config is given
     dconf_comm = "debconf-communicate"
     if bridge_cfg:
         net_name = bridge_cfg.get("name", _DEFAULT_NETWORK_NAME)
         if os.path.exists("/etc/default/lxd-bridge") \
-                and util.which(dconf_comm):
+                and subp.which(dconf_comm):
             # Bridge configured through packaging
 
             debconf = bridge_to_debconf(bridge_cfg)
@@ -127,7 +128,7 @@ def handle(name, cfg, cloud, log, args):
                 log.debug("Setting lxd debconf via " + dconf_comm)
                 data = "\n".join(["set %s %s" % (k, v)
                                   for k, v in debconf.items()]) + "\n"
-                util.subp(['debconf-communicate'], data)
+                subp.subp(['debconf-communicate'], data)
             except Exception:
                 util.logexc(log, "Failed to run '%s' for lxd with" %
                             dconf_comm)
@@ -137,7 +138,7 @@ def handle(name, cfg, cloud, log, args):
 
             # Run reconfigure
             log.debug("Running dpkg-reconfigure for lxd")
-            util.subp(['dpkg-reconfigure', 'lxd',
+            subp.subp(['dpkg-reconfigure', 'lxd',
                        '--frontend=noninteractive'])
         else:
             # Built-in LXD bridge support
@@ -264,7 +265,7 @@ def _lxc(cmd):
     env = {'LC_ALL': 'C',
            'HOME': os.environ.get('HOME', '/root'),
            'USER': os.environ.get('USER', 'root')}
-    util.subp(['lxc'] + list(cmd) + ["--force-local"], update_env=env)
+    subp.subp(['lxc'] + list(cmd) + ["--force-local"], update_env=env)
 
 
 def maybe_cleanup_default(net_name, did_init, create, attach,
@@ -286,7 +287,7 @@ def maybe_cleanup_default(net_name, did_init, create, attach,
         try:
             _lxc(["network", "delete", net_name])
             LOG.debug(msg, net_name, succeeded)
-        except util.ProcessExecutionError as e:
+        except subp.ProcessExecutionError as e:
             if e.exit_code != 1:
                 raise e
             LOG.debug(msg, net_name, fail_assume_enoent)
@@ -296,10 +297,9 @@ def maybe_cleanup_default(net_name, did_init, create, attach,
         try:
             _lxc(["profile", "device", "remove", profile, nic_name])
             LOG.debug(msg, nic_name, profile, succeeded)
-        except util.ProcessExecutionError as e:
+        except subp.ProcessExecutionError as e:
             if e.exit_code != 1:
                 raise e
             LOG.debug(msg, nic_name, profile, fail_assume_enoent)
-
 
 # vi: ts=4 expandtab

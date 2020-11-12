@@ -62,7 +62,7 @@ IMDS
 ----
 Azure provides the `instance metadata service (IMDS)
 <https://docs.microsoft.com/en-us/azure/virtual-machines/windows/instance-metadata-service>`_
-which is a REST service on ``196.254.196.254`` providing additional
+which is a REST service on ``169.254.169.254`` providing additional
 configuration information to the instance. Cloud-init uses the IMDS for:
 
 - network configuration for the instance which is applied per boot
@@ -82,7 +82,8 @@ The settings that may be configured are:
    provided command to obtain metadata.
  * **apply_network_config**: Boolean set to True to use network configuration
    described by Azure's IMDS endpoint instead of fallback network config of
-   dhcp on eth0. Default is True. For Ubuntu 16.04 or earlier, default is False.
+   dhcp on eth0. Default is True. For Ubuntu 16.04 or earlier, default is
+   False.
  * **data_dir**: Path used to read metadata files and write crawled data.
  * **dhclient_lease_file**: The fallback lease file to source when looking for
    custom DHCP option 245 from Azure fabric.
@@ -113,19 +114,19 @@ An example configuration with the default values is provided below:
 .. sourcecode:: yaml
 
   datasource:
-   Azure:
-    agent_command: __builtin__
-    apply_network_config: true
-    data_dir: /var/lib/waagent
-    dhclient_lease_file: /var/lib/dhcp/dhclient.eth0.leases
-    disk_aliases:
+    Azure:
+      agent_command: __builtin__
+      apply_network_config: true
+      data_dir: /var/lib/waagent
+      dhclient_lease_file: /var/lib/dhcp/dhclient.eth0.leases
+      disk_aliases:
         ephemeral0: /dev/disk/cloud/azure_resource
-    hostname_bounce:
+      hostname_bounce:
         interface: eth0
         command: builtin
         policy: true
         hostname_command: hostname
-    set_hostname: true
+      set_hostname: true
 
 
 Userdata

@@ -17,20 +17,17 @@ from cloudinit.tests import helpers as t_help
 
 from configobj import ConfigObj
 
-from six import BytesIO
-
 import logging
-import mock
 import os
 import shutil
 import tempfile
+from io import BytesIO
+from unittest import mock
 
 LOG = logging.getLogger(__name__)
 
 
 class TestLocale(t_help.FilesystemMockingTestCase):
-
-    with_logs = True
 
     def setUp(self):
         super(TestLocale, self).setUp()
@@ -87,7 +84,7 @@ class TestLocale(t_help.FilesystemMockingTestCase):
         util.write_file(locale_conf, 'LANG="en_US.UTF-8"\n')
         cfg = {'locale': 'C.UTF-8'}
         cc = self._get_cloud('ubuntu')
-        with mock.patch('cloudinit.distros.debian.util.subp') as m_subp:
+        with mock.patch('cloudinit.distros.debian.subp.subp') as m_subp:
             with mock.patch('cloudinit.distros.debian.LOCALE_CONF_FN',
                             locale_conf):
                 cc_locale.handle('cc_locale', cfg, cc, LOG, [])

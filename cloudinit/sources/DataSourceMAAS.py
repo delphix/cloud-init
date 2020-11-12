@@ -6,8 +6,6 @@
 #
 # This file is part of cloud-init. See LICENSE file for license information.
 
-from __future__ import print_function
-
 import hashlib
 import os
 import time
@@ -136,7 +134,7 @@ class DataSourceMAAS(sources.DataSource):
             url = url[:-1]
         check_url = "%s/%s/meta-data/instance-id" % (url, MD_VERSION)
         urls = [check_url]
-        url = self.oauth_helper.wait_for_url(
+        url, _response = self.oauth_helper.wait_for_url(
             urls=urls, max_wait=max_wait, timeout=timeout)
 
         if url:
@@ -228,7 +226,8 @@ def read_maas_seed_url(seed_url, read_file_or_url=None, timeout=None,
         except url_helper.UrlError as e:
             if e.code == 404 and not optional:
                 raise MAASSeedDirMalformed(
-                    "Missing required %s: %s" % (path, e))
+                    "Missing required %s: %s" % (path, e)
+                ) from e
             elif e.code != 404:
                 raise e
 

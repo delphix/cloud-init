@@ -61,11 +61,11 @@ used::
 
 import base64
 import os
-
-from six import BytesIO
+from io import BytesIO
 
 from cloudinit import log as logging
 from cloudinit.settings import PER_INSTANCE
+from cloudinit import subp
 from cloudinit import util
 
 frequency = PER_INSTANCE
@@ -93,14 +93,14 @@ def handle_random_seed_command(command, required, env=None):
         return
 
     cmd = command[0]
-    if not util.which(cmd):
+    if not subp.which(cmd):
         if required:
             raise ValueError(
                 "command '{cmd}' not found but required=true".format(cmd=cmd))
         else:
             LOG.debug("command '%s' not found for seed_command", cmd)
             return
-    util.subp(command, env=env, capture=False)
+    subp.subp(command, env=env, capture=False)
 
 
 def handle(name, cfg, cloud, log, _args):
@@ -131,7 +131,7 @@ def handle(name, cfg, cloud, log, _args):
         env['RANDOM_SEED_FILE'] = seed_path
         handle_random_seed_command(command=command, required=req, env=env)
     except ValueError as e:
-        log.warn("handling random command [%s] failed: %s", command, e)
+        log.warning("handling random command [%s] failed: %s", command, e)
         raise e
 
 # vi: ts=4 expandtab

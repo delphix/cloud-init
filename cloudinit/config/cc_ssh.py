@@ -9,43 +9,23 @@
 """
 SSH
 ---
-**Summary:** configure ssh and ssh keys
+**Summary:** configure SSH and SSH keys (host and authorized)
 
-This module handles most configuration for ssh and ssh keys. Many images have
-default ssh keys, which can be removed using ``ssh_deletekeys``. Since removing
-default keys is usually the desired behavior this option is enabled by default.
+This module handles most configuration for SSH and both host and authorized SSH
+keys.
 
-Keys can be added using the ``ssh_keys`` configuration key. The argument to
-this config key should be a dictionary entries for the public and private keys
-of each desired key type. Entries in the ``ssh_keys`` config dict should
-have keys in the format ``<key type>_private`` and ``<key type>_public``, e.g.
-``rsa_private: <key>`` and ``rsa_public: <key>``. See below for supported key
-types. Not all key types have to be specified, ones left unspecified will not
-be used. If this config option is used, then no keys will be generated.
+Authorized Keys
+^^^^^^^^^^^^^^^
 
-.. note::
-    when specifying private keys in cloud-config, care should be taken to
-    ensure that the communication between the data source and the instance is
-    secure
+Authorized keys are a list of public SSH keys that are allowed to connect to a
+a user account on a system. They are stored in `.ssh/authorized_keys` in that
+account's home directory. Authorized keys for the default user defined in
+``users`` can be specified using ``ssh_authorized_keys``. Keys
+should be specified as a list of public keys.
 
 .. note::
-    to specify multiline private keys, use yaml multiline syntax
-
-If no keys are specified using ``ssh_keys``, then keys will be generated using
-``ssh-keygen``. By default one public/private pair of each supported key type
-will be generated. The key types to generate can be specified using the
-``ssh_genkeytypes`` config flag, which accepts a list of key types to use. For
-each key type for which this module has been instructed to create a keypair, if
-a key of the same type is already present on the system (i.e. if
-``ssh_deletekeys`` was false), no key will be generated.
-
-Supported key types for the ``ssh_keys`` and the ``ssh_genkeytypes`` config
-flags are:
-
-    - rsa
-    - dsa
-    - ecdsa
-    - ed25519
+    see the ``cc_set_passwords`` module documentation to enable/disable SSH
+    password authentication
 
 Root login can be enabled/disabled using the ``disable_root`` config key. Root
 login options can be manually specified with ``disable_root_opts``. If
@@ -55,13 +35,82 @@ root login is disabled, and root login opts are set to::
 
     no-port-forwarding,no-agent-forwarding,no-X11-forwarding
 
-Authorized keys for the default user/first user defined in ``users`` can be
-specified using `ssh_authorized_keys``. Keys should be specified as a list of
-public keys.
+Supported public key types for the ``ssh_authorized_keys`` are:
+
+    - dsa
+    - rsa
+    - ecdsa
+    - ed25519
+    - ecdsa-sha2-nistp256-cert-v01@openssh.com
+    - ecdsa-sha2-nistp256
+    - ecdsa-sha2-nistp384-cert-v01@openssh.com
+    - ecdsa-sha2-nistp384
+    - ecdsa-sha2-nistp521-cert-v01@openssh.com
+    - ecdsa-sha2-nistp521
+    - sk-ecdsa-sha2-nistp256-cert-v01@openssh.com
+    - sk-ecdsa-sha2-nistp256@openssh.com
+    - sk-ssh-ed25519-cert-v01@openssh.com
+    - sk-ssh-ed25519@openssh.com
+    - ssh-dss-cert-v01@openssh.com
+    - ssh-dss
+    - ssh-ed25519-cert-v01@openssh.com
+    - ssh-ed25519
+    - ssh-rsa-cert-v01@openssh.com
+    - ssh-rsa
+    - ssh-xmss-cert-v01@openssh.com
+    - ssh-xmss@openssh.com
 
 .. note::
-    see the ``cc_set_passwords`` module documentation to enable/disable ssh
-    password authentication
+    this list has been filtered out from the supported keytypes of
+    `OpenSSH`_ source, where the sigonly keys are removed. Please see
+    ``ssh_util`` for more information.
+
+    ``dsa``, ``rsa``, ``ecdsa`` and ``ed25519`` are added for legacy,
+    as they are valid public keys in some old distros. They can possibly
+    be removed in the future when support for the older distros are dropped
+
+.. _OpenSSH: https://github.com/openssh/openssh-portable/blob/master/sshkey.c
+
+Host Keys
+^^^^^^^^^
+
+Host keys are for authenticating a specific instance. Many images have default
+host SSH keys, which can be removed using ``ssh_deletekeys``. This prevents
+re-use of a private host key from an image on multiple machines. Since
+removing default host keys is usually the desired behavior this option is
+enabled by default.
+
+Host keys can be added using the ``ssh_keys`` configuration key. The argument
+to this config key should be a dictionary entries for the public and private
+keys of each desired key type. Entries in the ``ssh_keys`` config dict should
+have keys in the format ``<key type>_private`` and ``<key type>_public``,
+e.g. ``rsa_private: <key>`` and ``rsa_public: <key>``. See below for supported
+key types. Not all key types have to be specified, ones left unspecified will
+not be used. If this config option is used, then no keys will be generated.
+
+.. note::
+    when specifying private host keys in cloud-config, care should be taken to
+    ensure that the communication between the data source and the instance is
+    secure
+
+.. note::
+    to specify multiline private host keys, use yaml multiline syntax
+
+If no host keys are specified using ``ssh_keys``, then keys will be generated
+using ``ssh-keygen``. By default one public/private pair of each supported
+host key type will be generated. The key types to generate can be specified
+using the ``ssh_genkeytypes`` config flag, which accepts a list of host key
+types to use. For each host key type for which this module has been instructed
+to create a keypair, if a key of the same type is already present on the
+system (i.e. if ``ssh_deletekeys`` was false), no key will be generated.
+
+Supported host key types for the ``ssh_keys`` and the ``ssh_genkeytypes``
+config flags are:
+
+    - rsa
+    - dsa
+    - ecdsa
+    - ed25519
 
 **Internal name:** ``cc_ssh``
 
@@ -91,6 +140,7 @@ public keys.
     ssh_authorized_keys:
         - ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAGEA3FSyQwBI6Z+nCSjUU ...
         - ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEA3I7VUf2l5gSn5uavROsc5HRDpZ ...
+    allow_public_ssh_keys: <true/false>
     ssh_publish_hostkeys:
         enabled: <true/false> (Defaults to true)
         blacklist: <list of key types> (Defaults to [dsa])
@@ -102,6 +152,7 @@ import sys
 
 from cloudinit.distros import ug_util
 from cloudinit import ssh_util
+from cloudinit import subp
 from cloudinit import util
 
 
@@ -150,7 +201,7 @@ def handle(_name, cfg, cloud, log, _args):
             try:
                 # TODO(harlowja): Is this guard needed?
                 with util.SeLinuxGuard("/etc/ssh", recursive=True):
-                    util.subp(cmd, capture=False)
+                    subp.subp(cmd, capture=False)
                 log.debug("Generated a key for %s from %s", pair[0], pair[1])
             except Exception:
                 util.logexc(log, "Failed generated a key for %s from %s",
@@ -172,9 +223,9 @@ def handle(_name, cfg, cloud, log, _args):
             # TODO(harlowja): Is this guard needed?
             with util.SeLinuxGuard("/etc/ssh", recursive=True):
                 try:
-                    out, err = util.subp(cmd, capture=True, env=lang_c)
+                    out, err = subp.subp(cmd, capture=True, env=lang_c)
                     sys.stdout.write(util.decode_binary(out))
-                except util.ProcessExecutionError as e:
+                except subp.ProcessExecutionError as e:
                     err = util.decode_binary(e.stderr).lower()
                     if (e.exit_code == 1 and
                             err.lower().startswith("unknown key")):
@@ -206,18 +257,13 @@ def handle(_name, cfg, cloud, log, _args):
         disable_root = util.get_cfg_option_bool(cfg, "disable_root", True)
         disable_root_opts = util.get_cfg_option_str(cfg, "disable_root_opts",
                                                     ssh_util.DISABLE_USER_OPTS)
-        if 'allow_public_ssh_keys' in cfg:
-            allow_public_ssh_keys = cfg['allow_public_ssh_keys']
-        else:
-            allow_public_ssh_keys = True
 
-        if allow_public_ssh_keys:
-            log.debug('allow_public_ssh_keys = True: Public ssh keys consumed')
+        keys = []
+        if util.get_cfg_option_bool(cfg, 'allow_public_ssh_keys', True):
             keys = cloud.get_public_ssh_keys() or []
         else:
-            log.debug('allow_public_ssh_keys = False: Public ssh keys '
-                      'discarded')
-            keys = []
+            log.debug('Skipping import of publish SSH keys per '
+                      'config setting: allow_public_ssh_keys=False')
 
         if "ssh_authorized_keys" in cfg:
             cfgkeys = cfg["ssh_authorized_keys"]
@@ -225,7 +271,7 @@ def handle(_name, cfg, cloud, log, _args):
 
         apply_credentials(keys, user, disable_root, disable_root_opts)
     except Exception:
-        util.logexc(log, "Applying ssh credentials failed!")
+        util.logexc(log, "Applying SSH credentials failed!")
 
 
 def apply_credentials(keys, user, disable_root, disable_root_opts):

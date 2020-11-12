@@ -9,13 +9,13 @@
 #
 # This file is part of cloud-init. See LICENSE file for license information.
 
-import six
-from six import StringIO
-
 import abc
 import os
 import re
 import stat
+import string
+import urllib.parse
+from io import StringIO
 
 from cloudinit import importer
 from cloudinit import log as logging
@@ -25,9 +25,14 @@ from cloudinit.net import network_state
 from cloudinit.net import renderers
 from cloudinit import ssh_util
 from cloudinit import type_utils
+from cloudinit import subp
 from cloudinit import util
 
+from cloudinit.features import \
+    ALLOW_EC2_MIRRORS_ON_NON_AWS_INSTANCE_TYPES
+
 from cloudinit.distros.parsers import hosts
+from .networking import LinuxNetworking
 
 
 # Used when a cloud-config module can be run on all cloud-init distibutions.
@@ -35,12 +40,13 @@ from cloudinit.distros.parsers import hosts
 ALL_DISTROS = 'all'
 
 OSFAMILIES = {
-    'debian': ['debian', 'ubuntu'],
-    'redhat': ['centos', 'fedora', 'rhel'],
-    'gentoo': ['gentoo'],
-    'freebsd': ['freebsd'],
-    'suse': ['opensuse', 'sles'],
+    'alpine': ['alpine'],
     'arch': ['arch'],
+    'debian': ['debian', 'ubuntu'],
+    'freebsd': ['freebsd'],
+    'gentoo': ['gentoo'],
+    'redhat': ['amazon', 'centos', 'fedora', 'rhel'],
+    'suse': ['opensuse', 'sles'],
 }
 
 LOG = logging.getLogger(__name__)
@@ -52,9 +58,11 @@ _EC2_AZ_RE = re.compile('^[a-z][a-z]-(?:[a-z]+-)+[0-9][a-z]$')
 # Default NTP Client Configurations
 PREFERRED_NTP_CLIENTS = ['chrony', 'systemd-timesyncd', 'ntp', 'ntpdate']
 
+# Letters/Digits/Hyphen characters, for use in domain name validation
+LDH_ASCII_CHARS = string.ascii_letters + string.digits + "-"
 
-@six.add_metaclass(abc.ABCMeta)
-class Distro(object):
+
+class Distro(metaclass=abc.ABCMeta):
 
     usr_lib_exec = "/usr/lib"
     hosts_fn = "/etc/hosts"
@@ -64,11 +72,13 @@ class Distro(object):
     init_cmd = ['service']  # systemctl, service etc
     renderer_configs = {}
     _preferred_ntp_clients = None
+    networking_cls = LinuxNetworking
 
     def __init__(self, name, cfg, paths):
         self._paths = paths
         self._cfg = cfg
         self.name = name
+        self.networking = self.networking_cls()
 
     @abc.abstractmethod
     def install_packages(self, pkglist):
@@ -145,7 +155,7 @@ class Distro(object):
         # Write it out
 
         # pylint: disable=assignment-from-no-return
-        # We have implementations in arch, freebsd and gentoo still
+        # We have implementations in arch and gentoo still
         dev_names = self._write_network(settings)
         # pylint: enable=assignment-from-no-return
         # Now try to bring them up
@@ -223,8 +233,8 @@ class Distro(object):
         LOG.debug("Non-persistently setting the system hostname to %s",
                   hostname)
         try:
-            util.subp(['hostname', hostname])
-        except util.ProcessExecutionError:
+            subp.subp(['hostname', hostname])
+        except subp.ProcessExecutionError:
             util.logexc(LOG, "Failed to non-persistently adjust the system "
                         "hostname to %s", hostname)
 
@@ -359,12 +369,12 @@ class Distro(object):
         LOG.debug("Attempting to run bring up interface %s using command %s",
                   device_name, cmd)
         try:
-            (_out, err) = util.subp(cmd)
+            (_out, err) = subp.subp(cmd)
             if len(err):
                 LOG.warning("Running %s resulted in stderr output: %s",
                             cmd, err)
             return True
-        except util.ProcessExecutionError:
+        except subp.ProcessExecutionError:
             util.logexc(LOG, "Running interface command %s failed", cmd)
             return False
 
@@ -383,9 +393,12 @@ class Distro(object):
     def add_user(self, name, **kwargs):
         """
         Add a user to the system using standard GNU tools
+
+        This should be overriden on distros where useradd is not desirable or
+        not available.
         """
         # XXX need to make add_user idempotent somehow as we
-        # still want to add groups or modify ssh keys on pre-existing
+        # still want to add groups or modify SSH keys on pre-existing
         # users in the image.
         if util.is_user(name):
             LOG.info("User %s already exists, skipping.", name)
@@ -429,7 +442,7 @@ class Distro(object):
         # support kwargs having groups=[list] or groups="g1,g2"
         groups = kwargs.get('groups')
         if groups:
-            if isinstance(groups, six.string_types):
+            if isinstance(groups, str):
                 groups = groups.split(",")
 
             # remove any white spaces in group names, most likely
@@ -478,7 +491,7 @@ class Distro(object):
         # Run the command
         LOG.debug("Adding user %s", name)
         try:
-            util.subp(useradd_cmd, logstring=log_useradd_cmd)
+            subp.subp(useradd_cmd, logstring=log_useradd_cmd)
         except Exception as e:
             util.logexc(LOG, "Failed to create user %s", name)
             raise e
@@ -498,7 +511,7 @@ class Distro(object):
         # Run the command
         LOG.debug("Adding snap user %s", name)
         try:
-            (out, err) = util.subp(create_user_cmd, logstring=create_user_cmd,
+            (out, err) = subp.subp(create_user_cmd, logstring=create_user_cmd,
                                    capture=True)
             LOG.debug("snap create-user returned: %s:%s", out, err)
             jobj = util.load_json(out)
@@ -511,9 +524,22 @@ class Distro(object):
 
     def create_user(self, name, **kwargs):
         """
-        Creates users for the system using the GNU passwd tools. This
-        will work on an GNU system. This should be overriden on
-        distros where useradd is not desirable or not available.
+        Creates or partially updates the ``name`` user in the system.
+
+        This defers the actual user creation to ``self.add_user`` or
+        ``self.add_snap_user``, and most of the keys in ``kwargs`` will be
+        processed there if and only if the user does not already exist.
+
+        Once the existence of the ``name`` user has been ensured, this method
+        then processes these keys (for both just-created and pre-existing
+        users):
+
+        * ``plain_text_passwd``
+        * ``hashed_passwd``
+        * ``lock_passwd``
+        * ``sudo``
+        * ``ssh_authorized_keys``
+        * ``ssh_redirect_user``
         """
 
         # Add a snap user, if requested
@@ -544,7 +570,7 @@ class Distro(object):
         if 'ssh_authorized_keys' in kwargs:
             # Try to handle this in a smart manner.
             keys = kwargs['ssh_authorized_keys']
-            if isinstance(keys, six.string_types):
+            if isinstance(keys, str):
                 keys = [keys]
             elif isinstance(keys, dict):
                 keys = list(keys.values())
@@ -561,7 +587,7 @@ class Distro(object):
             cloud_keys = kwargs.get('cloud_public_ssh_keys', [])
             if not cloud_keys:
                 LOG.warning(
-                    'Unable to disable ssh logins for %s given'
+                    'Unable to disable SSH logins for %s given'
                     ' ssh_redirect_user: %s. No cloud public-keys present.',
                     name, kwargs['ssh_redirect_user'])
             else:
@@ -580,15 +606,23 @@ class Distro(object):
         # passwd must use short '-l' due to SLES11 lacking long form '--lock'
         lock_tools = (['passwd', '-l', name], ['usermod', '--lock', name])
         try:
-            cmd = next(l for l in lock_tools if util.which(l[0]))
-        except StopIteration:
+            cmd = next(tool for tool in lock_tools if subp.which(tool[0]))
+        except StopIteration as e:
             raise RuntimeError((
                 "Unable to lock user account '%s'. No tools available. "
-                "  Tried: %s.") % (name, [c[0] for c in lock_tools]))
+                "  Tried: %s.") % (name, [c[0] for c in lock_tools])
+            ) from e
         try:
-            util.subp(cmd)
+            subp.subp(cmd)
         except Exception as e:
             util.logexc(LOG, 'Failed to disable password for user %s', name)
+            raise e
+
+    def expire_passwd(self, user):
+        try:
+            subp.subp(['passwd', '--expire', user])
+        except Exception as e:
+            util.logexc(LOG, "Failed to set 'expire' for %s", user)
             raise e
 
     def set_passwd(self, user, passwd, hashed=False):
@@ -602,7 +636,7 @@ class Distro(object):
             cmd.append('-e')
 
         try:
-            util.subp(cmd, pass_string, logstring="chpasswd for %s" % user)
+            subp.subp(cmd, pass_string, logstring="chpasswd for %s" % user)
         except Exception as e:
             util.logexc(LOG, "Failed to set password for %s", user)
             raise e
@@ -661,7 +695,7 @@ class Distro(object):
         if isinstance(rules, (list, tuple)):
             for rule in rules:
                 lines.append("%s %s" % (user, rule))
-        elif isinstance(rules, six.string_types):
+        elif isinstance(rules, str):
             lines.append("%s %s" % (user, rules))
         else:
             msg = "Can not create sudoers rule addition with type %r"
@@ -699,7 +733,7 @@ class Distro(object):
             LOG.warning("Skipping creation of existing group '%s'", name)
         else:
             try:
-                util.subp(group_add_cmd)
+                subp.subp(group_add_cmd)
                 LOG.info("Created new group %s", name)
             except Exception:
                 util.logexc(LOG, "Failed to create group %s", name)
@@ -712,8 +746,113 @@ class Distro(object):
                                 "; user does not exist.", member, name)
                     continue
 
-                util.subp(['usermod', '-a', '-G', name, member])
+                subp.subp(['usermod', '-a', '-G', name, member])
                 LOG.info("Added user '%s' to group '%s'", member, name)
+
+
+def _apply_hostname_transformations_to_url(url: str, transformations: list):
+    """
+    Apply transformations to a URL's hostname, return transformed URL.
+
+    This is a separate function because unwrapping and rewrapping only the
+    hostname portion of a URL is complex.
+
+    :param url:
+        The URL to operate on.
+    :param transformations:
+        A list of ``(str) -> Optional[str]`` functions, which will be applied
+        in order to the hostname portion of the URL.  If any function
+        (regardless of ordering) returns None, ``url`` will be returned without
+        any modification.
+
+    :return:
+        A string whose value is ``url`` with the hostname ``transformations``
+        applied, or ``None`` if ``url`` is unparseable.
+    """
+    try:
+        parts = urllib.parse.urlsplit(url)
+    except ValueError:
+        # If we can't even parse the URL, we shouldn't use it for anything
+        return None
+    new_hostname = parts.hostname
+    if new_hostname is None:
+        # The URL given doesn't have a hostname component, so (a) we can't
+        # transform it, and (b) it won't work as a mirror; return None.
+        return None
+
+    for transformation in transformations:
+        new_hostname = transformation(new_hostname)
+        if new_hostname is None:
+            # If a transformation returns None, that indicates we should abort
+            # processing and return `url` unmodified
+            return url
+
+    new_netloc = new_hostname
+    if parts.port is not None:
+        new_netloc = "{}:{}".format(new_netloc, parts.port)
+    return urllib.parse.urlunsplit(parts._replace(netloc=new_netloc))
+
+
+def _sanitize_mirror_url(url: str):
+    """
+    Given a mirror URL, replace or remove any invalid URI characters.
+
+    This performs the following actions on the URL's hostname:
+      * Checks if it is an IP address, returning the URL immediately if it is
+      * Converts it to its IDN form (see below for details)
+      * Replaces any non-Letters/Digits/Hyphen (LDH) characters in it with
+        hyphens
+      * TODO: Remove any leading/trailing hyphens from each domain name label
+
+    Before we replace any invalid domain name characters, we first need to
+    ensure that any valid non-ASCII characters in the hostname will not be
+    replaced, by ensuring the hostname is in its Internationalized domain name
+    (IDN) representation (see RFC 5890).  This conversion has to be applied to
+    the whole hostname (rather than just the substitution variables), because
+    the Punycode algorithm used by IDNA transcodes each part of the hostname as
+    a whole string (rather than encoding individual characters).  It cannot be
+    applied to the whole URL, because (a) the Punycode algorithm expects to
+    operate on domain names so doesn't output a valid URL, and (b) non-ASCII
+    characters in non-hostname parts of the URL aren't encoded via Punycode.
+
+    To put this in RFC 5890's terminology: before we remove or replace any
+    characters from our domain name (which we do to ensure that each label is a
+    valid LDH Label), we first ensure each label is in its A-label form.
+
+    (Note that Python's builtin idna encoding is actually IDNA2003, not
+    IDNA2008.  This changes the specifics of how some characters are encoded to
+    ASCII, but doesn't affect the logic here.)
+
+    :param url:
+        The URL to operate on.
+
+    :return:
+        A sanitized version of the URL, which will have been IDNA encoded if
+        necessary, or ``None`` if the generated string is not a parseable URL.
+    """
+    # Acceptable characters are LDH characters, plus "." to separate each label
+    acceptable_chars = LDH_ASCII_CHARS + "."
+    transformations = [
+        # This is an IP address, not a hostname, so no need to apply the
+        # transformations
+        lambda hostname: None if net.is_ip_address(hostname) else hostname,
+
+        # Encode with IDNA to get the correct characters (as `bytes`), then
+        # decode with ASCII so we return a `str`
+        lambda hostname: hostname.encode('idna').decode('ascii'),
+
+        # Replace any unacceptable characters with "-"
+        lambda hostname: ''.join(
+            c if c in acceptable_chars else "-" for c in hostname
+        ),
+
+        # Drop leading/trailing hyphens from each part of the hostname
+        lambda hostname: '.'.join(
+            part.strip('-') for part in hostname.split('.')
+        ),
+    ]
+
+    return _apply_hostname_transformations_to_url(url, transformations)
 
 
 def _get_package_mirror_info(mirror_info, data_source=None,
@@ -731,7 +870,12 @@ def _get_package_mirror_info(mirror_info, data_source=None,
         # ec2 availability zones are named cc-direction-[0-9][a-d] (us-east-1b)
         # the region is us-east-1. so region = az[0:-1]
         if _EC2_AZ_RE.match(data_source.availability_zone):
-            subst['ec2_region'] = "%s" % data_source.availability_zone[0:-1]
+            ec2_region = data_source.availability_zone[0:-1]
+
+            if ALLOW_EC2_MIRRORS_ON_NON_AWS_INSTANCE_TYPES:
+                subst['ec2_region'] = "%s" % ec2_region
+            elif data_source.platform_type == "ec2":
+                subst['ec2_region'] = "%s" % ec2_region
 
     if data_source and data_source.region:
         subst['region'] = data_source.region
@@ -744,9 +888,13 @@ def _get_package_mirror_info(mirror_info, data_source=None,
         mirrors = []
         for tmpl in searchlist:
             try:
-                mirrors.append(tmpl % subst)
+                mirror = tmpl % subst
             except KeyError:
-                pass
+                continue
+
+            mirror = _sanitize_mirror_url(mirror)
+            if mirror is not None:
+                mirrors.append(mirror)
 
         found = mirror_filter(mirrors)
         if found:

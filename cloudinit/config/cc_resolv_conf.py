@@ -30,7 +30,7 @@ are configured correctly.
 
 **Module frequency:** per instance
 
-**Supported distros:** fedora, rhel, sles
+**Supported distros:** alpine, fedora, rhel, sles
 
 **Config keys**::
 
@@ -55,7 +55,7 @@ LOG = logging.getLogger(__name__)
 
 frequency = PER_INSTANCE
 
-distros = ['fedora', 'opensuse', 'rhel', 'sles']
+distros = ['alpine', 'fedora', 'opensuse', 'rhel', 'sles']
 
 
 def generate_resolv_conf(template_fn, params, target_fname="/etc/resolv.conf"):
@@ -102,11 +102,11 @@ def handle(name, cfg, cloud, log, _args):
         return
 
     if "resolv_conf" not in cfg:
-        log.warn("manage_resolv_conf True but no parameters provided!")
+        log.warning("manage_resolv_conf True but no parameters provided!")
 
     template_fn = cloud.get_template_filename('resolv.conf')
     if not template_fn:
-        log.warn("No template found, not rendering /etc/resolv.conf")
+        log.warning("No template found, not rendering /etc/resolv.conf")
         return
 
     generate_resolv_conf(template_fn=template_fn, params=cfg["resolv_conf"])

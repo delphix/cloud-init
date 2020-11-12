@@ -7,16 +7,13 @@ import logging
 import os
 import shutil
 import tempfile
-
-try:
-    from unittest import mock
-except ImportError:
-    import mock
-from mock import call
+from unittest import mock
+from unittest.mock import call
 
 from cloudinit import cloud
 from cloudinit import distros
 from cloudinit import helpers
+from cloudinit import subp
 from cloudinit import util
 
 from cloudinit.config import cc_apt_configure
@@ -98,7 +95,7 @@ class TestAptSourceConfigSourceList(t_help.FilesystemMockingTestCase):
     """TestAptSourceConfigSourceList - Class to test sources list rendering"""
     def setUp(self):
         super(TestAptSourceConfigSourceList, self).setUp()
-        self.subp = util.subp
+        self.subp = subp.subp
         self.new_root = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.new_root)
 
@@ -106,7 +103,7 @@ class TestAptSourceConfigSourceList(t_help.FilesystemMockingTestCase):
         get_rel = rpatcher.start()
         get_rel.return_value = {'codename': "fakerel"}
         self.addCleanup(rpatcher.stop)
-        apatcher = mock.patch("cloudinit.util.get_architecture")
+        apatcher = mock.patch("cloudinit.util.get_dpkg_architecture")
         get_arch = apatcher.start()
         get_arch.return_value = 'amd64'
         self.addCleanup(apatcher.stop)
@@ -226,7 +223,7 @@ class TestAptSourceConfigSourceList(t_help.FilesystemMockingTestCase):
 
         # the second mock restores the original subp
         with mock.patch.object(util, 'write_file') as mockwrite:
-            with mock.patch.object(util, 'subp', self.subp):
+            with mock.patch.object(subp, 'subp', self.subp):
                 with mock.patch.object(Distro, 'get_primary_arch',
                                        return_value='amd64'):
                     cc_apt_configure.handle("notimportant", cfg, mycloud,

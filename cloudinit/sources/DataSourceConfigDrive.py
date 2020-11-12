@@ -10,6 +10,7 @@ import os
 
 from cloudinit import log as logging
 from cloudinit import sources
+from cloudinit import subp
 from cloudinit import util
 
 from cloudinit.net import eni
@@ -71,11 +72,11 @@ class DataSourceConfigDrive(openstack.SourceMixin, sources.DataSource):
         if not found:
             dslist = self.sys_cfg.get('datasource_list')
             for dev in find_candidate_devs(dslist=dslist):
-                try:
-                    if util.is_FreeBSD() and dev.startswith("/dev/cd"):
+                mtype = None
+                if util.is_BSD():
+                    if dev.startswith("/dev/cd"):
                         mtype = "cd9660"
-                    else:
-                        mtype = None
+                try:
                     results = util.mount_cb(dev, read_config_drive,
                                             mtype=mtype)
                     found = dev
@@ -163,10 +164,10 @@ class DataSourceConfigDrive(openstack.SourceMixin, sources.DataSource):
 
     def _get_subplatform(self):
         """Return the subplatform metadata source details."""
-        if self.seed_dir in self.source:
-            subplatform_type = 'seed-dir'
-        elif self.source.startswith('/dev'):
+        if self.source.startswith('/dev'):
             subplatform_type = 'config-disk'
+        else:
+            subplatform_type = 'seed-dir'
         return '%s (%s)' % (subplatform_type, self.source)
 
 
@@ -234,7 +235,7 @@ def find_candidate_devs(probe_optical=True, dslist=None):
 
     config drive v2:
        Disk should be:
-        * either vfat or iso9660 formated
+        * either vfat or iso9660 formatted
         * labeled with 'config-2' or 'CONFIG-2'
     """
     if dslist is None:
@@ -245,7 +246,7 @@ def find_candidate_devs(probe_optical=True, dslist=None):
         for device in OPTICAL_DEVICES:
             try:
                 util.find_devs_with(path=device)
-            except util.ProcessExecutionError:
+            except subp.ProcessExecutionError:
                 pass
 
     by_fstype = []

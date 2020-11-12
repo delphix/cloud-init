@@ -22,11 +22,11 @@ mountpoint in the filesystem or a path to the block device in ``/dev``.
 
 The utility to use for resizing can be selected using the ``mode`` config key.
 If ``mode`` key is set to ``auto``, then any available utility (either
-``growpart`` or ``gpart``) will be used. If neither utility is available, no
-error will be raised. If ``mode`` is set to ``growpart``, then the ``growpart``
-utility will be used. If this utility is not available on the system, this will
-result in an error. If ``mode`` is set to ``off`` or ``false``, then
-``cc_growpart`` will take no action.
+``growpart`` or BSD ``gpart``) will be used. If neither utility is available,
+no error will be raised. If ``mode`` is set to ``growpart``, then the
+``growpart`` utility will be used. If this utility is not available on the
+system, this will result in an error. If ``mode`` is set to ``off`` or
+``false``, then ``cc_growpart`` will take no action.
 
 There is some functionality overlap between this module and the ``growroot``
 functionality of ``cloud-initramfs-tools``. However, there are some situations
@@ -70,6 +70,7 @@ import stat
 
 from cloudinit import log as logging
 from cloudinit.settings import PER_ALWAYS
+from cloudinit import subp
 from cloudinit import util
 
 frequency = PER_ALWAYS
@@ -131,39 +132,47 @@ class ResizeGrowPart(object):
         myenv['LANG'] = 'C'
 
         try:
-            (out, _err) = util.subp(["growpart", "--help"], env=myenv)
-            if re.search(r"--update\s+", out, re.DOTALL):
+            (out, _err) = subp.subp(["growpart", "--help"], env=myenv)
+            if re.search(r"--update\s+", out):
                 return True
 
-        except util.ProcessExecutionError:
+        except subp.ProcessExecutionError:
             pass
         return False
 
     def resize(self, diskdev, partnum, partdev):
         before = get_size(partdev)
         try:
-            util.subp(["growpart", '--dry-run', diskdev, partnum])
-        except util.ProcessExecutionError as e:
+            subp.subp(["growpart", '--dry-run', diskdev, partnum])
+        except subp.ProcessExecutionError as e:
             if e.exit_code != 1:
                 util.logexc(LOG, "Failed growpart --dry-run for (%s, %s)",
                             diskdev, partnum)
-                raise ResizeFailedException(e)
+                raise ResizeFailedException(e) from e
             return (before, before)
 
         try:
-            util.subp(["growpart", diskdev, partnum])
-        except util.ProcessExecutionError as e:
+            subp.subp(["growpart", diskdev, partnum])
+        except subp.ProcessExecutionError as e:
             util.logexc(LOG, "Failed: growpart %s %s", diskdev, partnum)
-            raise ResizeFailedException(e)
+            raise ResizeFailedException(e) from e
 
         return (before, get_size(partdev))
 
 
 class ResizeGpart(object):
     def available(self):
-        if not util.which('gpart'):
-            return False
-        return True
+        myenv = os.environ.copy()
+        myenv['LANG'] = 'C'
+
+        try:
+            (_out, err) = subp.subp(["gpart", "help"], env=myenv, rcs=[0, 1])
+            if re.search(r"gpart recover ", err):
+                return True
+
+        except subp.ProcessExecutionError:
+            pass
+        return False
 
     def resize(self, diskdev, partnum, partdev):
         """
@@ -174,18 +183,18 @@ class ResizeGpart(object):
         be recovered.
         """
         try:
-            util.subp(["gpart", "recover", diskdev])
-        except util.ProcessExecutionError as e:
+            subp.subp(["gpart", "recover", diskdev])
+        except subp.ProcessExecutionError as e:
             if e.exit_code != 0:
                 util.logexc(LOG, "Failed: gpart recover %s", diskdev)
-                raise ResizeFailedException(e)
+                raise ResizeFailedException(e) from e
 
         before = get_size(partdev)
         try:
-            util.subp(["gpart", "resize", "-i", partnum, diskdev])
-        except util.ProcessExecutionError as e:
+            subp.subp(["gpart", "resize", "-i", partnum, diskdev])
+        except subp.ProcessExecutionError as e:
             util.logexc(LOG, "Failed: gpart resize -i %s %s", partnum, diskdev)
-            raise ResizeFailedException(e)
+            raise ResizeFailedException(e) from e
 
         # Since growing the FS requires a reboot, make sure we reboot
         # first when this module has finished.
@@ -321,7 +330,7 @@ def handle(_name, cfg, _cloud, log, _args):
 
     mycfg = cfg.get('growpart')
     if not isinstance(mycfg, dict):
-        log.warn("'growpart' in config was not a dict")
+        log.warning("'growpart' in config was not a dict")
         return
 
     mode = mycfg.get('mode', "auto")

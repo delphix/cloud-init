@@ -5,13 +5,8 @@
 import gzip
 import logging
 import os
-
-try:
-    from unittest import mock
-except ImportError:
-    import mock
-
-from six import BytesIO, StringIO
+from io import BytesIO, StringIO
+from unittest import mock
 
 from email import encoders
 from email.mime.application import MIMEApplication
@@ -27,6 +22,7 @@ from cloudinit.settings import (PER_INSTANCE)
 from cloudinit import sources
 from cloudinit import stages
 from cloudinit import user_data as ud
+from cloudinit import safeyaml
 from cloudinit import util
 
 from cloudinit.tests import helpers
@@ -190,6 +186,40 @@ a: b
 c: d
 '''
         message_cc = MIMEBase("text", "cloud-config")
+        message_cc.set_payload(blob_cc)
+
+        blob_jp = '''
+#cloud-config-jsonp
+[
+     { "op": "replace", "path": "/a", "value": "c" },
+     { "op": "remove", "path": "/c" }
+]
+'''
+
+        message_jp = MIMEBase('text', "cloud-config-jsonp")
+        message_jp.set_payload(blob_jp)
+
+        message = MIMEMultipart()
+        message.attach(message_cc)
+        message.attach(message_jp)
+
+        self.reRoot()
+        ci = stages.Init()
+        ci.datasource = FakeDataSource(str(message))
+        ci.fetch()
+        ci.consume_data()
+        cc_contents = util.load_file(ci.paths.get_ipath("cloud_config"))
+        cc = util.load_yaml(cc_contents)
+        self.assertEqual(1, len(cc))
+        self.assertEqual('c', cc['a'])
+
+    def test_cloud_config_as_x_shell_script(self):
+        blob_cc = '''
+#cloud-config
+a: b
+c: d
+'''
+        message_cc = MIMEBase("text", "x-shellscript")
         message_cc.set_payload(blob_cc)
 
         blob_jp = '''
@@ -502,7 +532,7 @@ c: 4
         data = [{'content': '#cloud-config\npassword: gocubs\n'},
                 {'content': '#cloud-config\nlocale: chicago\n'},
                 {'content': non_decodable}]
-        message = b'#cloud-config-archive\n' + util.yaml_dumps(data).encode()
+        message = b'#cloud-config-archive\n' + safeyaml.dumps(data).encode()
 
         self.reRoot()
         ci = stages.Init()
@@ -523,6 +553,46 @@ c: 4
         cfg = util.load_yaml(fs[ci.paths.get_ipath("cloud_config")])
         self.assertEqual(cfg.get('password'), 'gocubs')
         self.assertEqual(cfg.get('locale'), 'chicago')
+
+    @mock.patch('cloudinit.util.read_conf_with_confd')
+    def test_dont_allow_user_data(self, mock_cfg):
+        mock_cfg.return_value = {"allow_userdata": False}
+
+        # test that user-data is ignored but vendor-data is kept
+        user_blob = '''
+#cloud-config-jsonp
+[
+     { "op": "add", "path": "/baz", "value": "qux" },
+     { "op": "add", "path": "/bar", "value": "qux2" }
+]
+'''
+        vendor_blob = '''
+#cloud-config-jsonp
+[
+     { "op": "add", "path": "/baz", "value": "quxA" },
+     { "op": "add", "path": "/bar", "value": "quxB" },
+     { "op": "add", "path": "/foo", "value": "quxC" }
+]
+'''
+        self.reRoot()
+        initer = stages.Init()
+        initer.datasource = FakeDataSource(user_blob, vendordata=vendor_blob)
+        initer.read_cfg()
+        initer.initialize()
+        initer.fetch()
+        initer.instancify()
+        initer.update()
+        initer.cloudify().run('consume_data',
+                              initer.consume_data,
+                              args=[PER_INSTANCE],
+                              freq=PER_INSTANCE)
+        mods = stages.Modules(initer)
+        (_which_ran, _failures) = mods.run_section('cloud_init_modules')
+        cfg = mods.cfg
+        self.assertIn('vendor_data', cfg)
+        self.assertEqual('quxA', cfg['baz'])
+        self.assertEqual('quxB', cfg['bar'])
+        self.assertEqual('quxC', cfg['foo'])
 
 
 class TestConsumeUserDataHttp(TestConsumeUserData, helpers.HttprettyTestCase):
@@ -556,6 +626,33 @@ class TestConsumeUserDataHttp(TestConsumeUserData, helpers.HttprettyTestCase):
     @mock.patch('cloudinit.url_helper.time.sleep')
     def test_include_bad_url(self, mock_sleep):
         """Test #include with a bad URL."""
+        bad_url = 'http://bad/forbidden'
+        bad_data = '#cloud-config\nbad: true\n'
+        httpretty.register_uri(httpretty.GET, bad_url, bad_data, status=403)
+
+        included_url = 'http://hostname/path'
+        included_data = '#cloud-config\nincluded: true\n'
+        httpretty.register_uri(httpretty.GET, included_url, included_data)
+
+        blob = '#include\n%s\n%s' % (bad_url, included_url)
+
+        self.reRoot()
+        ci = stages.Init()
+        ci.datasource = FakeDataSource(blob)
+        ci.fetch()
+        with self.assertRaises(Exception) as context:
+            ci.consume_data()
+        self.assertIn('403', str(context.exception))
+
+        with self.assertRaises(FileNotFoundError):
+            util.load_file(ci.paths.get_ipath("cloud_config"))
+
+    @mock.patch('cloudinit.url_helper.time.sleep')
+    @mock.patch(
+        "cloudinit.user_data.features.ERROR_ON_USER_DATA_FAILURE", False
+    )
+    def test_include_bad_url_no_fail(self, mock_sleep):
+        """Test #include with a bad URL and failure disabled"""
         bad_url = 'http://bad/forbidden'
         bad_data = '#cloud-config\nbad: true\n'
         httpretty.register_uri(httpretty.GET, bad_url, bad_data, status=403)
