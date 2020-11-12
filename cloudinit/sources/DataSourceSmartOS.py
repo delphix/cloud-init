@@ -1,5 +1,5 @@
 # Copyright (C) 2013 Canonical Ltd.
-# Copyright (c) 2018, Joyent, Inc.
+# Copyright 2019 Joyent, Inc.
 #
 # Author: Ben Howard <ben.howard@canonical.com>
 #
@@ -33,7 +33,9 @@ import socket
 from cloudinit import log as logging
 from cloudinit import serial
 from cloudinit import sources
+from cloudinit import subp
 from cloudinit import util
+from cloudinit.event import EventType
 
 LOG = logging.getLogger(__name__)
 
@@ -178,6 +180,7 @@ class DataSourceSmartOS(sources.DataSource):
         self.metadata = {}
         self.network_data = None
         self._network_config = None
+        self.update_events['network'].add(EventType.BOOT)
 
         self.script_base_d = os.path.join(self.paths.get_cpath("scripts"))
 
@@ -319,6 +322,10 @@ class DataSourceSmartOS(sources.DataSource):
 
     @property
     def network_config(self):
+        # sources.clear_cached_data() may set _network_config to '_unset'.
+        if self._network_config == sources.UNSET:
+            self._network_config = None
+
         if self._network_config is None:
             if self.network_data is not None:
                 self._network_config = (
@@ -406,7 +413,9 @@ class JoyentMetadataClient(object):
                 response.append(byte)
             except OSError as exc:
                 if exc.errno == errno.EAGAIN:
-                    raise JoyentMetadataTimeoutException(msg % as_ascii())
+                    raise JoyentMetadataTimeoutException(
+                        msg % as_ascii()
+                    ) from exc
                 raise
 
     def _write(self, msg):
@@ -690,9 +699,9 @@ def identify_file(content_f):
     cmd = ["file", "--brief", "--mime-type", content_f]
     f_type = None
     try:
-        (f_type, _err) = util.subp(cmd)
+        (f_type, _err) = subp.subp(cmd)
         LOG.debug("script %s mime type is %s", content_f, f_type)
-    except util.ProcessExecutionError as e:
+    except subp.ProcessExecutionError as e:
         util.logexc(
             LOG, ("Failed to identify script type for %s" % content_f, e))
     return None if f_type is None else f_type.strip()

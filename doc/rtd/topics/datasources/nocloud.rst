@@ -32,7 +32,7 @@ The permitted keys are:
 
 With ``ds=nocloud``, the ``seedfrom`` value must start with ``/`` or
 ``file://``.  With ``ds=nocloud-net``, the ``seedfrom`` value must start
-with ``http://``, ``https://`` or ``ftp://``
+with ``http://`` or ``https://``.
 
 e.g. you can pass this option to QEMU:
 
@@ -53,28 +53,34 @@ These user-data and meta-data files are expected to be in the following format.
 Basically, user-data is simply user-data and meta-data is a yaml formatted file
 representing what you'd find in the EC2 metadata service.
 
+You may also optionally provide a vendor-data file in the following format.
+
+::
+
+  /vendor-data
+
 Given a disk ubuntu 12.04 cloud image in 'disk.img', you can create a
 sufficient disk by following the example below.
 
 ::
-    
+
     ## create user-data and meta-data files that will be used
     ## to modify image on first boot
     $ { echo instance-id: iid-local01; echo local-hostname: cloudimg; } > meta-data
-    
+
     $ printf "#cloud-config\npassword: passw0rd\nchpasswd: { expire: False }\nssh_pwauth: True\n" > user-data
-    
+
     ## create a disk to attach with some user-data and meta-data
     $ genisoimage  -output seed.iso -volid cidata -joliet -rock user-data meta-data
-    
+
     ## alternatively, create a vfat filesystem with same files
     ## $ truncate --size 2M seed.img
     ## $ mkfs.vfat -n cidata seed.img
     ## $ mcopy -oi seed.img user-data meta-data ::
-    
+
     ## create a new qcow image to boot, backed by your original image
     $ qemu-img create -f qcow2 -b disk.img boot-disk.img
-    
+
     ## boot the image and login as 'ubuntu' with password 'passw0rd'
     ## note, passw0rd was set as password through the user-data above,
     ## there is no password set on these images.
@@ -88,12 +94,12 @@ to determine if this is "first boot".  So if you are making updates to
 user-data you will also have to change that, or start the disk fresh.
 
 Also, you can inject an ``/etc/network/interfaces`` file by providing the
-content for that file in the ``network-interfaces`` field of metadata.  
+content for that file in the ``network-interfaces`` field of metadata.
 
 Example metadata:
 
 ::
-    
+
     instance-id: iid-abcdefg
     network-interfaces: |
       iface eth0 inet static
@@ -133,12 +139,12 @@ be network configuration based on the filename.
   version: 2
   ethernets:
     interface0:
-       match:
-           mac_address: "52:54:00:12:34:00"
-       set-name: interface0
-       addresses:
-       - 192.168.1.10/255.255.255.0
-       gateway4: 192.168.1.254
+      match:
+        mac_address: "52:54:00:12:34:00"
+      set-name: interface0
+      addresses:
+        - 192.168.1.10/255.255.255.0
+      gateway4: 192.168.1.254
 
 
 .. _iso9660: https://en.wikipedia.org/wiki/ISO_9660

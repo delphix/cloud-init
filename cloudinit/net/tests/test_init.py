@@ -2,16 +2,20 @@
 
 import copy
 import errno
-import httpretty
-import mock
+import ipaddress
 import os
-import requests
 import textwrap
+from unittest import mock
+
+import httpretty
+import pytest
+import requests
 
 import cloudinit.net as net
-from cloudinit.util import ensure_file, write_file, ProcessExecutionError
-from cloudinit.tests.helpers import CiTestCase, HttprettyTestCase
 from cloudinit import safeyaml as yaml
+from cloudinit.tests.helpers import CiTestCase, HttprettyTestCase
+from cloudinit.subp import ProcessExecutionError
+from cloudinit.util import ensure_file, write_file
 
 
 class TestSysDevPath(CiTestCase):
@@ -139,12 +143,6 @@ class TestReadSysNet(CiTestCase):
             write_file(os.path.join(self.sysdir, 'eth0', 'operstate'), state)
             self.assertFalse(net.is_up('eth0'))
 
-    def test_is_wireless(self):
-        """is_wireless is True when /sys/net/devname/wireless exists."""
-        self.assertFalse(net.is_wireless('eth0'))
-        ensure_file(os.path.join(self.sysdir, 'eth0', 'wireless'))
-        self.assertTrue(net.is_wireless('eth0'))
-
     def test_is_bridge(self):
         """is_bridge is True when /sys/net/devname/bridge exists."""
         self.assertFalse(net.is_bridge('eth0'))
@@ -157,6 +155,41 @@ class TestReadSysNet(CiTestCase):
         ensure_file(os.path.join(self.sysdir, 'eth0', 'bonding'))
         self.assertTrue(net.is_bond('eth0'))
 
+    def test_get_master(self):
+        """get_master returns the path when /sys/net/devname/master exists."""
+        self.assertIsNone(net.get_master('enP1s1'))
+        master_path = os.path.join(self.sysdir, 'enP1s1', 'master')
+        ensure_file(master_path)
+        self.assertEqual(master_path, net.get_master('enP1s1'))
+
+    def test_master_is_bridge_or_bond(self):
+        bridge_mac = 'aa:bb:cc:aa:bb:cc'
+        bond_mac = 'cc:bb:aa:cc:bb:aa'
+
+        # No master => False
+        write_file(os.path.join(self.sysdir, 'eth1', 'address'), bridge_mac)
+        write_file(os.path.join(self.sysdir, 'eth2', 'address'), bond_mac)
+
+        self.assertFalse(net.master_is_bridge_or_bond('eth1'))
+        self.assertFalse(net.master_is_bridge_or_bond('eth2'))
+
+        # masters without bridge/bonding => False
+        write_file(os.path.join(self.sysdir, 'br0', 'address'), bridge_mac)
+        write_file(os.path.join(self.sysdir, 'bond0', 'address'), bond_mac)
+
+        os.symlink('../br0', os.path.join(self.sysdir, 'eth1', 'master'))
+        os.symlink('../bond0', os.path.join(self.sysdir, 'eth2', 'master'))
+
+        self.assertFalse(net.master_is_bridge_or_bond('eth1'))
+        self.assertFalse(net.master_is_bridge_or_bond('eth2'))
+
+        # masters with bridge/bonding => True
+        write_file(os.path.join(self.sysdir, 'br0', 'bridge'), '')
+        write_file(os.path.join(self.sysdir, 'bond0', 'bonding'), '')
+
+        self.assertTrue(net.master_is_bridge_or_bond('eth1'))
+        self.assertTrue(net.master_is_bridge_or_bond('eth2'))
+
     def test_is_vlan(self):
         """is_vlan is True when /sys/net/devname/uevent has DEVTYPE=vlan."""
         ensure_file(os.path.join(self.sysdir, 'eth0', 'uevent'))
@@ -164,32 +197,6 @@ class TestReadSysNet(CiTestCase):
         content = 'junk\nDEVTYPE=vlan\njunk\n'
         write_file(os.path.join(self.sysdir, 'eth0', 'uevent'), content)
         self.assertTrue(net.is_vlan('eth0'))
-
-    def test_is_connected_when_physically_connected(self):
-        """is_connected is True when /sys/net/devname/iflink reports 2."""
-        self.assertFalse(net.is_connected('eth0'))
-        write_file(os.path.join(self.sysdir, 'eth0', 'iflink'), "2")
-        self.assertTrue(net.is_connected('eth0'))
-
-    def test_is_connected_when_wireless_and_carrier_active(self):
-        """is_connected is True if wireless /sys/net/devname/carrier is 1."""
-        self.assertFalse(net.is_connected('eth0'))
-        ensure_file(os.path.join(self.sysdir, 'eth0', 'wireless'))
-        self.assertFalse(net.is_connected('eth0'))
-        write_file(os.path.join(self.sysdir, 'eth0', 'carrier'), "1")
-        self.assertTrue(net.is_connected('eth0'))
-
-    def test_is_physical(self):
-        """is_physical is True when /sys/net/devname/device exists."""
-        self.assertFalse(net.is_physical('eth0'))
-        ensure_file(os.path.join(self.sysdir, 'eth0', 'device'))
-        self.assertTrue(net.is_physical('eth0'))
-
-    def test_is_present(self):
-        """is_present is True when /sys/net/devname exists."""
-        self.assertFalse(net.is_present('eth0'))
-        ensure_file(os.path.join(self.sysdir, 'eth0', 'device'))
-        self.assertTrue(net.is_present('eth0'))
 
 
 class TestGenerateFallbackConfig(CiTestCase):
@@ -204,6 +211,10 @@ class TestGenerateFallbackConfig(CiTestCase):
         self.add_patch('cloudinit.net.util.is_container', 'm_is_container',
                        return_value=False)
         self.add_patch('cloudinit.net.util.udevadm_settle', 'm_settle')
+        self.add_patch('cloudinit.net.is_netfailover', 'm_netfail',
+                       return_value=False)
+        self.add_patch('cloudinit.net.is_netfail_master', 'm_netfail_master',
+                       return_value=False)
 
     def test_generate_fallback_finds_connected_eth_with_mac(self):
         """generate_fallback_config finds any connected device with a mac."""
@@ -268,6 +279,59 @@ class TestGenerateFallbackConfig(CiTestCase):
         ensure_file(os.path.join(self.sysdir, 'eth0', 'bonding'))
         self.assertIsNone(net.generate_fallback_config())
 
+    def test_generate_fallback_config_skips_netfail_devs(self):
+        """gen_fallback_config ignores netfail primary,sby no mac on master."""
+        mac = 'aa:bb:cc:aa:bb:cc'  # netfailover devs share the same mac
+        for iface in ['ens3', 'ens3sby', 'enP0s1f3']:
+            write_file(os.path.join(self.sysdir, iface, 'carrier'), '1')
+            write_file(
+                os.path.join(self.sysdir, iface, 'addr_assign_type'), '0')
+            write_file(
+                os.path.join(self.sysdir, iface, 'address'), mac)
+
+        def is_netfail(iface, _driver=None):
+            # ens3 is the master
+            if iface == 'ens3':
+                return False
+            return True
+        self.m_netfail.side_effect = is_netfail
+
+        def is_netfail_master(iface, _driver=None):
+            # ens3 is the master
+            if iface == 'ens3':
+                return True
+            return False
+        self.m_netfail_master.side_effect = is_netfail_master
+        expected = {
+            'ethernets': {
+                'ens3': {'dhcp4': True, 'match': {'name': 'ens3'},
+                         'set-name': 'ens3'}},
+            'version': 2}
+        result = net.generate_fallback_config()
+        self.assertEqual(expected, result)
+
+
+class TestNetFindFallBackNic(CiTestCase):
+
+    def setUp(self):
+        super(TestNetFindFallBackNic, self).setUp()
+        sys_mock = mock.patch('cloudinit.net.get_sys_class_path')
+        self.m_sys_path = sys_mock.start()
+        self.sysdir = self.tmp_dir() + '/'
+        self.m_sys_path.return_value = self.sysdir
+        self.addCleanup(sys_mock.stop)
+        self.add_patch('cloudinit.net.util.is_container', 'm_is_container',
+                       return_value=False)
+        self.add_patch('cloudinit.net.util.udevadm_settle', 'm_settle')
+
+    def test_generate_fallback_finds_first_connected_eth_with_mac(self):
+        """find_fallback_nic finds any connected device with a mac."""
+        write_file(os.path.join(self.sysdir, 'eth0', 'carrier'), '1')
+        write_file(os.path.join(self.sysdir, 'eth1', 'carrier'), '1')
+        mac = 'aa:bb:cc:aa:bb:cc'
+        write_file(os.path.join(self.sysdir, 'eth1', 'address'), mac)
+        self.assertEqual('eth1', net.find_fallback_nic())
+
 
 class TestGetDeviceList(CiTestCase):
 
@@ -302,7 +366,7 @@ class TestGetDeviceList(CiTestCase):
         """get_devicelist returns a directory listing for SYS_CLASS_NET."""
         write_file(os.path.join(self.sysdir, 'eth0', 'operstate'), 'up')
         write_file(os.path.join(self.sysdir, 'eth1', 'operstate'), 'up')
-        self.assertItemsEqual(['eth0', 'eth1'], net.get_devicelist())
+        self.assertCountEqual(['eth0', 'eth1'], net.get_devicelist())
 
 
 class TestGetInterfaceMAC(CiTestCase):
@@ -365,6 +429,57 @@ class TestGetInterfaceMAC(CiTestCase):
         expected = [('eth2', 'aa:bb:cc:aa:bb:cc', None, None)]
         self.assertEqual(expected, net.get_interfaces())
 
+    def test_get_interfaces_by_mac_skips_master_devs(self):
+        """Ignore interfaces with a master device which would have dup mac."""
+        mac1 = mac2 = 'aa:bb:cc:aa:bb:cc'
+        write_file(os.path.join(self.sysdir, 'eth1', 'addr_assign_type'), '0')
+        write_file(os.path.join(self.sysdir, 'eth1', 'address'), mac1)
+        write_file(os.path.join(self.sysdir, 'eth1', 'master'), "blah")
+        write_file(os.path.join(self.sysdir, 'eth2', 'addr_assign_type'), '0')
+        write_file(os.path.join(self.sysdir, 'eth2', 'address'), mac2)
+        expected = [('eth2', mac2, None, None)]
+        self.assertEqual(expected, net.get_interfaces())
+
+    @mock.patch('cloudinit.net.is_netfailover')
+    def test_get_interfaces_by_mac_skips_netfailvoer(self, m_netfail):
+        """Ignore interfaces if netfailover primary or standby."""
+        mac = 'aa:bb:cc:aa:bb:cc'  # netfailover devs share the same mac
+        for iface in ['ens3', 'ens3sby', 'enP0s1f3']:
+            write_file(
+                os.path.join(self.sysdir, iface, 'addr_assign_type'), '0')
+            write_file(
+                os.path.join(self.sysdir, iface, 'address'), mac)
+
+        def is_netfail(iface, _driver=None):
+            # ens3 is the master
+            if iface == 'ens3':
+                return False
+            else:
+                return True
+        m_netfail.side_effect = is_netfail
+        expected = [('ens3', mac, None, None)]
+        self.assertEqual(expected, net.get_interfaces())
+
+    def test_get_interfaces_does_not_skip_phys_members_of_bridges_and_bonds(
+        self
+    ):
+        bridge_mac = 'aa:bb:cc:aa:bb:cc'
+        bond_mac = 'cc:bb:aa:cc:bb:aa'
+        write_file(os.path.join(self.sysdir, 'br0', 'address'), bridge_mac)
+        write_file(os.path.join(self.sysdir, 'br0', 'bridge'), '')
+
+        write_file(os.path.join(self.sysdir, 'bond0', 'address'), bond_mac)
+        write_file(os.path.join(self.sysdir, 'bond0', 'bonding'), '')
+
+        write_file(os.path.join(self.sysdir, 'eth1', 'address'), bridge_mac)
+        os.symlink('../br0', os.path.join(self.sysdir, 'eth1', 'master'))
+
+        write_file(os.path.join(self.sysdir, 'eth2', 'address'), bond_mac)
+        os.symlink('../bond0', os.path.join(self.sysdir, 'eth2', 'master'))
+
+        interface_names = [interface[0] for interface in net.get_interfaces()]
+        self.assertEqual(['eth1', 'eth2'], sorted(interface_names))
+
 
 class TestInterfaceHasOwnMAC(CiTestCase):
 
@@ -395,7 +510,7 @@ class TestInterfaceHasOwnMAC(CiTestCase):
             net.interface_has_own_mac('eth1', strict=True)
 
 
-@mock.patch('cloudinit.net.util.subp')
+@mock.patch('cloudinit.net.subp.subp')
 class TestEphemeralIPV4Network(CiTestCase):
 
     with_logs = True
@@ -848,77 +963,274 @@ class TestExtractPhysdevs(CiTestCase):
             net.extract_physdevs({'version': 3, 'awesome_config': []})
 
 
-class TestWaitForPhysdevs(CiTestCase):
-
-    with_logs = True
+class TestNetFailOver(CiTestCase):
 
     def setUp(self):
-        super(TestWaitForPhysdevs, self).setUp()
-        self.add_patch('cloudinit.net.get_interfaces_by_mac',
-                       'm_get_iface_mac')
-        self.add_patch('cloudinit.util.udevadm_settle', 'm_udev_settle')
+        super(TestNetFailOver, self).setUp()
+        self.add_patch('cloudinit.net.util', 'm_util')
+        self.add_patch('cloudinit.net.read_sys_net', 'm_read_sys_net')
+        self.add_patch('cloudinit.net.device_driver', 'm_device_driver')
 
-    def test_wait_for_physdevs_skips_settle_if_all_present(self):
-        physdevs = [
-            ['aa:bb:cc:dd:ee:ff', 'eth0', 'virtio', '0x1000'],
-            ['00:11:22:33:44:55', 'ens3', 'e1000', '0x1643'],
-        ]
-        netcfg = {
-            'version': 2,
-            'ethernets': {args[1]: _mk_v2_phys(*args)
-                          for args in physdevs},
-        }
-        self.m_get_iface_mac.side_effect = iter([
-            {'aa:bb:cc:dd:ee:ff': 'eth0',
-             '00:11:22:33:44:55': 'ens3'},
-        ])
-        net.wait_for_physdevs(netcfg)
-        self.assertEqual(0, self.m_udev_settle.call_count)
+    def test_get_dev_features(self):
+        devname = self.random_string()
+        features = self.random_string()
+        self.m_read_sys_net.return_value = features
 
-    def test_wait_for_physdevs_calls_udev_settle_on_missing(self):
-        physdevs = [
-            ['aa:bb:cc:dd:ee:ff', 'eth0', 'virtio', '0x1000'],
-            ['00:11:22:33:44:55', 'ens3', 'e1000', '0x1643'],
-        ]
-        netcfg = {
-            'version': 2,
-            'ethernets': {args[1]: _mk_v2_phys(*args)
-                          for args in physdevs},
-        }
-        self.m_get_iface_mac.side_effect = iter([
-            {'aa:bb:cc:dd:ee:ff': 'eth0'},   # first call ens3 is missing
-            {'aa:bb:cc:dd:ee:ff': 'eth0',
-             '00:11:22:33:44:55': 'ens3'},   # second call has both
-        ])
-        net.wait_for_physdevs(netcfg)
-        self.m_udev_settle.assert_called_with(exists=net.sys_dev_path('ens3'))
+        self.assertEqual(features, net.get_dev_features(devname))
+        self.assertEqual(1, self.m_read_sys_net.call_count)
+        self.assertEqual(mock.call(devname, 'device/features'),
+                         self.m_read_sys_net.call_args_list[0])
 
-    def test_wait_for_physdevs_raise_runtime_error_if_missing_and_strict(self):
-        physdevs = [
-            ['aa:bb:cc:dd:ee:ff', 'eth0', 'virtio', '0x1000'],
-            ['00:11:22:33:44:55', 'ens3', 'e1000', '0x1643'],
-        ]
-        netcfg = {
-            'version': 2,
-            'ethernets': {args[1]: _mk_v2_phys(*args)
-                          for args in physdevs},
-        }
-        self.m_get_iface_mac.return_value = {}
-        with self.assertRaises(RuntimeError):
-            net.wait_for_physdevs(netcfg)
+    def test_get_dev_features_none_returns_empty_string(self):
+        devname = self.random_string()
+        self.m_read_sys_net.side_effect = Exception('error')
+        self.assertEqual('', net.get_dev_features(devname))
+        self.assertEqual(1, self.m_read_sys_net.call_count)
+        self.assertEqual(mock.call(devname, 'device/features'),
+                         self.m_read_sys_net.call_args_list[0])
 
-        self.assertEqual(5 * len(physdevs), self.m_udev_settle.call_count)
+    @mock.patch('cloudinit.net.get_dev_features')
+    def test_has_netfail_standby_feature(self, m_dev_features):
+        devname = self.random_string()
+        standby_features = ('0' * 62) + '1' + '0'
+        m_dev_features.return_value = standby_features
+        self.assertTrue(net.has_netfail_standby_feature(devname))
 
-    def test_wait_for_physdevs_no_raise_if_not_strict(self):
-        physdevs = [
-            ['aa:bb:cc:dd:ee:ff', 'eth0', 'virtio', '0x1000'],
-            ['00:11:22:33:44:55', 'ens3', 'e1000', '0x1643'],
-        ]
-        netcfg = {
-            'version': 2,
-            'ethernets': {args[1]: _mk_v2_phys(*args)
-                          for args in physdevs},
-        }
-        self.m_get_iface_mac.return_value = {}
-        net.wait_for_physdevs(netcfg, strict=False)
-        self.assertEqual(5 * len(physdevs), self.m_udev_settle.call_count)
+    @mock.patch('cloudinit.net.get_dev_features')
+    def test_has_netfail_standby_feature_short_is_false(self, m_dev_features):
+        devname = self.random_string()
+        standby_features = self.random_string()
+        m_dev_features.return_value = standby_features
+        self.assertFalse(net.has_netfail_standby_feature(devname))
+
+    @mock.patch('cloudinit.net.get_dev_features')
+    def test_has_netfail_standby_feature_not_present_is_false(self,
+                                                              m_dev_features):
+        devname = self.random_string()
+        standby_features = '0' * 64
+        m_dev_features.return_value = standby_features
+        self.assertFalse(net.has_netfail_standby_feature(devname))
+
+    @mock.patch('cloudinit.net.get_dev_features')
+    def test_has_netfail_standby_feature_no_features_is_false(self,
+                                                              m_dev_features):
+        devname = self.random_string()
+        standby_features = None
+        m_dev_features.return_value = standby_features
+        self.assertFalse(net.has_netfail_standby_feature(devname))
+
+    @mock.patch('cloudinit.net.has_netfail_standby_feature')
+    @mock.patch('cloudinit.net.os.path.exists')
+    def test_is_netfail_master(self, m_exists, m_standby):
+        devname = self.random_string()
+        driver = 'virtio_net'
+        m_exists.return_value = False  # no master sysfs attr
+        m_standby.return_value = True  # has standby feature flag
+        self.assertTrue(net.is_netfail_master(devname, driver))
+
+    @mock.patch('cloudinit.net.sys_dev_path')
+    def test_is_netfail_master_checks_master_attr(self, m_sysdev):
+        devname = self.random_string()
+        driver = 'virtio_net'
+        m_sysdev.return_value = self.random_string()
+        self.assertFalse(net.is_netfail_master(devname, driver))
+        self.assertEqual(1, m_sysdev.call_count)
+        self.assertEqual(mock.call(devname, path='master'),
+                         m_sysdev.call_args_list[0])
+
+    @mock.patch('cloudinit.net.has_netfail_standby_feature')
+    @mock.patch('cloudinit.net.os.path.exists')
+    def test_is_netfail_master_wrong_driver(self, m_exists, m_standby):
+        devname = self.random_string()
+        driver = self.random_string()
+        self.assertFalse(net.is_netfail_master(devname, driver))
+
+    @mock.patch('cloudinit.net.has_netfail_standby_feature')
+    @mock.patch('cloudinit.net.os.path.exists')
+    def test_is_netfail_master_has_master_attr(self, m_exists, m_standby):
+        devname = self.random_string()
+        driver = 'virtio_net'
+        m_exists.return_value = True  # has master sysfs attr
+        self.assertFalse(net.is_netfail_master(devname, driver))
+
+    @mock.patch('cloudinit.net.has_netfail_standby_feature')
+    @mock.patch('cloudinit.net.os.path.exists')
+    def test_is_netfail_master_no_standby_feat(self, m_exists, m_standby):
+        devname = self.random_string()
+        driver = 'virtio_net'
+        m_exists.return_value = False  # no master sysfs attr
+        m_standby.return_value = False  # no standby feature flag
+        self.assertFalse(net.is_netfail_master(devname, driver))
+
+    @mock.patch('cloudinit.net.has_netfail_standby_feature')
+    @mock.patch('cloudinit.net.os.path.exists')
+    @mock.patch('cloudinit.net.sys_dev_path')
+    def test_is_netfail_primary(self, m_sysdev, m_exists, m_standby):
+        devname = self.random_string()
+        driver = self.random_string()  # device not virtio_net
+        master_devname = self.random_string()
+        m_sysdev.return_value = "%s/%s" % (self.random_string(),
+                                           master_devname)
+        m_exists.return_value = True  # has master sysfs attr
+        self.m_device_driver.return_value = 'virtio_net'  # master virtio_net
+        m_standby.return_value = True  # has standby feature flag
+        self.assertTrue(net.is_netfail_primary(devname, driver))
+        self.assertEqual(1, self.m_device_driver.call_count)
+        self.assertEqual(mock.call(master_devname),
+                         self.m_device_driver.call_args_list[0])
+        self.assertEqual(1, m_standby.call_count)
+        self.assertEqual(mock.call(master_devname),
+                         m_standby.call_args_list[0])
+
+    @mock.patch('cloudinit.net.has_netfail_standby_feature')
+    @mock.patch('cloudinit.net.os.path.exists')
+    @mock.patch('cloudinit.net.sys_dev_path')
+    def test_is_netfail_primary_wrong_driver(self, m_sysdev, m_exists,
+                                             m_standby):
+        devname = self.random_string()
+        driver = 'virtio_net'
+        self.assertFalse(net.is_netfail_primary(devname, driver))
+
+    @mock.patch('cloudinit.net.has_netfail_standby_feature')
+    @mock.patch('cloudinit.net.os.path.exists')
+    @mock.patch('cloudinit.net.sys_dev_path')
+    def test_is_netfail_primary_no_master(self, m_sysdev, m_exists, m_standby):
+        devname = self.random_string()
+        driver = self.random_string()  # device not virtio_net
+        m_exists.return_value = False  # no master sysfs attr
+        self.assertFalse(net.is_netfail_primary(devname, driver))
+
+    @mock.patch('cloudinit.net.has_netfail_standby_feature')
+    @mock.patch('cloudinit.net.os.path.exists')
+    @mock.patch('cloudinit.net.sys_dev_path')
+    def test_is_netfail_primary_bad_master(self, m_sysdev, m_exists,
+                                           m_standby):
+        devname = self.random_string()
+        driver = self.random_string()  # device not virtio_net
+        master_devname = self.random_string()
+        m_sysdev.return_value = "%s/%s" % (self.random_string(),
+                                           master_devname)
+        m_exists.return_value = True  # has master sysfs attr
+        self.m_device_driver.return_value = 'XXXX'  # master not virtio_net
+        self.assertFalse(net.is_netfail_primary(devname, driver))
+
+    @mock.patch('cloudinit.net.has_netfail_standby_feature')
+    @mock.patch('cloudinit.net.os.path.exists')
+    @mock.patch('cloudinit.net.sys_dev_path')
+    def test_is_netfail_primary_no_standby(self, m_sysdev, m_exists,
+                                           m_standby):
+        devname = self.random_string()
+        driver = self.random_string()  # device not virtio_net
+        master_devname = self.random_string()
+        m_sysdev.return_value = "%s/%s" % (self.random_string(),
+                                           master_devname)
+        m_exists.return_value = True  # has master sysfs attr
+        self.m_device_driver.return_value = 'virtio_net'  # master virtio_net
+        m_standby.return_value = False  # master has no standby feature flag
+        self.assertFalse(net.is_netfail_primary(devname, driver))
+
+    @mock.patch('cloudinit.net.has_netfail_standby_feature')
+    @mock.patch('cloudinit.net.os.path.exists')
+    def test_is_netfail_standby(self, m_exists, m_standby):
+        devname = self.random_string()
+        driver = 'virtio_net'
+        m_exists.return_value = True  # has master sysfs attr
+        m_standby.return_value = True  # has standby feature flag
+        self.assertTrue(net.is_netfail_standby(devname, driver))
+
+    @mock.patch('cloudinit.net.has_netfail_standby_feature')
+    @mock.patch('cloudinit.net.os.path.exists')
+    def test_is_netfail_standby_wrong_driver(self, m_exists, m_standby):
+        devname = self.random_string()
+        driver = self.random_string()
+        self.assertFalse(net.is_netfail_standby(devname, driver))
+
+    @mock.patch('cloudinit.net.has_netfail_standby_feature')
+    @mock.patch('cloudinit.net.os.path.exists')
+    def test_is_netfail_standby_no_master(self, m_exists, m_standby):
+        devname = self.random_string()
+        driver = 'virtio_net'
+        m_exists.return_value = False  # has master sysfs attr
+        self.assertFalse(net.is_netfail_standby(devname, driver))
+
+    @mock.patch('cloudinit.net.has_netfail_standby_feature')
+    @mock.patch('cloudinit.net.os.path.exists')
+    def test_is_netfail_standby_no_standby_feature(self, m_exists, m_standby):
+        devname = self.random_string()
+        driver = 'virtio_net'
+        m_exists.return_value = True  # has master sysfs attr
+        m_standby.return_value = False  # has standby feature flag
+        self.assertFalse(net.is_netfail_standby(devname, driver))
+
+    @mock.patch('cloudinit.net.is_netfail_standby')
+    @mock.patch('cloudinit.net.is_netfail_primary')
+    def test_is_netfailover_primary(self, m_primary, m_standby):
+        devname = self.random_string()
+        driver = self.random_string()
+        m_primary.return_value = True
+        m_standby.return_value = False
+        self.assertTrue(net.is_netfailover(devname, driver))
+
+    @mock.patch('cloudinit.net.is_netfail_standby')
+    @mock.patch('cloudinit.net.is_netfail_primary')
+    def test_is_netfailover_standby(self, m_primary, m_standby):
+        devname = self.random_string()
+        driver = self.random_string()
+        m_primary.return_value = False
+        m_standby.return_value = True
+        self.assertTrue(net.is_netfailover(devname, driver))
+
+    @mock.patch('cloudinit.net.is_netfail_standby')
+    @mock.patch('cloudinit.net.is_netfail_primary')
+    def test_is_netfailover_returns_false(self, m_primary, m_standby):
+        devname = self.random_string()
+        driver = self.random_string()
+        m_primary.return_value = False
+        m_standby.return_value = False
+        self.assertFalse(net.is_netfailover(devname, driver))
+
+
+class TestIsIpAddress:
+    """Tests for net.is_ip_address.
+
+    Instead of testing with values we rely on the ipaddress stdlib module to
+    handle all values correctly, so simply test that is_ip_address defers to
+    the ipaddress module correctly.
+    """
+
+    @pytest.mark.parametrize('ip_address_side_effect,expected_return', (
+        (ValueError, False),
+        (lambda _: ipaddress.IPv4Address('192.168.0.1'), True),
+        (lambda _: ipaddress.IPv6Address('2001:db8::'), True),
+    ))
+    def test_is_ip_address(self, ip_address_side_effect, expected_return):
+        with mock.patch('cloudinit.net.ipaddress.ip_address',
+                        side_effect=ip_address_side_effect) as m_ip_address:
+            ret = net.is_ip_address(mock.sentinel.ip_address_in)
+        assert expected_return == ret
+        expected_call = mock.call(mock.sentinel.ip_address_in)
+        assert [expected_call] == m_ip_address.call_args_list
+
+
+class TestIsIpv4Address:
+    """Tests for net.is_ipv4_address.
+
+    Instead of testing with values we rely on the ipaddress stdlib module to
+    handle all values correctly, so simply test that is_ipv4_address defers to
+    the ipaddress module correctly.
+    """
+
+    @pytest.mark.parametrize('ipv4address_mock,expected_return', (
+        (mock.Mock(side_effect=ValueError), False),
+        (mock.Mock(return_value=ipaddress.IPv4Address('192.168.0.1')), True),
+    ))
+    def test_is_ip_address(self, ipv4address_mock, expected_return):
+        with mock.patch('cloudinit.net.ipaddress.IPv4Address',
+                        ipv4address_mock) as m_ipv4address:
+            ret = net.is_ipv4_address(mock.sentinel.ip_address_in)
+        assert expected_return == ret
+        expected_call = mock.call(mock.sentinel.ip_address_in)
+        assert [expected_call] == m_ipv4address.call_args_list
+
+
+# vi: ts=4 expandtab

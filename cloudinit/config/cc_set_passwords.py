@@ -83,6 +83,7 @@ import sys
 from cloudinit.distros import ug_util
 from cloudinit import log as logging
 from cloudinit.ssh_util import update_ssh_config
+from cloudinit import subp
 from cloudinit import util
 
 from string import ascii_letters, digits
@@ -112,7 +113,7 @@ def handle_ssh_pwauth(pw_auth, service_cmd=None, service_name="ssh"):
     elif util.is_false(pw_auth):
         cfg_val = 'no'
     else:
-        bmsg = "Leaving ssh config '%s' unchanged." % cfg_name
+        bmsg = "Leaving SSH config '%s' unchanged." % cfg_name
         if pw_auth is None or pw_auth.lower() == 'unchanged':
             LOG.debug("%s ssh_pwauth=%s", bmsg, pw_auth)
         else:
@@ -121,15 +122,15 @@ def handle_ssh_pwauth(pw_auth, service_cmd=None, service_name="ssh"):
 
     updated = update_ssh_config({cfg_name: cfg_val})
     if not updated:
-        LOG.debug("No need to restart ssh service, %s not updated.", cfg_name)
+        LOG.debug("No need to restart SSH service, %s not updated.", cfg_name)
         return
 
     if 'systemctl' in service_cmd:
         cmd = list(service_cmd) + ["restart", service_name]
     else:
         cmd = list(service_cmd) + [service_name, "restart"]
-    util.subp(cmd)
-    LOG.debug("Restarted the ssh daemon.")
+    subp.subp(cmd)
+    LOG.debug("Restarted the SSH daemon.")
 
 
 def handle(_name, cfg, cloud, log, args):
@@ -164,7 +165,7 @@ def handle(_name, cfg, cloud, log, args):
         if user:
             plist = ["%s:%s" % (user, password)]
         else:
-            log.warn("No default or defined user to change password for.")
+            log.warning("No default or defined user to change password for.")
 
     errors = []
     if plist:
@@ -179,20 +180,21 @@ def handle(_name, cfg, cloud, log, args):
         for line in plist:
             u, p = line.split(':', 1)
             if prog.match(p) is not None and ":" not in p:
-                hashed_plist_in.append("%s:%s" % (u, p))
+                hashed_plist_in.append(line)
                 hashed_users.append(u)
             else:
+                # in this else branch, we potentially change the password
+                # hence, a deviation from .append(line)
                 if p == "R" or p == "RANDOM":
                     p = rand_user_password()
                     randlist.append("%s:%s" % (u, p))
                 plist_in.append("%s:%s" % (u, p))
                 users.append(u)
-
         ch_in = '\n'.join(plist_in) + '\n'
         if users:
             try:
                 log.debug("Changing password for %s:", users)
-                util.subp(['chpasswd'], ch_in)
+                chpasswd(cloud.distro, ch_in)
             except Exception as e:
                 errors.append(e)
                 util.logexc(
@@ -202,7 +204,7 @@ def handle(_name, cfg, cloud, log, args):
         if hashed_users:
             try:
                 log.debug("Setting hashed password for %s:", hashed_users)
-                util.subp(['chpasswd', '-e'], hashed_ch_in)
+                chpasswd(cloud.distro, hashed_ch_in, hashed=True)
             except Exception as e:
                 errors.append(e)
                 util.logexc(
@@ -218,7 +220,7 @@ def handle(_name, cfg, cloud, log, args):
             expired_users = []
             for u in users:
                 try:
-                    util.subp(['passwd', '--expire', u])
+                    cloud.distro.expire_passwd(u)
                     expired_users.append(u)
                 except Exception as e:
                     errors.append(e)
@@ -235,7 +237,17 @@ def handle(_name, cfg, cloud, log, args):
         raise errors[-1]
 
 
-def rand_user_password(pwlen=9):
+def rand_user_password(pwlen=20):
     return util.rand_str(pwlen, select_from=PW_SET)
+
+
+def chpasswd(distro, plist_in, hashed=False):
+    if util.is_BSD():
+        for pentry in plist_in.splitlines():
+            u, p = pentry.split(":")
+            distro.set_passwd(u, p, hashed=hashed)
+    else:
+        cmd = ['chpasswd'] + (['-e'] if hashed else [])
+        subp.subp(cmd, plist_in)
 
 # vi: ts=4 expandtab

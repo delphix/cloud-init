@@ -12,6 +12,7 @@ from cloudinit.config.schema import (
     get_schema_doc, validate_cloudconfig_schema)
 from cloudinit.settings import PER_INSTANCE
 from cloudinit.subp import prepend_base_command
+from cloudinit import subp
 from cloudinit import util
 
 
@@ -130,8 +131,8 @@ def run_commands(commands):
     for command in fixed_ua_commands:
         shell = isinstance(command, str)
         try:
-            util.subp(command, shell=shell, status_cb=sys.stderr.write)
-        except util.ProcessExecutionError as e:
+            subp.subp(command, shell=shell, status_cb=sys.stderr.write)
+        except subp.ProcessExecutionError as e:
             cmd_failures.append(str(e))
     if cmd_failures:
         msg = (
@@ -144,7 +145,7 @@ def run_commands(commands):
 
 def maybe_install_ua_tools(cloud):
     """Install ubuntu-advantage-tools if not present."""
-    if util.which('ubuntu-advantage'):
+    if subp.which('ubuntu-advantage'):
         return
     try:
         cloud.distro.update_package_sources()

@@ -56,12 +56,12 @@ The following default client config is provided, but can be overridden::
 """
 
 import os
-
-from six import BytesIO
+from io import BytesIO
 
 from configobj import ConfigObj
 
 from cloudinit import type_utils
+from cloudinit import subp
 from cloudinit import util
 
 from cloudinit.settings import PER_INSTANCE
@@ -117,7 +117,7 @@ def handle(_name, cfg, cloud, log, _args):
     log.debug("Wrote landscape config file to %s", LSC_CLIENT_CFG_FILE)
 
     util.write_file(LS_DEFAULT_FILE, "RUN=1\n")
-    util.subp(["service", "landscape-client", "restart"])
+    subp.subp(["service", "landscape-client", "restart"])
 
 
 def merge_together(objs):

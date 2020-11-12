@@ -19,6 +19,7 @@ keys to post. Available keys are:
     - ``pub_key_dsa``
     - ``pub_key_rsa``
     - ``pub_key_ecdsa``
+    - ``pub_key_ed25519``
     - ``instance_id``
     - ``hostname``
     - ``fdqn``
@@ -52,6 +53,7 @@ POST_LIST_ALL = [
     'pub_key_dsa',
     'pub_key_rsa',
     'pub_key_ecdsa',
+    'pub_key_ed25519',
     'instance_id',
     'hostname',
     'fqdn'
@@ -79,8 +81,8 @@ def handle(name, cfg, cloud, log, args):
         ph_cfg = cfg['phone_home']
 
     if 'url' not in ph_cfg:
-        log.warn(("Skipping module named %s, "
-                  "no 'url' found in 'phone_home' configuration"), name)
+        log.warning(("Skipping module named %s, "
+                     "no 'url' found in 'phone_home' configuration"), name)
         return
 
     url = ph_cfg['url']
@@ -91,7 +93,7 @@ def handle(name, cfg, cloud, log, args):
     except Exception:
         tries = 10
         util.logexc(log, "Configuration entry 'tries' is not an integer, "
-                    "using %s instead", tries)
+                         "using %s instead", tries)
 
     if post_list == "all":
         post_list = POST_LIST_ALL
@@ -105,6 +107,7 @@ def handle(name, cfg, cloud, log, args):
         'pub_key_dsa': '/etc/ssh/ssh_host_dsa_key.pub',
         'pub_key_rsa': '/etc/ssh/ssh_host_rsa_key.pub',
         'pub_key_ecdsa': '/etc/ssh/ssh_host_ecdsa_key.pub',
+        'pub_key_ed25519': '/etc/ssh/ssh_host_ed25519_key.pub',
     }
 
     for (n, path) in pubkeys.items():
@@ -112,7 +115,7 @@ def handle(name, cfg, cloud, log, args):
             all_keys[n] = util.load_file(path)
         except Exception:
             util.logexc(log, "%s: failed to open, can not phone home that "
-                        "data!", path)
+                             "data!", path)
 
     submit_keys = {}
     for k in post_list:
@@ -120,8 +123,8 @@ def handle(name, cfg, cloud, log, args):
             submit_keys[k] = all_keys[k]
         else:
             submit_keys[k] = None
-            log.warn(("Requested key %s from 'post'"
-                      " configuration list not available"), k)
+            log.warning(("Requested key %s from 'post'"
+                         " configuration list not available"), k)
 
     # Get them read to be posted
     real_submit_keys = {}

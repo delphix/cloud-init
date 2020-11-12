@@ -106,6 +106,31 @@ class TestHandleSsh(CiTestCase):
     @mock.patch(MODPATH + "glob.glob")
     @mock.patch(MODPATH + "ug_util.normalize_users_groups")
     @mock.patch(MODPATH + "os.path.exists")
+    def test_dont_allow_public_ssh_keys(self, m_path_exists, m_nug,
+                                        m_glob, m_setup_keys):
+        """Test allow_public_ssh_keys=False ignores ssh public keys from
+           platform.
+        """
+        cfg = {"allow_public_ssh_keys": False}
+        keys = ["key1"]
+        user = "clouduser"
+        m_glob.return_value = []  # Return no matching keys to prevent removal
+        # Mock os.path.exits to True to short-circuit the key writing logic
+        m_path_exists.return_value = True
+        m_nug.return_value = ({user: {"default": user}}, {})
+        cloud = self.tmp_cloud(
+            distro='ubuntu', metadata={'public-keys': keys})
+        cc_ssh.handle("name", cfg, cloud, LOG, None)
+
+        options = ssh_util.DISABLE_USER_OPTS.replace("$USER", user)
+        options = options.replace("$DISABLE_USER", "root")
+        self.assertEqual([mock.call(set(), user),
+                          mock.call(set(), "root", options=options)],
+                         m_setup_keys.call_args_list)
+
+    @mock.patch(MODPATH + "glob.glob")
+    @mock.patch(MODPATH + "ug_util.normalize_users_groups")
+    @mock.patch(MODPATH + "os.path.exists")
     def test_handle_no_cfg_and_default_root(self, m_path_exists, m_nug,
                                             m_glob, m_setup_keys):
         """Test handle with no config and a default distro user."""

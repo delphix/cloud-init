@@ -6,6 +6,7 @@ import os
 from uuid import uuid4
 
 from cloudinit import safeyaml
+from cloudinit import subp
 from cloudinit import util
 from cloudinit.tests.helpers import (
     CiTestCase, dir2dict, populate_dir, populate_dir_with_ts)
@@ -140,7 +141,8 @@ class DsIdentifyBase(CiTestCase):
             {'name': 'blkid', 'out': BLKID_EFI_ROOT},
             {'name': 'ovf_vmware_transport_guestinfo',
              'out': 'No value found', 'ret': 1},
-
+            {'name': 'dmi_decode', 'ret': 1,
+             'err': 'No dmidecode program. ERROR.'},
         ]
 
         written = [d['name'] for d in mocks]
@@ -159,8 +161,8 @@ class DsIdentifyBase(CiTestCase):
 
         rc = 0
         try:
-            out, err = util.subp(['sh', '-c', '. %s' % wrap], capture=True)
-        except util.ProcessExecutionError as e:
+            out, err = subp.subp(['sh', '-c', '. %s' % wrap], capture=True)
+        except subp.ProcessExecutionError as e:
             rc = e.exit_code
             out = e.stdout
             err = e.stderr
@@ -194,6 +196,10 @@ class DsIdentifyBase(CiTestCase):
         data = copy.deepcopy(VALID_CFG[name])
         return self._check_via_dict(
             data, RC_FOUND, dslist=[data.get('ds'), DS_NONE])
+
+    def _test_ds_not_found(self, name):
+        data = copy.deepcopy(VALID_CFG[name])
+        return self._check_via_dict(data, RC_NOT_FOUND)
 
     def _check_via_dict(self, data, rc, dslist=None, **kwargs):
         ret = self._call_via_dict(data, **kwargs)
@@ -244,8 +250,12 @@ class TestDsIdentify(DsIdentifyBase):
         self._test_ds_found('Ec2-xen')
 
     def test_brightbox_is_ec2(self):
-        """EC2: product_serial ends with 'brightbox.com'"""
+        """EC2: product_serial ends with '.brightbox.com'"""
         self._test_ds_found('Ec2-brightbox')
+
+    def test_bobrightbox_is_not_brightbox(self):
+        """EC2: bobrightbox.com in product_serial is not brightbox'"""
+        self._test_ds_not_found('Ec2-brightbox-negative')
 
     def test_gce_by_product_name(self):
         """GCE identifies itself with product_name."""
@@ -259,10 +269,17 @@ class TestDsIdentify(DsIdentifyBase):
         """ConfigDrive datasource has a disk with LABEL=config-2."""
         self._test_ds_found('ConfigDrive')
 
+    def test_rbx_cloud(self):
+        """Rbx datasource has a disk with LABEL=CLOUDMD."""
+        self._test_ds_found('RbxCloud')
+
+    def test_rbx_cloud_lower(self):
+        """Rbx datasource has a disk with LABEL=cloudmd."""
+        self._test_ds_found('RbxCloudLower')
+
     def test_config_drive_upper(self):
         """ConfigDrive datasource has a disk with LABEL=CONFIG-2."""
         self._test_ds_found('ConfigDriveUpper')
-        return
 
     def test_config_drive_seed(self):
         """Config Drive seed directory."""
@@ -435,6 +452,10 @@ class TestDsIdentify(DsIdentifyBase):
         """Open Telecom identification."""
         self._test_ds_found('OpenStack-OpenTelekom')
 
+    def test_openstack_sap_ccloud(self):
+        """SAP Converged Cloud identification"""
+        self._test_ds_found('OpenStack-SAPCCloud')
+
     def test_openstack_asset_tag_nova(self):
         """OpenStack identification via asset tag OpenStack Nova."""
         self._test_ds_found('OpenStack-AssetTag-Nova')
@@ -556,6 +577,10 @@ class TestDsIdentify(DsIdentifyBase):
         """NoCloud is found with uppercase filesystem label."""
         self._test_ds_found('NoCloudUpper')
 
+    def test_nocloud_fatboot(self):
+        """NoCloud fatboot label - LP: #184166."""
+        self._test_ds_found('NoCloud-fatboot')
+
     def test_nocloud_seed(self):
         """Nocloud seed directory."""
         self._test_ds_found('NoCloud-seed')
@@ -595,11 +620,40 @@ class TestDsIdentify(DsIdentifyBase):
         ret = self._check_via_dict(
             cust, RC_FOUND,
             func=".", args=[os.path.join(rootd, mpp)], rootd=rootd)
-        line = [l for l in ret.stdout.splitlines() if l.startswith(pre)][0]
-        toks = line.replace(pre, "").split(":")
+        match = [
+            line for line in ret.stdout.splitlines() if line.startswith(pre)
+        ][0]
+        toks = match.replace(pre, "").split(":")
         expected = ["/sbin", "/bin", "/usr/sbin", "/usr/bin", "/mycust/path"]
         self.assertEqual(expected, [p for p in expected if p in toks],
                          "path did not have expected tokens")
+
+    def test_zstack_is_ec2(self):
+        """EC2: chassis asset tag ends with 'zstack.io'"""
+        self._test_ds_found('Ec2-ZStack')
+
+    def test_e24cloud_is_ec2(self):
+        """EC2: e24cloud identified by sys_vendor"""
+        self._test_ds_found('Ec2-E24Cloud')
+
+    def test_e24cloud_not_active(self):
+        """EC2: bobrightbox.com in product_serial is not brightbox'"""
+        self._test_ds_not_found('Ec2-E24Cloud-negative')
+
+
+class TestBSDNoSys(DsIdentifyBase):
+    """Test *BSD code paths
+
+    FreeBSD doesn't have /sys so we use dmidecode(8) here
+    It also doesn't have systemd-detect-virt(8), so we use sysctl(8) to query
+    kern.vm_guest, and optionally map it"""
+
+    def test_dmi_decode(self):
+        """Test that dmidecode(8) works on systems which don't have /sys
+
+        This will be used on *BSD systems.
+        """
+        self._test_ds_found('Hetzner-dmidecode')
 
 
 class TestIsIBMProvisioning(DsIdentifyBase):
@@ -724,7 +778,11 @@ VALID_CFG = {
     },
     'Ec2-brightbox': {
         'ds': 'Ec2',
-        'files': {P_PRODUCT_SERIAL: 'facc6e2f.brightbox.com\n'},
+        'files': {P_PRODUCT_SERIAL: 'srv-otuxg.gb1.brightbox.com\n'},
+    },
+    'Ec2-brightbox-negative': {
+        'ds': 'Ec2',
+        'files': {P_PRODUCT_SERIAL: 'tricky-host.bobrightbox.com\n'},
     },
     'GCE': {
         'ds': 'GCE',
@@ -762,6 +820,20 @@ VALID_CFG = {
             'dev/vdb': 'pretend iso content for cidata\n',
         }
     },
+    'NoCloud-fatboot': {
+        'ds': 'NoCloud',
+        'mocks': [
+            MOCK_VIRT_IS_XEN,
+            {'name': 'blkid', 'ret': 0,
+             'out': blkid_out(
+                 BLKID_UEFI_UBUNTU +
+                 [{'DEVNAME': 'xvdb', 'TYPE': 'vfat', 'SEC_TYPE': 'msdos',
+                   'UUID': '355a-4FC2', 'LABEL_FATBOOT': 'cidata'}])},
+        ],
+        'files': {
+            'dev/vdb': 'pretend iso content for cidata\n',
+        }
+    },
     'NoCloud-seed': {
         'ds': 'NoCloud',
         'files': {
@@ -790,6 +862,12 @@ VALID_CFG = {
         'ds': 'OpenStack',
         'files': {P_CHASSIS_ASSET_TAG: 'OpenTelekomCloud\n'},
         'mocks': [MOCK_VIRT_IS_XEN],
+    },
+    'OpenStack-SAPCCloud': {
+        # SAP CCloud hosts use OpenStack on VMware
+        'ds': 'OpenStack',
+        'files': {P_CHASSIS_ASSET_TAG: 'SAP CCloud VM\n'},
+        'mocks': [MOCK_VIRT_IS_VMWARE],
     },
     'OpenStack-AssetTag-Nova': {
         # VMware vSphere can't modify product-name, LP: #1669875
@@ -880,9 +958,39 @@ VALID_CFG = {
             os.path.join(P_SEED_DIR, 'config_drive', 'openstack',
                          'latest', 'meta_data.json'): 'md\n'},
     },
+    'RbxCloud': {
+        'ds': 'RbxCloud',
+        'mocks': [
+            {'name': 'blkid', 'ret': 0,
+             'out': blkid_out(
+                 [{'DEVNAME': 'vda1', 'TYPE': 'vfat', 'PARTUUID': uuid4()},
+                  {'DEVNAME': 'vda2', 'TYPE': 'ext4',
+                   'LABEL': 'cloudimg-rootfs', 'PARTUUID': uuid4()},
+                  {'DEVNAME': 'vdb', 'TYPE': 'vfat', 'LABEL': 'CLOUDMD'}]
+             )},
+        ],
+    },
+    'RbxCloudLower': {
+        'ds': 'RbxCloud',
+        'mocks': [
+            {'name': 'blkid', 'ret': 0,
+             'out': blkid_out(
+                 [{'DEVNAME': 'vda1', 'TYPE': 'vfat', 'PARTUUID': uuid4()},
+                  {'DEVNAME': 'vda2', 'TYPE': 'ext4',
+                   'LABEL': 'cloudimg-rootfs', 'PARTUUID': uuid4()},
+                  {'DEVNAME': 'vdb', 'TYPE': 'vfat', 'LABEL': 'cloudmd'}]
+             )},
+        ],
+    },
     'Hetzner': {
         'ds': 'Hetzner',
         'files': {P_SYS_VENDOR: 'Hetzner\n'},
+    },
+    'Hetzner-dmidecode': {
+        'ds': 'Hetzner',
+        'mocks': [
+            {'name': 'dmi_decode', 'ret': 0, 'RET': 'Hetzner'}
+        ],
     },
     'IBMCloud-metadata': {
         'ds': 'IBMCloud',
@@ -959,8 +1067,19 @@ VALID_CFG = {
             {'name': 'blkid', 'ret': 2, 'out': ''},
         ],
         'files': {ds_smartos.METADATA_SOCKFILE: 'would be a socket\n'},
+    },
+    'Ec2-ZStack': {
+        'ds': 'Ec2',
+        'files': {P_CHASSIS_ASSET_TAG: '123456.zstack.io\n'},
+    },
+    'Ec2-E24Cloud': {
+        'ds': 'Ec2',
+        'files': {P_SYS_VENDOR: 'e24cloud\n'},
+    },
+    'Ec2-E24Cloud-negative': {
+        'ds': 'Ec2',
+        'files': {P_SYS_VENDOR: 'e24cloudyday\n'},
     }
-
 }
 
 # vi: ts=4 expandtab

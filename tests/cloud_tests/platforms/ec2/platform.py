@@ -35,12 +35,14 @@ class EC2Platform(Platform):
             self.ec2_resource = b3session.resource('ec2')
             self.ec2_region = b3session.region_name
             self.key_name = self._upload_public_key(config)
-        except botocore.exceptions.NoRegionError:
+        except botocore.exceptions.NoRegionError as e:
             raise RuntimeError(
-                'Please configure default region in $HOME/.aws/config')
-        except botocore.exceptions.NoCredentialsError:
+                'Please configure default region in $HOME/.aws/config'
+            ) from e
+        except botocore.exceptions.NoCredentialsError as e:
             raise RuntimeError(
-                'Please configure ec2 credentials in $HOME/.aws/credentials')
+                'Please configure ec2 credentials in $HOME/.aws/credentials'
+            ) from e
 
         self.vpc = self._create_vpc()
         self.internet_gateway = self._create_internet_gateway()
@@ -125,8 +127,10 @@ class EC2Platform(Platform):
 
         try:
             image_ami = image['id']
-        except KeyError:
-            raise RuntimeError('No images found for %s!' % img_conf['release'])
+        except KeyError as e:
+            raise RuntimeError(
+                'No images found for %s!' % img_conf['release']
+            ) from e
 
         LOG.debug('found image: %s', image_ami)
         image = EC2Image(self, img_conf, image_ami)
@@ -135,6 +139,7 @@ class EC2Platform(Platform):
     def _create_internet_gateway(self):
         """Create Internet Gateway and assign to VPC."""
         LOG.debug('creating internet gateway')
+        # pylint: disable=no-member
         internet_gateway = self.ec2_resource.create_internet_gateway()
         internet_gateway.attach_to_vpc(VpcId=self.vpc.id)
         self._tag_resource(internet_gateway)
@@ -190,11 +195,11 @@ class EC2Platform(Platform):
         """Setup AWS EC2 VPC or return existing VPC."""
         LOG.debug('creating new vpc')
         try:
-            vpc = self.ec2_resource.create_vpc(
+            vpc = self.ec2_resource.create_vpc(  # pylint: disable=no-member
                 CidrBlock=self.ipv4_cidr,
                 AmazonProvidedIpv6CidrBlock=True)
         except botocore.exceptions.ClientError as e:
-            raise RuntimeError(e)
+            raise RuntimeError(e) from e
 
         vpc.wait_until_available()
         self._tag_resource(vpc)

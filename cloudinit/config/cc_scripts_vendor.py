@@ -28,6 +28,7 @@ entry under the ``vendor_data`` config key.
 
 import os
 
+from cloudinit import subp
 from cloudinit import util
 
 from cloudinit.settings import PER_INSTANCE
@@ -46,10 +47,10 @@ def handle(name, cfg, cloud, log, _args):
     prefix = util.get_cfg_by_path(cfg, ('vendor_data', 'prefix'), [])
 
     try:
-        util.runparts(runparts_path, exe_prefix=prefix)
+        subp.runparts(runparts_path, exe_prefix=prefix)
     except Exception:
-        log.warn("Failed to run module %s (%s in %s)",
-                 name, SCRIPT_SUBDIR, runparts_path)
+        log.warning("Failed to run module %s (%s in %s)",
+                    name, SCRIPT_SUBDIR, runparts_path)
         raise
 
 # vi: ts=4 expandtab

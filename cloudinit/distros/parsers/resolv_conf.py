@@ -4,7 +4,7 @@
 #
 # This file is part of cloud-init. See LICENSE file for license information.
 
-from six import StringIO
+from io import StringIO
 
 from cloudinit.distros.parsers import chop_comment
 from cloudinit import log as logging
@@ -150,9 +150,10 @@ class ResolvConf(object):
                 tail = ''
             try:
                 (cfg_opt, cfg_values) = head.split(None, 1)
-            except (IndexError, ValueError):
-                raise IOError("Incorrectly formatted resolv.conf line %s"
-                              % (i + 1))
+            except (IndexError, ValueError) as e:
+                raise IOError(
+                    "Incorrectly formatted resolv.conf line %s" % (i + 1)
+                ) from e
             if cfg_opt not in ['nameserver', 'domain',
                                'search', 'sortlist', 'options']:
                 raise IOError("Unexpected resolv.conf option %s" % (cfg_opt))

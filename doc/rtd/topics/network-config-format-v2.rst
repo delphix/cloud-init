@@ -50,15 +50,14 @@ currently being defined.
 There are two physically/structurally different classes of device definitions,
 and the ID field has a different interpretation for each:
 
-Physical devices
-
-:   (Examples: ethernet, wifi) These can dynamically come and go between
+Physical devices (Examples: ethernet, wifi):
+    These can dynamically come and go between
     reboots and even during runtime (hotplugging). In the generic case, they
-    can be selected by ``match:`` rules on desired properties, such as name/name
-    pattern, MAC address, driver, or device paths. In general these will match
-    any number of devices (unless they refer to properties which are unique
-    such as the full path or MAC address), so without further knowledge about
-    the hardware these will always be considered as a group.
+    can be selected by ``match:`` rules on desired properties, such as
+    name/name pattern, MAC address, driver, or device paths. In general these
+    will match any number of devices (unless they refer to properties which are
+    unique such as the full path or MAC address), so without further knowledge
+    about the hardware these will always be considered as a group.
 
     It is valid to specify no match rules at all, in which case the ID field is
     simply the interface name to be matched. This is mostly useful if you want
@@ -69,9 +68,8 @@ Physical devices
     which is only being used  for references from definitions of compound
     devices in the config.
 
-Virtual devices
-
-:  (Examples: veth, bridge, bond) These are fully under the control of the
+Virtual devices (Examples: veth, bridge, bond):
+   These are fully under the control of the
    config file(s) and the network stack. I. e. these devices are being created
    instead of matched. Thus ``match:`` and ``set-name:`` are not applicable for
    these, and the ID field is the name of the created virtual device.
@@ -228,8 +226,8 @@ Example: ::
 
 **parameters**: *<(mapping)>*
 
-Customization parameters for special bonding options.  Time values are specified
-in seconds unless otherwise specified.
+Customization parameters for special bonding options.  Time values are
+specified in seconds unless otherwise specified.
 
 **mode**: *<(scalar)>*
 
@@ -367,8 +365,8 @@ Example: ::
 
 **parameters**: <*(mapping)>*
 
-Customization parameters for special bridging options.  Time values are specified
-in seconds unless otherwise specified.
+Customization parameters for special bridging options.  Time values are
+specified in seconds unless otherwise specified.
 
 **ageing-time**: <*(scalar)>*
 

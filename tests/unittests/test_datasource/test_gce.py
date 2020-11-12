@@ -7,11 +7,11 @@
 import datetime
 import httpretty
 import json
-import mock
 import re
+from unittest import mock
+from urllib.parse import urlparse
 
 from base64 import b64encode, b64decode
-from six.moves.urllib_parse import urlparse
 
 from cloudinit import distros
 from cloudinit import helpers
@@ -114,7 +114,8 @@ class TestDataSourceGCE(test_helpers.HttprettyTestCase):
         self.assertTrue(success)
 
         req_header = httpretty.last_request().headers
-        self.assertDictContainsSubset(HEADERS, req_header)
+        for header_name, expected_value in HEADERS.items():
+            self.assertEqual(expected_value, req_header.get(header_name))
 
     def test_metadata(self):
         # UnicodeDecodeError if set to ds.userdata instead of userdata_raw

@@ -1,5 +1,5 @@
 # Copyright (C) 2013 Canonical Ltd.
-# Copyright (c) 2018, Joyent, Inc.
+# Copyright 2019 Joyent, Inc.
 #
 # Author: Ben Howard <ben.howard@canonical.com>
 #
@@ -12,8 +12,6 @@ order to validate return responses.
 
 '''
 
-from __future__ import print_function
-
 from binascii import crc32
 import json
 import multiprocessing
@@ -22,7 +20,7 @@ import os.path
 import re
 import signal
 import stat
-import unittest2
+import unittest
 import uuid
 
 from cloudinit import serial
@@ -31,12 +29,11 @@ from cloudinit.sources.DataSourceSmartOS import (
     convert_smartos_network_data as convert_net,
     SMARTOS_ENV_KVM, SERIAL_DEVICE, get_smartos_environ,
     identify_file)
-
-import six
+from cloudinit.event import EventType
 
 from cloudinit import helpers as c_helpers
-from cloudinit.util import (
-    b64e, subp, ProcessExecutionError, which, write_file)
+from cloudinit.util import (b64e, write_file)
+from cloudinit.subp import (subp, ProcessExecutionError, which)
 
 from cloudinit.tests.helpers import (
     CiTestCase, mock, FilesystemMockingTestCase, skipIf)
@@ -653,6 +650,12 @@ class TestSmartOSDataSource(FilesystemMockingTestCase):
         self.assertEqual(dsrc.device_name_to_device('FOO'),
                          mydscfg['disk_aliases']['FOO'])
 
+    def test_reconfig_network_on_boot(self):
+        # Test to ensure that network is configured from metadata on each boot
+        dsrc = self._get_ds(mockdata=MOCK_RETURNS)
+        self.assertSetEqual(set([EventType.BOOT_NEW_INSTANCE, EventType.BOOT]),
+                            dsrc.update_events['network'])
+
 
 class TestIdentifyFile(CiTestCase):
     """Test the 'identify_file' utility."""
@@ -664,7 +667,7 @@ class TestIdentifyFile(CiTestCase):
         with self.allow_subp(["file"]):
             self.assertEqual("text/plain", identify_file(fname))
 
-    @mock.patch(DSMOS + ".util.subp")
+    @mock.patch(DSMOS + ".subp.subp")
     def test_returns_none_on_error(self, m_subp):
         """On 'file' execution error, None should be returned."""
         m_subp.side_effect = ProcessExecutionError("FILE_FAILED", exit_code=99)
@@ -791,7 +794,7 @@ class TestJoyentMetadataClient(FilesystemMockingTestCase):
         return self.serial.write.call_args[0][0]
 
     def test_get_metadata_writes_bytes(self):
-        self.assertIsInstance(self._get_written_line(), six.binary_type)
+        self.assertIsInstance(self._get_written_line(), bytes)
 
     def test_get_metadata_line_starts_with_v2(self):
         foo = self._get_written_line()
@@ -1090,11 +1093,11 @@ class TestNetworkConversion(CiTestCase):
         self.assertEqual(expected, found)
 
 
-@unittest2.skipUnless(get_smartos_environ() == SMARTOS_ENV_KVM,
-                      "Only supported on KVM and bhyve guests under SmartOS")
-@unittest2.skipUnless(os.access(SERIAL_DEVICE, os.W_OK),
-                      "Requires write access to " + SERIAL_DEVICE)
-@unittest2.skipUnless(HAS_PYSERIAL is True, "pyserial not available")
+@unittest.skipUnless(get_smartos_environ() == SMARTOS_ENV_KVM,
+                     "Only supported on KVM and bhyve guests under SmartOS")
+@unittest.skipUnless(os.access(SERIAL_DEVICE, os.W_OK),
+                     "Requires write access to " + SERIAL_DEVICE)
+@unittest.skipUnless(HAS_PYSERIAL is True, "pyserial not available")
 class TestSerialConcurrency(CiTestCase):
     """
        This class tests locking on an actual serial port, and as such can only

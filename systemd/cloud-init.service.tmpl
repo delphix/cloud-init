@@ -10,11 +10,12 @@ After=nss-lookup.target
 {% if variant in ["ubuntu", "unknown", "debian"] %}
 After=networking.service
 {% endif %}
-{% if variant in ["centos", "fedora", "redhat"] %}
+{% if variant in ["centos", "fedora", "rhel"] %}
 After=network.service
+After=NetworkManager.service
 {% endif %}
 {% if variant in ["suse"] %}
-Before=wicked.service
+After=wicked.service
 # setting hostname via hostnamectl depends on dbus, which otherwise
 # would not be guaranteed at this point.
 After=dbus.service

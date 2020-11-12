@@ -43,6 +43,7 @@ import os
 import time
 
 from cloudinit import log as logging
+from cloudinit import subp
 from cloudinit import util
 
 REBOOT_FILE = "/var/run/reboot-required"
@@ -57,7 +58,7 @@ def _multi_cfg_bool_get(cfg, *keys):
 
 
 def _fire_reboot(log, wait_attempts=6, initial_sleep=1, backoff=2):
-    util.subp(REBOOT_CMD)
+    subp.subp(REBOOT_CMD)
     start = time.time()
     wait_time = initial_sleep
     for _i in range(0, wait_attempts):
@@ -108,7 +109,8 @@ def handle(_name, cfg, cloud, log, _args):
     reboot_fn_exists = os.path.isfile(REBOOT_FILE)
     if (upgrade or pkglist) and reboot_if_required and reboot_fn_exists:
         try:
-            log.warn("Rebooting after upgrade or install per %s", REBOOT_FILE)
+            log.warning("Rebooting after upgrade or install per "
+                        "%s", REBOOT_FILE)
             # Flush the above warning + anything else out...
             logging.flushLoggers(log)
             _fire_reboot(log)
@@ -117,8 +119,8 @@ def handle(_name, cfg, cloud, log, _args):
             errors.append(e)
 
     if len(errors):
-        log.warn("%s failed with exceptions, re-raising the last one",
-                 len(errors))
+        log.warning("%s failed with exceptions, re-raising the last one",
+                    len(errors))
         raise errors[-1]
 
 # vi: ts=4 expandtab

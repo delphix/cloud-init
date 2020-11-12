@@ -30,9 +30,9 @@ class Distro(debian.Distro):
         }
         self.renderer_configs = {
             "eni": {"eni_path": self.network_conf_fn["eni"],
-                    "eni_header": debian.ENI_HEADER},
+                    "eni_header": debian.NETWORK_FILE_HEADER},
             "netplan": {"netplan_path": self.network_conf_fn["netplan"],
-                        "netplan_header": debian.ENI_HEADER,
+                        "netplan_header": debian.NETWORK_FILE_HEADER,
                         "postcmds": True}
         }
 
@@ -48,8 +48,6 @@ class Distro(debian.Distro):
                 self._preferred_ntp_clients = (
                     copy.deepcopy(PREFERRED_NTP_CLIENTS))
         return self._preferred_ntp_clients
-
-    pass
 
 
 # vi: ts=4 expandtab

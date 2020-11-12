@@ -39,12 +39,40 @@ class TestHandleUsersGroups(CiTestCase):
         cloud = self.tmp_cloud(
             distro='ubuntu', sys_cfg=sys_cfg, metadata=metadata)
         cc_users_groups.handle('modulename', cfg, cloud, None, None)
-        self.assertItemsEqual(
+        self.assertCountEqual(
             m_user.call_args_list,
             [mock.call('ubuntu', groups='lxd,sudo', lock_passwd=True,
                        shell='/bin/bash'),
              mock.call('me2', default=False)])
         m_group.assert_not_called()
+
+    @mock.patch('cloudinit.distros.freebsd.Distro.create_group')
+    @mock.patch('cloudinit.distros.freebsd.Distro.create_user')
+    def test_handle_users_in_cfg_calls_create_users_on_bsd(
+            self,
+            m_fbsd_user,
+            m_fbsd_group,
+            m_linux_user,
+            m_linux_group,
+    ):
+        """When users in config, create users with freebsd.create_user."""
+        cfg = {'users': ['default', {'name': 'me2'}]}  # merged cloud-config
+        # System config defines a default user for the distro.
+        sys_cfg = {'default_user': {'name': 'freebsd', 'lock_passwd': True,
+                                    'groups': ['wheel'],
+                                    'shell': '/bin/tcsh'}}
+        metadata = {}
+        cloud = self.tmp_cloud(
+            distro='freebsd', sys_cfg=sys_cfg, metadata=metadata)
+        cc_users_groups.handle('modulename', cfg, cloud, None, None)
+        self.assertCountEqual(
+            m_fbsd_user.call_args_list,
+            [mock.call('freebsd', groups='wheel', lock_passwd=True,
+                       shell='/bin/tcsh'),
+             mock.call('me2', default=False)])
+        m_fbsd_group.assert_not_called()
+        m_linux_group.assert_not_called()
+        m_linux_user.assert_not_called()
 
     def test_users_with_ssh_redirect_user_passes_keys(self, m_user, m_group):
         """When ssh_redirect_user is True pass default user and cloud keys."""
@@ -58,7 +86,7 @@ class TestHandleUsersGroups(CiTestCase):
         cloud = self.tmp_cloud(
             distro='ubuntu', sys_cfg=sys_cfg, metadata=metadata)
         cc_users_groups.handle('modulename', cfg, cloud, None, None)
-        self.assertItemsEqual(
+        self.assertCountEqual(
             m_user.call_args_list,
             [mock.call('ubuntu', groups='lxd,sudo', lock_passwd=True,
                        shell='/bin/bash'),
@@ -79,7 +107,7 @@ class TestHandleUsersGroups(CiTestCase):
         cloud = self.tmp_cloud(
             distro='ubuntu', sys_cfg=sys_cfg, metadata=metadata)
         cc_users_groups.handle('modulename', cfg, cloud, None, None)
-        self.assertItemsEqual(
+        self.assertCountEqual(
             m_user.call_args_list,
             [mock.call('ubuntu', groups='lxd,sudo', lock_passwd=True,
                        shell='/bin/bash'),
@@ -118,7 +146,7 @@ class TestHandleUsersGroups(CiTestCase):
         cloud = self.tmp_cloud(
             distro='ubuntu', sys_cfg=sys_cfg, metadata=metadata)
         cc_users_groups.handle('modulename', cfg, cloud, None, None)
-        self.assertItemsEqual(
+        self.assertCountEqual(
             m_user.call_args_list,
             [mock.call('ubuntu', groups='lxd,sudo', lock_passwd=True,
                        shell='/bin/bash'),

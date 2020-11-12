@@ -18,7 +18,6 @@ py_prefix=$(${PYTHON} -c 'import sys; print("py%d%d" % (sys.version_info.major, 
 depschecked=/tmp/c-i.dependencieschecked
 pkgs="
     bash
-    chpasswd
     dmidecode
     e2fsprogs
     $py_prefix-Jinja2
@@ -29,8 +28,7 @@ pkgs="
     $py_prefix-jsonschema
     $py_prefix-oauthlib
     $py_prefix-requests
-    $py_prefix-serial
-    $py_prefix-six
+    $py_prefix-pyserial
     $py_prefix-yaml
     sudo
 "

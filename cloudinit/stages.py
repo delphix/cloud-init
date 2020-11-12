@@ -6,10 +6,8 @@
 
 import copy
 import os
+import pickle
 import sys
-
-import six
-from six.moves import cPickle as pickle
 
 from cloudinit.settings import (
     FREQUENCIES, CLOUD_CONFIG, PER_INSTANCE, RUN_CLOUD_CONFIG)
@@ -501,7 +499,7 @@ class Init(object):
             # Init the handlers first
             for (_ctype, mod) in c_handlers.items():
                 if mod in c_handlers.initialized:
-                    # Avoid initing the same module twice (if said module
+                    # Avoid initiating the same module twice (if said module
                     # is registered to more than one content-type).
                     continue
                 handlers.call_begin(mod, data, frequency)
@@ -549,17 +547,11 @@ class Init(object):
         with events.ReportEventStack("consume-user-data",
                                      "reading and applying user-data",
                                      parent=self.reporter):
-            cfg = self.cfg
-            if 'allow_userdata' in cfg:
-                allow_userdata = cfg['allow_userdata']
-            else:
-                allow_userdata = True
-
-            if allow_userdata:
-                LOG.debug('allow_userdata = True: consuming user-data')
+            if util.get_cfg_option_bool(self.cfg, 'allow_userdata', True):
                 self._consume_userdata(frequency)
             else:
                 LOG.debug('allow_userdata = False: discarding user-data')
+
         with events.ReportEventStack("consume-vendor-data",
                                      "reading and applying vendor-data",
                                      parent=self.reporter):
@@ -704,7 +696,7 @@ class Init(object):
                     netcfg, src = self._find_networking_config()
 
         # ensure all physical devices in config are present
-        net.wait_for_physdevs(netcfg)
+        self.distro.networking.wait_for_physdevs(netcfg)
 
         # apply renames from config
         self._apply_netcfg_names(netcfg)
@@ -764,7 +756,7 @@ class Modules(object):
         for item in cfg_mods:
             if not item:
                 continue
-            if isinstance(item, six.string_types):
+            if isinstance(item, str):
                 module_list.append({
                     'mod': item.strip(),
                 })
@@ -955,7 +947,6 @@ def _pkl_load(fname):
     except Exception as e:
         if os.path.isfile(fname):
             LOG.warning("failed loading pickle in %s: %s", fname, e)
-        pass
 
     # This is allowed so just return nothing successfully loaded...
     if not pickle_contents:

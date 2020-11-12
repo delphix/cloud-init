@@ -83,7 +83,7 @@ creates 6 boot scenarios.
 
     There is no information available to identify this scenario.
 
-    The user will be able to ssh in as as root with their public keys that
+    The user will be able to SSH in as as root with their public keys that
     have been installed into /root/ssh/.authorized_keys
     during the provisioning stage.
 
@@ -99,6 +99,7 @@ import os
 from cloudinit import log as logging
 from cloudinit import sources
 from cloudinit.sources.helpers import openstack
+from cloudinit import subp
 from cloudinit import util
 
 LOG = logging.getLogger(__name__)
@@ -240,7 +241,7 @@ def get_ibm_platform():
     fslabels = {}
     try:
         devs = util.blkid()
-    except util.ProcessExecutionError as e:
+    except subp.ProcessExecutionError as e:
         LOG.warning("Failed to run blkid: %s", e)
         return (None, None)
 
@@ -302,7 +303,8 @@ def read_md():
     except sources.BrokenMetadata as e:
         raise RuntimeError(
             "Failed reading IBM config disk (platform=%s path=%s): %s" %
-            (platform, path, e))
+            (platform, path, e)
+        ) from e
 
     ret.update(results)
     return ret

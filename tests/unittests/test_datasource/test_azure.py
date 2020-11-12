@@ -114,14 +114,14 @@ NETWORK_METADATA = {
                 "ipv4": {
                     "subnet": [
                         {
-                           "prefix": "24",
-                           "address": "10.0.0.0"
+                            "prefix": "24",
+                            "address": "10.0.0.0"
                         }
                     ],
                     "ipAddress": [
                         {
-                           "privateIpAddress": "10.0.0.4",
-                           "publicIpAddress": "104.46.124.81"
+                            "privateIpAddress": "10.0.0.4",
+                            "publicIpAddress": "104.46.124.81"
                         }
                     ]
                 }
@@ -151,6 +151,149 @@ SECONDARY_INTERFACE = {
 }
 
 MOCKPATH = 'cloudinit.sources.DataSourceAzure.'
+
+
+class TestParseNetworkConfig(CiTestCase):
+
+    maxDiff = None
+
+    def test_single_ipv4_nic_configuration(self):
+        """parse_network_config emits dhcp on single nic with ipv4"""
+        expected = {'ethernets': {
+            'eth0': {'dhcp4': True,
+                     'dhcp4-overrides': {'route-metric': 100},
+                     'dhcp6': False,
+                     'match': {'name': 'eth0'},
+                     'set-name': 'eth0'}}, 'version': 2}
+        self.assertEqual(expected, dsaz.parse_network_config(NETWORK_METADATA))
+
+    def test_increases_route_metric_for_non_primary_nics(self):
+        """parse_network_config increases route-metric for each nic"""
+        expected = {'ethernets': {
+            'eth0': {'dhcp4': True,
+                     'dhcp4-overrides': {'route-metric': 100},
+                     'dhcp6': False,
+                     'match': {'name': 'eth0'},
+                     'set-name': 'eth0'},
+            'eth1': {'set-name': 'eth1',
+                     'match': {'name': 'eth1'},
+                     'dhcp6': False,
+                     'dhcp4': True,
+                     'dhcp4-overrides': {'route-metric': 200}},
+            'eth2': {'set-name': 'eth2',
+                     'match': {'name': 'eth2'},
+                     'dhcp6': False,
+                     'dhcp4': True,
+                     'dhcp4-overrides': {'route-metric': 300}}}, 'version': 2}
+        imds_data = copy.deepcopy(NETWORK_METADATA)
+        imds_data['network']['interface'].append(SECONDARY_INTERFACE)
+        third_intf = copy.deepcopy(SECONDARY_INTERFACE)
+        third_intf['macAddress'] = third_intf['macAddress'].replace('22', '33')
+        third_intf['ipv4']['subnet'][0]['address'] = '10.0.2.0'
+        third_intf['ipv4']['ipAddress'][0]['privateIpAddress'] = '10.0.2.6'
+        imds_data['network']['interface'].append(third_intf)
+        self.assertEqual(expected, dsaz.parse_network_config(imds_data))
+
+    def test_ipv4_and_ipv6_route_metrics_match_for_nics(self):
+        """parse_network_config emits matching ipv4 and ipv6 route-metrics."""
+        expected = {'ethernets': {
+            'eth0': {'addresses': ['10.0.0.5/24', '2001:dead:beef::2/128'],
+                     'dhcp4': True,
+                     'dhcp4-overrides': {'route-metric': 100},
+                     'dhcp6': True,
+                     'dhcp6-overrides': {'route-metric': 100},
+                     'match': {'name': 'eth0'},
+                     'set-name': 'eth0'},
+            'eth1': {'set-name': 'eth1',
+                     'match': {'name': 'eth1'},
+                     'dhcp4': True,
+                     'dhcp6': False,
+                     'dhcp4-overrides': {'route-metric': 200}},
+            'eth2': {'set-name': 'eth2',
+                     'match': {'name': 'eth2'},
+                     'dhcp4': True,
+                     'dhcp4-overrides': {'route-metric': 300},
+                     'dhcp6': True,
+                     'dhcp6-overrides': {'route-metric': 300}}}, 'version': 2}
+        imds_data = copy.deepcopy(NETWORK_METADATA)
+        nic1 = imds_data['network']['interface'][0]
+        nic1['ipv4']['ipAddress'].append({'privateIpAddress': '10.0.0.5'})
+
+        nic1['ipv6'] = {
+            "subnet": [{"address": "2001:dead:beef::16"}],
+            "ipAddress": [{"privateIpAddress": "2001:dead:beef::1"},
+                          {"privateIpAddress": "2001:dead:beef::2"}]
+        }
+        imds_data['network']['interface'].append(SECONDARY_INTERFACE)
+        third_intf = copy.deepcopy(SECONDARY_INTERFACE)
+        third_intf['macAddress'] = third_intf['macAddress'].replace('22', '33')
+        third_intf['ipv4']['subnet'][0]['address'] = '10.0.2.0'
+        third_intf['ipv4']['ipAddress'][0]['privateIpAddress'] = '10.0.2.6'
+        third_intf['ipv6'] = {
+            "subnet": [{"prefix": "64", "address": "2001:dead:beef::2"}],
+            "ipAddress": [{"privateIpAddress": "2001:dead:beef::1"}]
+        }
+        imds_data['network']['interface'].append(third_intf)
+        self.assertEqual(expected, dsaz.parse_network_config(imds_data))
+
+    def test_ipv4_secondary_ips_will_be_static_addrs(self):
+        """parse_network_config emits primary ipv4 as dhcp others are static"""
+        expected = {'ethernets': {
+            'eth0': {'addresses': ['10.0.0.5/24'],
+                     'dhcp4': True,
+                     'dhcp4-overrides': {'route-metric': 100},
+                     'dhcp6': True,
+                     'dhcp6-overrides': {'route-metric': 100},
+                     'match': {'name': 'eth0'},
+                     'set-name': 'eth0'}}, 'version': 2}
+        imds_data = copy.deepcopy(NETWORK_METADATA)
+        nic1 = imds_data['network']['interface'][0]
+        nic1['ipv4']['ipAddress'].append({'privateIpAddress': '10.0.0.5'})
+
+        nic1['ipv6'] = {
+            "subnet": [{"prefix": "10", "address": "2001:dead:beef::16"}],
+            "ipAddress": [{"privateIpAddress": "2001:dead:beef::1"}]
+        }
+        self.assertEqual(expected, dsaz.parse_network_config(imds_data))
+
+    def test_ipv6_secondary_ips_will_be_static_cidrs(self):
+        """parse_network_config emits primary ipv6 as dhcp others are static"""
+        expected = {'ethernets': {
+            'eth0': {'addresses': ['10.0.0.5/24', '2001:dead:beef::2/10'],
+                     'dhcp4': True,
+                     'dhcp4-overrides': {'route-metric': 100},
+                     'dhcp6': True,
+                     'dhcp6-overrides': {'route-metric': 100},
+                     'match': {'name': 'eth0'},
+                     'set-name': 'eth0'}}, 'version': 2}
+        imds_data = copy.deepcopy(NETWORK_METADATA)
+        nic1 = imds_data['network']['interface'][0]
+        nic1['ipv4']['ipAddress'].append({'privateIpAddress': '10.0.0.5'})
+
+        # Secondary ipv6 addresses currently ignored/unconfigured
+        nic1['ipv6'] = {
+            "subnet": [{"prefix": "10", "address": "2001:dead:beef::16"}],
+            "ipAddress": [{"privateIpAddress": "2001:dead:beef::1"},
+                          {"privateIpAddress": "2001:dead:beef::2"}]
+        }
+        self.assertEqual(expected, dsaz.parse_network_config(imds_data))
+
+    @mock.patch('cloudinit.sources.DataSourceAzure.device_driver',
+                return_value='hv_netvsc')
+    def test_match_driver_for_netvsc(self, m_driver):
+        """parse_network_config emits driver when using netvsc."""
+        expected = {'ethernets': {
+            'eth0': {
+                'dhcp4': True,
+                'dhcp4-overrides': {'route-metric': 100},
+                'dhcp6': False,
+                'match': {
+                    'name': 'eth0',
+                    'driver': 'hv_netvsc',
+                },
+                'set-name': 'eth0'
+            }}, 'version': 2}
+        self.assertEqual(expected, dsaz.parse_network_config(NETWORK_METADATA))
 
 
 class TestGetMetadataFromIMDS(HttprettyTestCase):
@@ -257,8 +400,6 @@ class TestGetMetadataFromIMDS(HttprettyTestCase):
 
 class TestAzureDataSource(CiTestCase):
 
-    with_logs = True
-
     def setUp(self):
         super(TestAzureDataSource, self).setUp()
         self.tmp = self.tmp_dir()
@@ -351,7 +492,7 @@ scbus-1 on xpt0 bus 0
             'public-keys': [],
         })
 
-        self.instance_id = 'test-instance-id'
+        self.instance_id = 'D0DF4C54-4ECB-4A4B-9954-5BDF3ED5C3B8'
 
         def _dmi_mocks(key):
             if key == 'system-uuid':
@@ -367,7 +508,7 @@ scbus-1 on xpt0 bus 0
             (dsaz, 'get_hostname', mock.MagicMock()),
             (dsaz, 'set_hostname', mock.MagicMock()),
             (dsaz, 'get_metadata_from_fabric', self.get_metadata_from_fabric),
-            (dsaz.util, 'which', lambda x: True),
+            (dsaz.subp, 'which', lambda x: True),
             (dsaz.util, 'read_dmi_data', mock.MagicMock(
                 side_effect=_dmi_mocks)),
             (dsaz.util, 'wait_for_files', mock.MagicMock(
@@ -404,14 +545,14 @@ scbus-1 on xpt0 bus 0
 
         def tags_exists(x, y):
             for tag in x.keys():
-                self.assertIn(tag, y)
+                assert tag in y
             for tag in y.keys():
-                self.assertIn(tag, x)
+                assert tag in x
 
         def tags_equal(x, y):
             for x_val in x.values():
                 y_val = y.get(x_val.tag)
-                self.assertEqual(x_val.text, y_val.text)
+                assert x_val.text == y_val.text
 
         old_cnt = create_tag_index(oxml)
         new_cnt = create_tag_index(nxml)
@@ -519,13 +660,13 @@ scbus-1 on xpt0 bus 0
             'azure_data': {
                 'configurationsettype': 'LinuxProvisioningConfiguration'},
             'imds': NETWORK_METADATA,
-            'instance-id': 'test-instance-id',
+            'instance-id': 'D0DF4C54-4ECB-4A4B-9954-5BDF3ED5C3B8',
             'local-hostname': u'myhost',
             'random_seed': 'wild'}
 
         crawled_metadata = dsrc.crawl_metadata()
 
-        self.assertItemsEqual(
+        self.assertCountEqual(
             crawled_metadata.keys(),
             ['cfg', 'files', 'metadata', 'userdata_raw'])
         self.assertEqual(crawled_metadata['cfg'], expected_cfg)
@@ -559,15 +700,17 @@ scbus-1 on xpt0 bus 0
         'cloudinit.sources.DataSourceAzure.DataSourceAzure._report_ready')
     @mock.patch('cloudinit.sources.DataSourceAzure.DataSourceAzure._poll_imds')
     def test_crawl_metadata_on_reprovision_reports_ready(
-                            self, poll_imds_func,
-                            report_ready_func,
-                            m_write, m_dhcp):
+        self, poll_imds_func, report_ready_func, m_write, m_dhcp
+    ):
         """If reprovisioning, report ready at the end"""
         ovfenv = construct_valid_ovf_env(
-                            platform_settings={"PreprovisionedVm": "True"})
+            platform_settings={"PreprovisionedVm": "True"}
+        )
 
-        data = {'ovfcontent': ovfenv,
-                'sys_cfg': {}}
+        data = {
+            'ovfcontent': ovfenv,
+            'sys_cfg': {}
+        }
         dsrc = self._get_ds(data)
         poll_imds_func.return_value = ovfenv
         dsrc.crawl_metadata()
@@ -582,15 +725,18 @@ scbus-1 on xpt0 bus 0
     @mock.patch('cloudinit.net.dhcp.maybe_perform_dhcp_discovery')
     @mock.patch('cloudinit.sources.DataSourceAzure.readurl')
     def test_crawl_metadata_on_reprovision_reports_ready_using_lease(
-                            self, m_readurl, m_dhcp,
-                            m_net, report_ready_func,
-                            m_media_switch, m_write):
+        self, m_readurl, m_dhcp, m_net, report_ready_func,
+        m_media_switch, m_write
+    ):
         """If reprovisioning, report ready using the obtained lease"""
         ovfenv = construct_valid_ovf_env(
-                            platform_settings={"PreprovisionedVm": "True"})
+            platform_settings={"PreprovisionedVm": "True"}
+        )
 
-        data = {'ovfcontent': ovfenv,
-                'sys_cfg': {}}
+        data = {
+            'ovfcontent': ovfenv,
+            'sys_cfg': {}
+        }
         dsrc = self._get_ds(data)
 
         lease = {
@@ -641,6 +787,7 @@ scbus-1 on xpt0 bus 0
             'ethernets': {
                 'eth0': {'set-name': 'eth0',
                          'match': {'name': 'eth0'},
+                         'dhcp6': False,
                          'dhcp4': True,
                          'dhcp4-overrides': {'route-metric': 100}}},
             'version': 2}
@@ -658,14 +805,17 @@ scbus-1 on xpt0 bus 0
             'ethernets': {
                 'eth0': {'set-name': 'eth0',
                          'match': {'name': 'eth0'},
+                         'dhcp6': False,
                          'dhcp4': True,
                          'dhcp4-overrides': {'route-metric': 100}},
                 'eth1': {'set-name': 'eth1',
                          'match': {'name': 'eth1'},
+                         'dhcp6': False,
                          'dhcp4': True,
                          'dhcp4-overrides': {'route-metric': 200}},
                 'eth2': {'set-name': 'eth2',
                          'match': {'name': 'eth2'},
+                         'dhcp6': False,
                          'dhcp4': True,
                          'dhcp4-overrides': {'route-metric': 300}}},
             'version': 2}
@@ -768,6 +918,22 @@ scbus-1 on xpt0 bus 0
         self.assertEqual(defuser['passwd'],
                          crypt.crypt(odata['UserPassword'],
                                      defuser['passwd'][0:pos]))
+
+    def test_user_not_locked_if_password_redacted(self):
+        odata = {'HostName': "myhost", 'UserName': "myuser",
+                 'UserPassword': dsaz.DEF_PASSWD_REDACTION}
+        data = {'ovfcontent': construct_valid_ovf_env(data=odata)}
+
+        dsrc = self._get_ds(data)
+        ret = dsrc.get_data()
+        self.assertTrue(ret)
+        self.assertTrue('default_user' in dsrc.cfg['system_info'])
+        defuser = dsrc.cfg['system_info']['default_user']
+
+        # default user should be updated username and should not be locked.
+        self.assertEqual(defuser['name'], odata['UserName'])
+        self.assertIn('lock_passwd', defuser)
+        self.assertFalse(defuser['lock_passwd'])
 
     def test_userdata_plain(self):
         mydata = "FOOBAR"
@@ -945,6 +1111,24 @@ scbus-1 on xpt0 bus 0
         self.assertTrue(ret)
         self.assertEqual('value', dsrc.metadata['test'])
 
+    def test_instance_id_endianness(self):
+        """Return the previous iid when dmi uuid is the byteswapped iid."""
+        ds = self._get_ds({'ovfcontent': construct_valid_ovf_env()})
+        # byte-swapped previous
+        write_file(
+            os.path.join(self.paths.cloud_dir, 'data', 'instance-id'),
+            '544CDFD0-CB4E-4B4A-9954-5BDF3ED5C3B8')
+        ds.get_data()
+        self.assertEqual(
+            '544CDFD0-CB4E-4B4A-9954-5BDF3ED5C3B8', ds.metadata['instance-id'])
+        # not byte-swapped previous
+        write_file(
+            os.path.join(self.paths.cloud_dir, 'data', 'instance-id'),
+            '644CDFD0-CB4E-4B4A-9954-5BDF3ED5C3B8')
+        ds.get_data()
+        self.assertEqual(
+            'D0DF4C54-4ECB-4A4B-9954-5BDF3ED5C3B8', ds.metadata['instance-id'])
+
     def test_instance_id_from_dmidecode_used(self):
         ds = self._get_ds({'ovfcontent': construct_valid_ovf_env()})
         ds.get_data()
@@ -983,6 +1167,7 @@ scbus-1 on xpt0 bus 0
             'ethernets': {
                 'eth0': {'dhcp4': True,
                          'dhcp4-overrides': {'route-metric': 100},
+                         'dhcp6': False,
                          'match': {'name': 'eth0'},
                          'set-name': 'eth0'}},
             'version': 2}
@@ -1104,20 +1289,20 @@ scbus-1 on xpt0 bus 0
         expected_config['config'].append(blacklist_config)
         self.assertEqual(netconfig, expected_config)
 
-    @mock.patch(MOCKPATH + 'util.subp')
-    def test_get_hostname_with_no_args(self, subp):
+    @mock.patch(MOCKPATH + 'subp.subp')
+    def test_get_hostname_with_no_args(self, m_subp):
         dsaz.get_hostname()
-        subp.assert_called_once_with(("hostname",), capture=True)
+        m_subp.assert_called_once_with(("hostname",), capture=True)
 
-    @mock.patch(MOCKPATH + 'util.subp')
-    def test_get_hostname_with_string_arg(self, subp):
+    @mock.patch(MOCKPATH + 'subp.subp')
+    def test_get_hostname_with_string_arg(self, m_subp):
         dsaz.get_hostname(hostname_command="hostname")
-        subp.assert_called_once_with(("hostname",), capture=True)
+        m_subp.assert_called_once_with(("hostname",), capture=True)
 
-    @mock.patch(MOCKPATH + 'util.subp')
-    def test_get_hostname_with_iterable_arg(self, subp):
+    @mock.patch(MOCKPATH + 'subp.subp')
+    def test_get_hostname_with_iterable_arg(self, m_subp):
         dsaz.get_hostname(hostname_command=("hostname",))
-        subp.assert_called_once_with(("hostname",), capture=True)
+        m_subp.assert_called_once_with(("hostname",), capture=True)
 
 
 class TestAzureBounce(CiTestCase):
@@ -1139,13 +1324,13 @@ class TestAzureBounce(CiTestCase):
             mock.patch.object(dsaz, 'get_metadata_from_imds',
                               mock.MagicMock(return_value={})))
         self.patches.enter_context(
-            mock.patch.object(dsaz.util, 'which', lambda x: True))
+            mock.patch.object(dsaz.subp, 'which', lambda x: True))
         self.patches.enter_context(mock.patch.object(
             dsaz, '_get_random_seed', return_value='wild'))
 
         def _dmi_mocks(key):
             if key == 'system-uuid':
-                return 'test-instance-id'
+                return 'D0DF4C54-4ECB-4A4B-9954-5BDF3ED5C3B8'
             elif key == 'chassis-asset-tag':
                 return '7783-7084-3265-9085-8269-3286-77'
             raise RuntimeError('should not get here')
@@ -1168,7 +1353,7 @@ class TestAzureBounce(CiTestCase):
         self.set_hostname = self.patches.enter_context(
             mock.patch.object(dsaz, 'set_hostname'))
         self.subp = self.patches.enter_context(
-            mock.patch(MOCKPATH + 'util.subp'))
+            mock.patch(MOCKPATH + 'subp.subp'))
         self.find_fallback_nic = self.patches.enter_context(
             mock.patch('cloudinit.net.find_fallback_nic', return_value='eth9'))
 
@@ -1251,7 +1436,7 @@ class TestAzureBounce(CiTestCase):
         cfg = {'hostname_bounce': {'policy': 'force'}}
         dsrc = self._get_ds(self.get_ovf_env_with_dscfg(host_name, cfg),
                             agent_command=['not', '__builtin__'])
-        patch_path = MOCKPATH + 'util.which'
+        patch_path = MOCKPATH + 'subp.which'
         with mock.patch(patch_path) as m_which:
             m_which.return_value = None
             ret = self._get_and_setup(dsrc)
@@ -1355,6 +1540,17 @@ class TestAzureBounce(CiTestCase):
         self._get_ds(data).get_data()
 
         self.assertEqual(0, self.set_hostname.call_count)
+
+    @mock.patch(MOCKPATH + 'perform_hostname_bounce')
+    def test_set_hostname_failed_disable_bounce(
+            self, perform_hostname_bounce):
+        cfg = {'set_hostname': True, 'hostname_bounce': {'policy': 'force'}}
+        self.get_hostname.return_value = "old-hostname"
+        self.set_hostname.side_effect = Exception
+        data = self.get_ovf_env_with_dscfg('some-hostname', cfg)
+        self._get_ds(data).get_data()
+
+        self.assertEqual(0, perform_hostname_bounce.call_count)
 
 
 class TestLoadAzureDsDir(CiTestCase):
@@ -1788,11 +1984,12 @@ class TestPreprovisioningPollIMDS(CiTestCase):
             self.tries += 1
             if self.tries == 1:
                 raise requests.Timeout('Fake connection timeout')
-            elif self.tries == 2:
+            elif self.tries in (2, 3):
                 response = requests.Response()
-                response.status_code = 404
+                response.status_code = 404 if self.tries == 2 else 410
                 raise requests.exceptions.HTTPError(
-                    "fake 404", response=response)
+                    "fake {}".format(response.status_code), response=response
+                )
             # Third try should succeed and stop retries or redhcp
             return mock.MagicMock(status_code=200, text="good", content="good")
 
@@ -1804,7 +2001,7 @@ class TestPreprovisioningPollIMDS(CiTestCase):
         self.assertEqual(report_ready_func.call_count, 1)
         report_ready_func.assert_called_with(lease=lease)
         self.assertEqual(3, m_dhcpv4.call_count, 'Expected 3 DHCP calls')
-        self.assertEqual(3, self.tries, 'Expected 3 total reads from IMDS')
+        self.assertEqual(4, self.tries, 'Expected 4 total reads from IMDS')
 
     def test_poll_imds_report_ready_false(self,
                                           report_ready_func, fake_resp,
@@ -1824,7 +2021,7 @@ class TestPreprovisioningPollIMDS(CiTestCase):
         self.assertEqual(report_ready_func.call_count, 0)
 
 
-@mock.patch(MOCKPATH + 'util.subp')
+@mock.patch(MOCKPATH + 'subp.subp')
 @mock.patch(MOCKPATH + 'util.write_file')
 @mock.patch(MOCKPATH + 'util.is_FreeBSD')
 @mock.patch('cloudinit.sources.helpers.netlink.'
@@ -1995,7 +2192,7 @@ class TestWBIsPlatformViable(CiTestCase):
             {'os.path.exists': False,
              # Non-matching Azure chassis-asset-tag
              'util.read_dmi_data': dsaz.AZURE_CHASSIS_ASSET_TAG + 'X',
-             'util.which': None},
+             'subp.which': None},
             dsaz._is_platform_viable, 'doesnotmatter'))
         self.assertIn(
             "DEBUG: Non-Azure DMI asset tag '{0}' discovered.\n".format(

@@ -11,6 +11,7 @@ from . import renderer
 from .network_state import subnet_is_ipv6
 
 from cloudinit import log as logging
+from cloudinit import subp
 from cloudinit import util
 
 
@@ -94,7 +95,7 @@ def _iface_add_attrs(iface, index, ipv4_subnet_mtu):
     ]
 
     renames = {'mac_address': 'hwaddress'}
-    if iface['type'] not in ['bond', 'bridge', 'vlan']:
+    if iface['type'] not in ['bond', 'bridge', 'infiniband', 'vlan']:
         ignore_map.append('mac_address')
 
     for key, value in iface.items():
@@ -399,6 +400,7 @@ class Renderer(renderer.Renderer):
     def _render_iface(self, iface, render_hwaddress=False):
         sections = []
         subnets = iface.get('subnets', {})
+        accept_ra = iface.pop('accept-ra', None)
         if subnets:
             for index, subnet in enumerate(subnets):
                 ipv4_subnet_mtu = None
@@ -411,8 +413,29 @@ class Renderer(renderer.Renderer):
                 else:
                     ipv4_subnet_mtu = subnet.get('mtu')
                 iface['inet'] = subnet_inet
-                if subnet['type'].startswith('dhcp'):
+                if (subnet['type'] == 'dhcp4' or subnet['type'] == 'dhcp6' or
+                        subnet['type'] == 'ipv6_dhcpv6-stateful'):
+                    # Configure network settings using DHCP or DHCPv6
                     iface['mode'] = 'dhcp'
+                    if accept_ra is not None:
+                        # Accept router advertisements (0=off, 1=on)
+                        iface['accept_ra'] = '1' if accept_ra else '0'
+                elif subnet['type'] == 'ipv6_dhcpv6-stateless':
+                    # Configure network settings using SLAAC from RAs
+                    iface['mode'] = 'auto'
+                    # Use stateless DHCPv6 (0=off, 1=on)
+                    iface['dhcp'] = '1'
+                elif subnet['type'] == 'ipv6_slaac':
+                    # Configure network settings using SLAAC from RAs
+                    iface['mode'] = 'auto'
+                    # Use stateless DHCPv6 (0=off, 1=on)
+                    iface['dhcp'] = '0'
+                elif subnet_is_ipv6(subnet):
+                    # mode might be static6, eni uses 'static'
+                    iface['mode'] = 'static'
+                    if accept_ra is not None:
+                        # Accept router advertisements (0=off, 1=on)
+                        iface['accept_ra'] = '1' if accept_ra else '0'
 
                 # do not emit multiple 'auto $IFACE' lines as older (precise)
                 # ifupdown complains
@@ -460,16 +483,15 @@ class Renderer(renderer.Renderer):
         if searchdomains:
             lo['subnets'][0]["dns_search"] = (" ".join(searchdomains))
 
-        ''' Apply a sort order to ensure that we write out
-            the physical interfaces first; this is critical for
-            bonding
-        '''
+        # Apply a sort order to ensure that we write out the physical
+        # interfaces first; this is critical for bonding
         order = {
             'loopback': 0,
             'physical': 1,
-            'bond': 2,
-            'bridge': 3,
-            'vlan': 4,
+            'infiniband': 2,
+            'bond': 3,
+            'bridge': 4,
+            'vlan': 5,
         }
 
         sections = []
@@ -488,13 +510,13 @@ class Renderer(renderer.Renderer):
         return '\n\n'.join(['\n'.join(s) for s in sections]) + "\n"
 
     def render_network_state(self, network_state, templates=None, target=None):
-        fpeni = util.target_path(target, self.eni_path)
+        fpeni = subp.target_path(target, self.eni_path)
         util.ensure_dir(os.path.dirname(fpeni))
         header = self.eni_header if self.eni_header else ""
         util.write_file(fpeni, header + self._render_interfaces(network_state))
 
         if self.netrules_path:
-            netrules = util.target_path(target, self.netrules_path)
+            netrules = subp.target_path(target, self.netrules_path)
             util.ensure_dir(os.path.dirname(netrules))
             util.write_file(netrules,
                             self._render_persistent_net(network_state))
@@ -521,9 +543,9 @@ def available(target=None):
     expected = ['ifquery', 'ifup', 'ifdown']
     search = ['/sbin', '/usr/sbin']
     for p in expected:
-        if not util.which(p, search=search, target=target):
+        if not subp.which(p, search=search, target=target):
             return False
-    eni = util.target_path(target, 'etc/network/interfaces')
+    eni = subp.target_path(target, 'etc/network/interfaces')
     if not os.path.isfile(eni):
         return False
 

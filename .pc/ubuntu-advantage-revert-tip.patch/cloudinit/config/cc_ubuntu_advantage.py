@@ -4,12 +4,11 @@
 
 from textwrap import dedent
 
-import six
-
 from cloudinit.config.schema import (
     get_schema_doc, validate_cloudconfig_schema)
 from cloudinit import log as logging
 from cloudinit.settings import PER_INSTANCE
+from cloudinit import subp
 from cloudinit import util
 
 
@@ -98,7 +97,7 @@ def configure_ua(token=None, enable=None):
 
     if enable is None:
         enable = []
-    elif isinstance(enable, six.string_types):
+    elif isinstance(enable, str):
         LOG.warning('ubuntu_advantage: enable should be a list, not'
                     ' a string; treating as a single enable')
         enable = [enable]
@@ -111,18 +110,18 @@ def configure_ua(token=None, enable=None):
     attach_cmd = ['ua', 'attach', token]
     LOG.debug('Attaching to Ubuntu Advantage. %s', ' '.join(attach_cmd))
     try:
-        util.subp(attach_cmd)
-    except util.ProcessExecutionError as e:
+        subp.subp(attach_cmd)
+    except subp.ProcessExecutionError as e:
         msg = 'Failure attaching Ubuntu Advantage:\n{error}'.format(
             error=str(e))
         util.logexc(LOG, msg)
-        raise RuntimeError(msg)
+        raise RuntimeError(msg) from e
     enable_errors = []
     for service in enable:
         try:
             cmd = ['ua', 'enable', service]
-            util.subp(cmd, capture=True)
-        except util.ProcessExecutionError as e:
+            subp.subp(cmd, capture=True)
+        except subp.ProcessExecutionError as e:
             enable_errors.append((service, e))
     if enable_errors:
         for service, error in enable_errors:
@@ -137,7 +136,7 @@ def configure_ua(token=None, enable=None):
 
 def maybe_install_ua_tools(cloud):
     """Install ubuntu-advantage-tools if not present."""
-    if util.which('ua'):
+    if subp.which('ua'):
         return
     try:
         cloud.distro.update_package_sources()

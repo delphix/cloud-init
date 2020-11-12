@@ -2,11 +2,11 @@
 #
 # This file is part of cloud-init. See LICENSE file for license information.
 
+from unittest import mock
+
 from cloudinit import reporting
 from cloudinit.reporting import events
 from cloudinit.reporting import handlers
-
-import mock
 
 from cloudinit.tests.helpers import TestCase
 
@@ -349,7 +349,6 @@ class TestReportingEventStack(TestCase):
         with parent:
             with child:
                 pass
-            pass
         self.assertEqual(report_start.call_count, 0)
         self.assertEqual(report_finish.call_count, 0)
 

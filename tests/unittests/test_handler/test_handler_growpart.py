@@ -2,7 +2,7 @@
 
 from cloudinit import cloud
 from cloudinit.config import cc_growpart
-from cloudinit import util
+from cloudinit import subp
 
 from cloudinit.tests.helpers import TestCase
 
@@ -11,15 +11,8 @@ import logging
 import os
 import re
 import unittest
-
-try:
-    from unittest import mock
-except ImportError:
-    import mock
-try:
-    from contextlib import ExitStack
-except ImportError:
-    from contextlib2 import ExitStack
+from contextlib import ExitStack
+from unittest import mock
 
 # growpart:
 #   mode: auto  # off, on, auto, 'growpart'
@@ -50,6 +43,18 @@ growpart disk partition
    Example:
     - growpart /dev/sda 1
       Resize partition 1 on /dev/sda
+"""
+
+HELP_GPART = """
+usage: gpart add -t type [-a alignment] [-b start] <SNIP> geom
+       gpart backup geom
+       gpart bootcode [-b bootcode] [-p partcode -i index] [-f flags] geom
+<SNIP>
+       gpart resize -i index [-a alignment] [-s size] [-f flags] geom
+       gpart restore [-lF] [-f flags] provider [...]
+       gpart recover [-f flags] geom
+       gpart help
+<SNIP>
 """
 
 
@@ -90,20 +95,21 @@ class TestConfig(TestCase):
     @mock.patch.dict("os.environ", clear=True)
     def test_no_resizers_auto_is_fine(self):
         with mock.patch.object(
-                util, 'subp',
+                subp, 'subp',
                 return_value=(HELP_GROWPART_NO_RESIZE, "")) as mockobj:
 
             config = {'growpart': {'mode': 'auto'}}
             self.handle(self.name, config, self.cloud_init, self.log,
                         self.args)
 
-            mockobj.assert_called_once_with(
-                ['growpart', '--help'], env={'LANG': 'C'})
+            mockobj.assert_has_calls([
+                mock.call(['growpart', '--help'], env={'LANG': 'C'}),
+                mock.call(['gpart', 'help'], env={'LANG': 'C'}, rcs=[0, 1])])
 
     @mock.patch.dict("os.environ", clear=True)
     def test_no_resizers_mode_growpart_is_exception(self):
         with mock.patch.object(
-                util, 'subp',
+                subp, 'subp',
                 return_value=(HELP_GROWPART_NO_RESIZE, "")) as mockobj:
             config = {'growpart': {'mode': "growpart"}}
             self.assertRaises(
@@ -116,13 +122,25 @@ class TestConfig(TestCase):
     @mock.patch.dict("os.environ", clear=True)
     def test_mode_auto_prefers_growpart(self):
         with mock.patch.object(
-                util, 'subp',
+                subp, 'subp',
                 return_value=(HELP_GROWPART_RESIZE, "")) as mockobj:
             ret = cc_growpart.resizer_factory(mode="auto")
             self.assertIsInstance(ret, cc_growpart.ResizeGrowPart)
 
             mockobj.assert_called_once_with(
                 ['growpart', '--help'], env={'LANG': 'C'})
+
+    @mock.patch.dict("os.environ", clear=True)
+    def test_mode_auto_falls_back_to_gpart(self):
+        with mock.patch.object(
+                subp, 'subp',
+                return_value=("", HELP_GPART)) as mockobj:
+            ret = cc_growpart.resizer_factory(mode="auto")
+            self.assertIsInstance(ret, cc_growpart.ResizeGpart)
+
+            mockobj.assert_has_calls([
+                mock.call(['growpart', '--help'], env={'LANG': 'C'}),
+                mock.call(['gpart', 'help'], env={'LANG': 'C'}, rcs=[0, 1])])
 
     def test_handle_with_no_growpart_entry(self):
         # if no 'growpart' entry in config, then mode=auto should be used

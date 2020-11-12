@@ -15,6 +15,9 @@ Any scripts in the ``scripts/per-instance`` directory on the datasource will
 be run when a new instance is first booted. Scripts will be run in alphabetical
 order. This module does not accept any config keys.
 
+Some cloud platforms change instance-id if a significant change was made to
+the system. As a result per-instance scripts will run again.
+
 **Internal name:** ``cc_scripts_per_instance``
 
 **Module frequency:** per instance
@@ -24,7 +27,7 @@ order. This module does not accept any config keys.
 
 import os
 
-from cloudinit import util
+from cloudinit import subp
 
 from cloudinit.settings import PER_INSTANCE
 
@@ -38,10 +41,10 @@ def handle(name, _cfg, cloud, log, _args):
     # https://forums.aws.amazon.com/thread.jspa?threadID=96918
     runparts_path = os.path.join(cloud.get_cpath(), 'scripts', SCRIPT_SUBDIR)
     try:
-        util.runparts(runparts_path)
+        subp.runparts(runparts_path)
     except Exception:
-        log.warn("Failed to run module %s (%s in %s)",
-                 name, SCRIPT_SUBDIR, runparts_path)
+        log.warning("Failed to run module %s (%s in %s)",
+                    name, SCRIPT_SUBDIR, runparts_path)
         raise
 
 # vi: ts=4 expandtab

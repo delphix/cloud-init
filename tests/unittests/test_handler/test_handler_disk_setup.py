@@ -44,7 +44,7 @@ class TestGetMbrHddSize(TestCase):
         super(TestGetMbrHddSize, self).setUp()
         self.patches = ExitStack()
         self.subp = self.patches.enter_context(
-            mock.patch.object(cc_disk_setup.util, 'subp'))
+            mock.patch.object(cc_disk_setup.subp, 'subp'))
 
     def tearDown(self):
         super(TestGetMbrHddSize, self).tearDown()
@@ -173,7 +173,7 @@ class TestUpdateFsSetupDevices(TestCase):
 @mock.patch('cloudinit.config.cc_disk_setup.find_device_node',
             return_value=('/dev/xdb1', False))
 @mock.patch('cloudinit.config.cc_disk_setup.device_type', return_value=None)
-@mock.patch('cloudinit.config.cc_disk_setup.util.subp', return_value=('', ''))
+@mock.patch('cloudinit.config.cc_disk_setup.subp.subp', return_value=('', ''))
 class TestMkfsCommandHandling(CiTestCase):
 
     with_logs = True
@@ -204,7 +204,7 @@ class TestMkfsCommandHandling(CiTestCase):
         subp.assert_called_once_with(
             'mkfs -t ext4 -L with_cmd /dev/xdb1', shell=True)
 
-    @mock.patch('cloudinit.config.cc_disk_setup.util.which')
+    @mock.patch('cloudinit.config.cc_disk_setup.subp.which')
     def test_overwrite_and_extra_opts_without_cmd(self, m_which, subp, *args):
         """mkfs observes extra_opts and overwrite settings when cmd is not
         present."""
@@ -222,4 +222,22 @@ class TestMkfsCommandHandling(CiTestCase):
              '-L', 'without_cmd', '-F', 'are', 'added'],
             shell=False)
 
+    @mock.patch('cloudinit.config.cc_disk_setup.subp.which')
+    def test_mkswap(self, m_which, subp, *args):
+        """mkfs observes extra_opts and overwrite settings when cmd is not
+        present."""
+        m_which.side_effect = iter([None, '/sbin/mkswap'])
+        cc_disk_setup.mkfs({
+            'filesystem': 'swap',
+            'device': '/dev/xdb1',
+            'label': 'swap',
+            'overwrite': True,
+        })
+
+        self.assertEqual([mock.call('mkfs.swap'), mock.call('mkswap')],
+                         m_which.call_args_list)
+        subp.assert_called_once_with(
+            ['/sbin/mkswap', '/dev/xdb1', '-L', 'swap', '-f'], shell=False)
+
+#
 # vi: ts=4 expandtab
