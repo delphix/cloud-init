@@ -340,6 +340,14 @@ class DataSourceOVF(sources.DataSource):
     def get_config_obj(self):
         return self.cfg
 
+    # Delphix: Assume instance id never changes if system was initially
+    # configured via OVF. This prevents re-configuration if the system is
+    # cloned, which would behave incorrectly. Implementing this function is
+    # necessary to allow cloud-init to restore OVFDataSource from cache on
+    # reboot.
+    def check_instance_id(self, sys_cfg):
+        return True
+
     @property
     def network_config(self):
         return self._network_config
@@ -354,7 +362,7 @@ class DataSourceOVFNet(DataSourceOVF):
 
 
 def get_max_wait_from_cfg(cfg):
-    default_max_wait = 90
+    default_max_wait = 10
     max_wait_cfg_option = 'vmware_cust_file_max_wait'
     max_wait = default_max_wait
 
