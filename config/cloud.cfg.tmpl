@@ -113,7 +113,6 @@ cloud_config_modules:
 {% if variant not in ["freebsd", "netbsd"] %}
  - ntp
 {% endif %}
- - timezone
  - disable-ec2-metadata
  - runcmd
 {% if variant in ["ubuntu", "unknown", "debian"] %}
