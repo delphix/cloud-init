@@ -1757,9 +1757,7 @@ scbus-1 on xpt0 bus 0
         dsrc.get_data()
         dsrc.setup(True)
         ssh_keys = dsrc.get_public_ssh_keys()
-        # Temporarily alter this test so that SSH public keys
-        # from IMDS are *not* going to be in use to fix a regression.
-        self.assertEqual(ssh_keys, [])
+        self.assertEqual(ssh_keys, ['key1'])
         self.assertEqual(m_parse_certificates.call_count, 0)
 
     @mock.patch(MOCKPATH + 'get_metadata_from_imds')
