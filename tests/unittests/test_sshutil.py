@@ -593,7 +593,7 @@ class TestMultipleSshAuthorizedKeysFile(test_helpers.CiTestCase):
             fpw.pw_name, sshd_config)
         content = ssh_util.update_authorized_keys(auth_key_entries, [])
 
-        self.assertEqual(authorized_keys, auth_key_fn)
+        self.assertEqual("%s/.ssh/authorized_keys" % fpw.pw_dir, auth_key_fn)
         self.assertTrue(VALID_CONTENT['rsa'] in content)
         self.assertFalse(VALID_CONTENT['dsa'] in content)
 
