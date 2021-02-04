@@ -78,7 +78,6 @@ cloud_init_modules:
  - ca-certs
  - rsyslog
 {% endif %}
- - users-groups
  - ssh
 
 # The modules that run in the 'config' stage
@@ -91,7 +90,6 @@ cloud_config_modules:
 {% endif %}
  - ssh-import-id
  - locale
- - set-passwords
 {% if variant in ["rhel", "fedora"] %}
  - spacewalk
  - yum-add-repo
@@ -140,7 +138,6 @@ cloud_final_modules:
  - scripts-per-boot
  - scripts-per-instance
  - scripts-user
- - ssh-authkey-fingerprints
  - keys-to-console
  - phone-home
  - final-message
