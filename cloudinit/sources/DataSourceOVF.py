@@ -153,7 +153,8 @@ class DataSourceOVF(sources.DataSource):
                 hasmarkerfile = check_marker_exists(
                     product_marker, os.path.join(self.paths.cloud_dir, 'data'))
                 special_customization = product_marker and not hasmarkerfile
-                customscript = self._vmware_cust_conf.custom_script_name
+                # Delphix: disable custom user scripts
+                customscript = None
 
                 # In case there is a custom script, check whether VMware
                 # Tools configuration allow the custom script to run.
