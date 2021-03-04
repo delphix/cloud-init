@@ -178,8 +178,8 @@ class DataSource(metaclass=abc.ABCMeta):
     # A datasource which supports writing network config on each system boot
     # would call update_events['network'].add(EventType.BOOT).
 
-    # Default: generate network config on new instance id (first boot).
-    update_events = {'network': set([EventType.BOOT_NEW_INSTANCE])}
+    # Default: generate network config on first boot and subsequent boots.
+    update_events = {'network': set([EventType.BOOT_NEW_INSTANCE, EventType.BOOT])}
 
     # N-tuple listing default values for any metadata-related class
     # attributes cached on an instance by a process_data runs. These attribute
