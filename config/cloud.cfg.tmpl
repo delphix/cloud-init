@@ -170,7 +170,9 @@ system_info:
      groups: [adm, audio, cdrom, dialout, dip, floppy, lxd, netdev, plugdev, sudo, video]
      sudo: ["ALL=(ALL) NOPASSWD:ALL"]
      shell: /bin/bash
-{# SRU_UPSTREAM_COMMIT: 4fb6fd8a. Do not ship network renderers #}
+{# SRU_BLOCKER: do not ship network renderers on Xenial, Bionic or Eoan #}
+   network:
+     renderers: ['netplan', 'eni', 'sysconfig']
    # Automatically discover the best ntp_client
    ntp_client: auto
    # Other config here will be given to the distro class and/or path classes

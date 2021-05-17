@@ -45,7 +45,7 @@ class TestRenderCloudCfg:
 
     @pytest.mark.parametrize('variant,renderers', (
         ('freebsd', ['freebsd']), ('netbsd', ['netbsd']),
-        ('openbsd', ['openbsd']))
+        ('openbsd', ['openbsd']), ('ubuntu', ['netplan', 'eni', 'sysconfig']))
     )
     def test_variant_sets_network_renderer_priority_in_cloud_cfg(
         self, variant, renderers, tmpdir

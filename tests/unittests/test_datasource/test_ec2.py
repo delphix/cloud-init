@@ -447,14 +447,7 @@ class TestEc2(test_helpers.HttprettyTestCase):
         """
         ds = self._setup_ds(
             platform_data=self.valid_platform_data,
-            sys_cfg={
-                'datasource': {
-                    'Ec2': {
-                        'strict_id': True,
-                        'apply_full_imds_network_config': True
-                    }
-                }
-            },
+            sys_cfg={'datasource': {'Ec2': {'strict_id': True}}},
             md={'md': SECONDARY_IP_METADATA_2018_09_24})
         find_fallback_path = M_PATH_NET + 'find_fallback_nic'
         with mock.patch(find_fallback_path) as m_find_fallback:
