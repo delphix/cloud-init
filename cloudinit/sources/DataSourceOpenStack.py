@@ -103,9 +103,10 @@ class DataSourceOpenStack(openstack.SourceMixin, sources.DataSource):
         if self._network_config != sources.UNSET:
             return self._network_config
 
-        # Xenial, Artful and Bionic will not provide
+        # RELEASE_BLOCKER: SRU to Xenial and Artful SRU should not provide
         # network_config by default unless configured in /etc/cloud/cloud.cfg*.
-        if util.is_false(self.ds_cfg.get('apply_network_config', False)):
+        # Patch Xenial and Artful before release to default to False.
+        if util.is_false(self.ds_cfg.get('apply_network_config', True)):
             self._network_config = None
             return self._network_config
         if self.network_json == sources.UNSET:

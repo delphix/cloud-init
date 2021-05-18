@@ -372,7 +372,6 @@ class TestOpenStackDataSource(test_helpers.HttprettyTestCase):
             settings.CFG_BUILTIN, None, helpers.Paths({'run_dir': self.tmp}))
         sample_json = {'links': [{'ethernet_mac_address': 'mymac'}],
                        'networks': [], 'services': []}
-        ds_os.ds_cfg = {'apply_network_config': True}  # Default is False
         ds_os.network_json = sample_json
         with test_helpers.mock.patch(mock_path) as m_convert_json:
             m_convert_json.return_value = example_cfg
