@@ -19,7 +19,7 @@ from .network_state import (
 
 LOG = logging.getLogger(__name__)
 NM_CFG_FILE = "/etc/NetworkManager/NetworkManager.conf"
-KNOWN_DISTROS = ['centos', 'fedora', 'rhel', 'suse']
+KNOWN_DISTROS = ['almalinux', 'centos', 'fedora', 'rhel', 'suse']
 
 
 def _make_header(sep='#'):
@@ -99,6 +99,10 @@ class ConfigMap(object):
     def __len__(self):
         return len(self._conf)
 
+    def skip_key_value(self, key, val):
+        """Skip the pair key, value if it matches a certain rule."""
+        return False
+
     def to_string(self):
         buf = io.StringIO()
         buf.write(_make_header())
@@ -106,6 +110,8 @@ class ConfigMap(object):
             buf.write("\n")
         for key in sorted(self._conf.keys()):
             value = self._conf[key]
+            if self.skip_key_value(key, value):
+                continue
             if isinstance(value, bool):
                 value = self._bool_map[value]
             if not isinstance(value, str):
@@ -214,6 +220,7 @@ class NetInterface(ConfigMap):
         'bond': 'Bond',
         'bridge': 'Bridge',
         'infiniband': 'InfiniBand',
+        'vlan': 'Vlan',
     }
 
     def __init__(self, iface_name, base_sysconf_dir, templates,
@@ -267,6 +274,11 @@ class NetInterface(ConfigMap):
             c.routes = self.routes.copy()
         return c
 
+    def skip_key_value(self, key, val):
+        if key == 'TYPE' and val == 'Vlan':
+            return True
+        return False
+
 
 class Renderer(renderer.Renderer):
     """Renders network information in a /etc/sysconfig format."""
@@ -301,7 +313,8 @@ class Renderer(renderer.Renderer):
     }
 
     # If these keys exist, then their values will be used to form
-    # a BONDING_OPTS grouping; otherwise no grouping will be set.
+    # a BONDING_OPTS / BONDING_MODULE_OPTS grouping; otherwise no
+    # grouping will be set.
     bond_tpl_opts = tuple([
         ('bond_mode', "mode=%s"),
         ('bond_xmit_hash_policy', "xmit_hash_policy=%s"),
@@ -355,6 +368,11 @@ class Renderer(renderer.Renderer):
                 if new_key:
                     iface_cfg[new_key] = old_value
 
+        # only set WakeOnLan for physical interfaces
+        if ('wakeonlan' in iface and iface['wakeonlan'] and
+                iface['type'] == 'physical'):
+            iface_cfg['ETHTOOL_OPTS'] = 'wol g'
+
     @classmethod
     def _render_subnets(cls, iface_cfg, subnets, has_default_route, flavor):
         # setting base values
@@ -379,6 +397,13 @@ class Renderer(renderer.Renderer):
                         # Only IPv6 is DHCP, IPv4 may be static
                         iface_cfg['BOOTPROTO'] = 'dhcp6'
                     iface_cfg['DHCLIENT6_MODE'] = 'managed'
+                # only if rhel AND dhcpv6 stateful
+                elif (flavor == 'rhel' and
+                        subnet_type == 'ipv6_dhcpv6-stateful'):
+                    iface_cfg['BOOTPROTO'] = 'dhcp'
+                    iface_cfg['DHCPV6C'] = True
+                    iface_cfg['IPV6INIT'] = True
+                    iface_cfg['IPV6_AUTOCONF'] = False
                 else:
                     iface_cfg['IPV6INIT'] = True
                     # Configure network settings using DHCPv6
@@ -451,6 +476,10 @@ class Renderer(renderer.Renderer):
                             iface_cfg[mtu_key] = subnet['mtu']
                     else:
                         iface_cfg[mtu_key] = subnet['mtu']
+
+                if subnet_is_ipv6(subnet) and flavor == 'rhel':
+                    iface_cfg['IPV6_FORCE_ACCEPT_RA'] = False
+                    iface_cfg['IPV6_AUTOCONF'] = False
             elif subnet_type == 'manual':
                 if flavor == 'suse':
                     LOG.debug('Unknown subnet type setting "%s"', subnet_type)
@@ -594,7 +623,7 @@ class Renderer(renderer.Renderer):
                             route_cfg[new_key] = route[old_key]
 
     @classmethod
-    def _render_bonding_opts(cls, iface_cfg, iface):
+    def _render_bonding_opts(cls, iface_cfg, iface, flavor):
         bond_opts = []
         for (bond_key, value_tpl) in cls.bond_tpl_opts:
             # Seems like either dash or underscore is possible?
@@ -607,7 +636,18 @@ class Renderer(renderer.Renderer):
                     bond_opts.append(value_tpl % (bond_value))
                     break
         if bond_opts:
-            iface_cfg['BONDING_OPTS'] = " ".join(bond_opts)
+            if flavor == 'suse':
+                # suse uses the sysconfig support which requires
+                # BONDING_MODULE_OPTS see
+                # https://www.kernel.org/doc/Documentation/networking/bonding.txt
+                # 3.1 Configuration with Sysconfig Support
+                iface_cfg['BONDING_MODULE_OPTS'] = " ".join(bond_opts)
+            else:
+                # rhel uses initscript support and thus requires BONDING_OPTS
+                # this is also the old default see
+                # https://www.kernel.org/doc/Documentation/networking/bonding.txt
+                #  3.2 Configuration with Initscripts Support
+                iface_cfg['BONDING_OPTS'] = " ".join(bond_opts)
 
     @classmethod
     def _render_physical_interfaces(
@@ -635,7 +675,7 @@ class Renderer(renderer.Renderer):
         for iface in network_state.iter_interfaces(bond_filter):
             iface_name = iface['name']
             iface_cfg = iface_contents[iface_name]
-            cls._render_bonding_opts(iface_cfg, iface)
+            cls._render_bonding_opts(iface_cfg, iface, flavor)
 
             # Ensure that the master interface (and any of its children)
             # are actually marked as being bond types...
@@ -697,7 +737,16 @@ class Renderer(renderer.Renderer):
                 iface_cfg['ETHERDEVICE'] = iface_name[:iface_name.rfind('.')]
             else:
                 iface_cfg['VLAN'] = True
-                iface_cfg['PHYSDEV'] = iface_name[:iface_name.rfind('.')]
+                iface_cfg.kind = 'vlan'
+
+                rdev = iface['vlan-raw-device']
+                supported = _supported_vlan_names(rdev, iface['vlan_id'])
+                if iface_name not in supported:
+                    LOG.info(
+                        "Name '%s' for vlan '%s' is not officially supported"
+                        "by RHEL. Supported: %s",
+                        iface_name, rdev, ' '.join(supported))
+                iface_cfg['PHYSDEV'] = rdev
 
             iface_subnets = iface.get("subnets", [])
             route_cfg = iface_cfg.routes
@@ -894,6 +943,15 @@ class Renderer(renderer.Renderer):
                 netcfg.append('IPV6_AUTOCONF=no')
             util.write_file(sysconfig_path,
                             "\n".join(netcfg) + "\n", file_mode)
+
+
+def _supported_vlan_names(rdev, vid):
+    """Return list of supported names for vlan devices per RHEL doc
+    11.5. Naming Scheme for VLAN Interfaces."""
+    return [
+        v.format(rdev=rdev, vid=int(vid))
+        for v in ("{rdev}{vid:04}", "{rdev}{vid}",
+                  "{rdev}.{vid:04}", "{rdev}.{vid}")]
 
 
 def available(target=None):

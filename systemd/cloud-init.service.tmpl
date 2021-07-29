@@ -10,7 +10,7 @@ After=nss-lookup.target
 {% if variant in ["ubuntu", "unknown", "debian"] %}
 After=networking.service
 {% endif %}
-{% if variant in ["centos", "fedora", "rhel"] %}
+{% if variant in ["almalinux", "centos", "fedora", "rhel"] %}
 After=network.service
 After=NetworkManager.service
 {% endif %}
@@ -23,9 +23,11 @@ After=dbus.service
 Before=network-online.target
 {% if variant in ["ubuntu", "unknown", "debian"] %}
 Before=sysinit.target
+Before=shutdown.target
 Conflicts=shutdown.target
 {% endif %}
 {% if variant in ["suse"] %}
+Before=shutdown.target
 Conflicts=shutdown.target
 {% endif %}
 Before=systemd-user-sessions.service

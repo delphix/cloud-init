@@ -27,6 +27,8 @@ from cloudinit.sources import (
     DataSourceRbxCloud as RbxCloud,
     DataSourceScaleway as Scaleway,
     DataSourceSmartOS as SmartOS,
+    DataSourceUpCloud as UpCloud,
+    DataSourceVultr as Vultr,
 )
 from cloudinit.sources import DataSourceNone as DSNone
 
@@ -44,10 +46,12 @@ DEFAULT_LOCAL = [
     Oracle.DataSourceOracle,
     OVF.DataSourceOVF,
     SmartOS.DataSourceSmartOS,
+    Vultr.DataSourceVultr,
     Ec2.DataSourceEc2Local,
     OpenStack.DataSourceOpenStackLocal,
     RbxCloud.DataSourceRbxCloud,
     Scaleway.DataSourceScaleway,
+    UpCloud.DataSourceUpCloudLocal,
 ]
 
 DEFAULT_NETWORK = [
@@ -63,6 +67,7 @@ DEFAULT_NETWORK = [
     NoCloud.DataSourceNoCloudNet,
     OpenStack.DataSourceOpenStack,
     OVF.DataSourceOVFNet,
+    UpCloud.DataSourceUpCloud,
 ]
 
 

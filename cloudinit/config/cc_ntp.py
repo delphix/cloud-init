@@ -24,8 +24,8 @@ LOG = logging.getLogger(__name__)
 frequency = PER_INSTANCE
 NTP_CONF = '/etc/ntp.conf'
 NR_POOL_SERVERS = 4
-distros = ['alpine', 'centos', 'debian', 'fedora', 'opensuse', 'rhel',
-           'sles', 'ubuntu']
+distros = ['almalinux', 'alpine', 'centos', 'debian', 'fedora', 'opensuse',
+           'rhel', 'sles', 'ubuntu']
 
 NTP_CLIENT_CONFIG = {
     'chrony': {
@@ -78,6 +78,14 @@ DISTRO_CLIENT_CONFIG = {
     'debian': {
         'chrony': {
             'confpath': '/etc/chrony/chrony.conf',
+        },
+    },
+    'rhel': {
+        'ntp': {
+            'service_name': 'ntpd',
+        },
+        'chrony': {
+            'service_name': 'chronyd',
         },
     },
     'opensuse': {

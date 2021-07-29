@@ -62,12 +62,6 @@ TRUE_STRINGS = ('true', '1', 'on', 'yes')
 FALSE_STRINGS = ('off', '0', 'no', 'false')
 
 
-# Helper utils to see if running in a container
-CONTAINER_TESTS = (['systemd-detect-virt', '--quiet', '--container'],
-                   ['running-in-container'],
-                   ['lxc-is-container'])
-
-
 def kernel_version():
     return tuple(map(int, os.uname().release.split('.')[:2]))
 
@@ -157,32 +151,6 @@ def fully_decoded_payload(part):
             encoding = 'utf-8'
         return cte_payload.decode(encoding, 'surrogateescape')
     return cte_payload
-
-
-# Path for DMI Data
-DMI_SYS_PATH = "/sys/class/dmi/id"
-
-# dmidecode and /sys/class/dmi/id/* use different names for the same value,
-# this allows us to refer to them by one canonical name
-DMIDECODE_TO_DMI_SYS_MAPPING = {
-    'baseboard-asset-tag': 'board_asset_tag',
-    'baseboard-manufacturer': 'board_vendor',
-    'baseboard-product-name': 'board_name',
-    'baseboard-serial-number': 'board_serial',
-    'baseboard-version': 'board_version',
-    'bios-release-date': 'bios_date',
-    'bios-vendor': 'bios_vendor',
-    'bios-version': 'bios_version',
-    'chassis-asset-tag': 'chassis_asset_tag',
-    'chassis-manufacturer': 'chassis_vendor',
-    'chassis-serial-number': 'chassis_serial',
-    'chassis-version': 'chassis_version',
-    'system-manufacturer': 'sys_vendor',
-    'system-product-name': 'product_name',
-    'system-serial-number': 'product_serial',
-    'system-uuid': 'product_uuid',
-    'system-version': 'product_version',
-}
 
 
 class SeLinuxGuard(object):
@@ -391,7 +359,7 @@ def find_modules(root_dir):
 
 
 def multi_log(text, console=True, stderr=True,
-              log=None, log_level=logging.DEBUG):
+              log=None, log_level=logging.DEBUG, fallback_to_stdout=True):
     if stderr:
         sys.stderr.write(text)
     if console:
@@ -400,7 +368,7 @@ def multi_log(text, console=True, stderr=True,
             with open(conpath, 'w') as wfh:
                 wfh.write(text)
                 wfh.flush()
-        else:
+        elif fallback_to_stdout:
             # A container may lack /dev/console (arguably a container bug).  If
             # it does not exist, then write output to stdout.  this will result
             # in duplicate stderr and stdout messages if stderr was True.
@@ -415,6 +383,11 @@ def multi_log(text, console=True, stderr=True,
             log.log(log_level, text[:-1])
         else:
             log.log(log_level, text)
+
+
+@lru_cache()
+def is_Linux():
+    return 'Linux' in platform.system()
 
 
 @lru_cache()
@@ -548,8 +521,8 @@ def system_info():
     if system == "linux":
         linux_dist = info['dist'][0].lower()
         if linux_dist in (
-                'alpine', 'arch', 'centos', 'debian', 'fedora', 'rhel',
-                'suse'):
+                'almalinux', 'alpine', 'arch', 'centos', 'debian', 'fedora',
+                'rhel', 'suse'):
             var = linux_dist
         elif linux_dist in ('ubuntu', 'linuxmint', 'mint'):
             var = 'ubuntu'
@@ -650,6 +623,26 @@ def redirect_output(outfmt, errfmt, o_out=None, o_err=None):
     if not o_err:
         o_err = sys.stderr
 
+    # pylint: disable=subprocess-popen-preexec-fn
+    def set_subprocess_umask_and_gid():
+        """Reconfigure umask and group ID to create output files securely.
+
+        This is passed to subprocess.Popen as preexec_fn, so it is executed in
+        the context of the newly-created process.  It:
+
+        * sets the umask of the process so created files aren't world-readable
+        * if an adm group exists in the system, sets that as the process' GID
+          (so that the created file(s) are owned by root:adm)
+        """
+        os.umask(0o037)
+        try:
+            group_id = grp.getgrnam("adm").gr_gid
+        except KeyError:
+            # No adm group, don't set a group
+            pass
+        else:
+            os.setgid(group_id)
+
     if outfmt:
         LOG.debug("Redirecting %s to %s", o_out, outfmt)
         (mode, arg) = outfmt.split(" ", 1)
@@ -659,7 +652,12 @@ def redirect_output(outfmt, errfmt, o_out=None, o_err=None):
                 owith = "wb"
             new_fp = open(arg, owith)
         elif mode == "|":
-            proc = subprocess.Popen(arg, shell=True, stdin=subprocess.PIPE)
+            proc = subprocess.Popen(
+                arg,
+                shell=True,
+                stdin=subprocess.PIPE,
+                preexec_fn=set_subprocess_umask_and_gid,
+            )
             new_fp = proc.stdin
         else:
             raise TypeError("Invalid type for output format: %s" % outfmt)
@@ -681,7 +679,12 @@ def redirect_output(outfmt, errfmt, o_out=None, o_err=None):
                 owith = "wb"
             new_fp = open(arg, owith)
         elif mode == "|":
-            proc = subprocess.Popen(arg, shell=True, stdin=subprocess.PIPE)
+            proc = subprocess.Popen(
+                arg,
+                shell=True,
+                stdin=subprocess.PIPE,
+                preexec_fn=set_subprocess_umask_and_gid,
+            )
             new_fp = proc.stdin
         else:
             raise TypeError("Invalid type for error format: %s" % errfmt)
@@ -761,8 +764,9 @@ def del_dir(path):
 # 'meta-data' entries
 def read_optional_seed(fill, base="", ext="", timeout=5):
     try:
-        (md, ud) = read_seeded(base, ext, timeout)
+        (md, ud, vd) = read_seeded(base, ext, timeout)
         fill['user-data'] = ud
+        fill['vendor-data'] = vd
         fill['meta-data'] = md
         return True
     except url_helper.UrlError as e:
@@ -840,9 +844,11 @@ def load_yaml(blob, default=None, allowed=(dict,)):
 def read_seeded(base="", ext="", timeout=5, retries=10, file_retries=0):
     if base.find("%s") >= 0:
         ud_url = base % ("user-data" + ext)
+        vd_url = base % ("vendor-data" + ext)
         md_url = base % ("meta-data" + ext)
     else:
         ud_url = "%s%s%s" % (base, "user-data", ext)
+        vd_url = "%s%s%s" % (base, "vendor-data", ext)
         md_url = "%s%s%s" % (base, "meta-data", ext)
 
     md_resp = url_helper.read_file_or_url(md_url, timeout=timeout,
@@ -857,7 +863,19 @@ def read_seeded(base="", ext="", timeout=5, retries=10, file_retries=0):
     if ud_resp.ok():
         ud = ud_resp.contents
 
-    return (md, ud)
+    vd = None
+    try:
+        vd_resp = url_helper.read_file_or_url(vd_url, timeout=timeout,
+                                              retries=retries)
+    except url_helper.UrlError as e:
+        LOG.debug("Error in vendor-data response: %s", e)
+    else:
+        if vd_resp.ok():
+            vd = vd_resp.contents
+        else:
+            LOG.debug("Error in vendor-data response")
+
+    return (md, ud, vd)
 
 
 def read_conf_d(confd):
@@ -1646,16 +1664,17 @@ def mount_cb(device, callback, data=None, mtype=None,
                 _type=type(mtype)))
 
     # clean up 'mtype' input a bit based on platform.
-    platsys = platform.system().lower()
-    if platsys == "linux":
+    if is_Linux():
         if mtypes is None:
             mtypes = ["auto"]
-    elif platsys.endswith("bsd"):
+    elif is_BSD():
         if mtypes is None:
-            mtypes = ['ufs', 'cd9660', 'vfat']
+            mtypes = ['ufs', 'cd9660', 'msdos']
         for index, mtype in enumerate(mtypes):
             if mtype == "iso9660":
                 mtypes[index] = "cd9660"
+            if mtype in ["vfat", "msdosfs"]:
+                mtypes[index] = "msdos"
     else:
         # we cannot do a smart "auto", so just call 'mount' once with no -t
         mtypes = ['']
@@ -1789,8 +1808,12 @@ def append_file(path, content):
     write_file(path, content, omode="ab", mode=None)
 
 
-def ensure_file(path, mode=0o644):
-    write_file(path, content='', omode="ab", mode=mode)
+def ensure_file(
+    path, mode: int = 0o644, *, preserve_mode: bool = False
+) -> None:
+    write_file(
+        path, content='', omode="ab", mode=mode, preserve_mode=preserve_mode
+    )
 
 
 def safe_int(possible_int):
@@ -1929,19 +1952,52 @@ def strip_prefix_suffix(line, prefix=None, suffix=None):
     return line
 
 
+def _cmd_exits_zero(cmd):
+    if subp.which(cmd[0]) is None:
+        return False
+    try:
+        subp.subp(cmd)
+    except subp.ProcessExecutionError:
+        return False
+    return True
+
+
+def _is_container_systemd():
+    return _cmd_exits_zero(["systemd-detect-virt", "--quiet", "--container"])
+
+
+def _is_container_upstart():
+    return _cmd_exits_zero(["running-in-container"])
+
+
+def _is_container_old_lxc():
+    return _cmd_exits_zero(["lxc-is-container"])
+
+
+def _is_container_freebsd():
+    if not is_FreeBSD():
+        return False
+    cmd = ["sysctl", "-qn", "security.jail.jailed"]
+    if subp.which(cmd[0]) is None:
+        return False
+    out, _ = subp.subp(cmd)
+    return out.strip() == "1"
+
+
+@lru_cache()
 def is_container():
     """
     Checks to see if this code running in a container of some sort
     """
+    checks = (
+        _is_container_systemd,
+        _is_container_freebsd,
+        _is_container_upstart,
+        _is_container_old_lxc)
 
-    for helper in CONTAINER_TESTS:
-        try:
-            # try to run a helper program. if it returns true/zero
-            # then we're inside a container. otherwise, no
-            subp.subp(helper)
+    for helper in checks:
+        if helper():
             return True
-        except (IOError, OSError):
-            pass
 
     # this code is largely from the logic in
     # ubuntu's /etc/init/container-detect.conf
@@ -2396,57 +2452,6 @@ def human2bytes(size):
     return int(num * mpliers[mplier])
 
 
-def _read_dmi_syspath(key):
-    """
-    Reads dmi data with from /sys/class/dmi/id
-    """
-    if key not in DMIDECODE_TO_DMI_SYS_MAPPING:
-        return None
-    mapped_key = DMIDECODE_TO_DMI_SYS_MAPPING[key]
-    dmi_key_path = "{0}/{1}".format(DMI_SYS_PATH, mapped_key)
-    LOG.debug("querying dmi data %s", dmi_key_path)
-    try:
-        if not os.path.exists(dmi_key_path):
-            LOG.debug("did not find %s", dmi_key_path)
-            return None
-
-        key_data = load_file(dmi_key_path, decode=False)
-        if not key_data:
-            LOG.debug("%s did not return any data", dmi_key_path)
-            return None
-
-        # uninitialized dmi values show as all \xff and /sys appends a '\n'.
-        # in that event, return a string of '.' in the same length.
-        if key_data == b'\xff' * (len(key_data) - 1) + b'\n':
-            key_data = b""
-
-        str_data = key_data.decode('utf8').strip()
-        LOG.debug("dmi data %s returned %s", dmi_key_path, str_data)
-        return str_data
-
-    except Exception:
-        logexc(LOG, "failed read of %s", dmi_key_path)
-        return None
-
-
-def _call_dmidecode(key, dmidecode_path):
-    """
-    Calls out to dmidecode to get the data out. This is mostly for supporting
-    OS's without /sys/class/dmi/id support.
-    """
-    try:
-        cmd = [dmidecode_path, "--string", key]
-        (result, _err) = subp.subp(cmd)
-        result = result.strip()
-        LOG.debug("dmidecode returned '%s' for '%s'", result, key)
-        if result.replace(".", "") == "":
-            return ""
-        return result
-    except (IOError, OSError) as e:
-        LOG.debug('failed dmidecode cmd: %s\n%s', cmd, e)
-        return None
-
-
 def is_x86(uname_arch=None):
     """Return True if platform is x86-based"""
     if uname_arch is None:
@@ -2455,48 +2460,6 @@ def is_x86(uname_arch=None):
         uname_arch == 'x86_64' or
         (uname_arch[0] == 'i' and uname_arch[2:] == '86'))
     return x86_arch_match
-
-
-def read_dmi_data(key):
-    """
-    Wrapper for reading DMI data.
-
-    If running in a container return None.  This is because DMI data is
-    assumed to be not useful in a container as it does not represent the
-    container but rather the host.
-
-    This will do the following (returning the first that produces a
-    result):
-        1) Use a mapping to translate `key` from dmidecode naming to
-           sysfs naming and look in /sys/class/dmi/... for a value.
-        2) Use `key` as a sysfs key directly and look in /sys/class/dmi/...
-        3) Fall-back to passing `key` to `dmidecode --string`.
-
-    If all of the above fail to find a value, None will be returned.
-    """
-
-    if is_container():
-        return None
-
-    syspath_value = _read_dmi_syspath(key)
-    if syspath_value is not None:
-        return syspath_value
-
-    # running dmidecode can be problematic on some arches (LP: #1243287)
-    uname_arch = os.uname()[4]
-    if not (is_x86(uname_arch) or
-            uname_arch == 'aarch64' or
-            uname_arch == 'amd64'):
-        LOG.debug("dmidata is not supported on %s", uname_arch)
-        return None
-
-    dmidecode_path = subp.which('dmidecode')
-    if dmidecode_path:
-        return _call_dmidecode(key, dmidecode_path)
-
-    LOG.warning("did not find either path %s or dmidecode command",
-                DMI_SYS_PATH)
-    return None
 
 
 def message_from_string(string):

@@ -14,6 +14,7 @@ import json
 import os
 from collections import namedtuple
 
+from cloudinit import dmi
 from cloudinit import importer
 from cloudinit import log as logging
 from cloudinit import net
@@ -23,6 +24,7 @@ from cloudinit import util
 from cloudinit.atomic_helper import write_json
 from cloudinit.event import EventType
 from cloudinit.filters import launch_index
+from cloudinit.persistence import CloudInitPickleMixin
 from cloudinit.reporting import events
 
 DSMODE_DISABLED = "disabled"
@@ -133,7 +135,7 @@ URLParams = namedtuple(
     'URLParms', ['max_wait_seconds', 'timeout_seconds', 'num_retries'])
 
 
-class DataSource(metaclass=abc.ABCMeta):
+class DataSource(CloudInitPickleMixin, metaclass=abc.ABCMeta):
 
     dsmode = DSMODE_NETWORK
     default_locale = 'en_US.UTF-8'
@@ -186,13 +188,16 @@ class DataSource(metaclass=abc.ABCMeta):
     cached_attr_defaults = (
         ('ec2_metadata', UNSET), ('network_json', UNSET),
         ('metadata', {}), ('userdata', None), ('userdata_raw', None),
-        ('vendordata', None), ('vendordata_raw', None))
+        ('vendordata', None), ('vendordata_raw', None),
+        ('vendordata2', None), ('vendordata2_raw', None))
 
     _dirty_cache = False
 
     # N-tuple of keypaths or keynames redact from instance-data.json for
     # non-root users
     sensitive_metadata_keys = ('merged_cfg', 'security-credentials',)
+
+    _ci_pkl_version = 1
 
     def __init__(self, sys_cfg, distro, paths, ud_proc=None):
         self.sys_cfg = sys_cfg
@@ -202,7 +207,9 @@ class DataSource(metaclass=abc.ABCMeta):
         self.metadata = {}
         self.userdata_raw = None
         self.vendordata = None
+        self.vendordata2 = None
         self.vendordata_raw = None
+        self.vendordata2_raw = None
 
         self.ds_cfg = util.get_cfg_by_path(
             self.sys_cfg, ("datasource", self.dsname), {})
@@ -213,6 +220,13 @@ class DataSource(metaclass=abc.ABCMeta):
             self.ud_proc = ud.UserDataProcessor(self.paths)
         else:
             self.ud_proc = ud_proc
+
+    def _unpickle(self, ci_pkl_version: int) -> None:
+        """Perform deserialization fixes for Paths."""
+        if not hasattr(self, 'vendordata2'):
+            self.vendordata2 = None
+        if not hasattr(self, 'vendordata2_raw'):
+            self.vendordata2_raw = None
 
     def __str__(self):
         return type_utils.obj_name(self)
@@ -391,6 +405,11 @@ class DataSource(metaclass=abc.ABCMeta):
             self.vendordata = self.ud_proc.process(self.get_vendordata_raw())
         return self.vendordata
 
+    def get_vendordata2(self):
+        if self.vendordata2 is None:
+            self.vendordata2 = self.ud_proc.process(self.get_vendordata2_raw())
+        return self.vendordata2
+
     @property
     def fallback_interface(self):
         """Determine the network interface used during local network config."""
@@ -492,6 +511,9 @@ class DataSource(metaclass=abc.ABCMeta):
 
     def get_vendordata_raw(self):
         return self.vendordata_raw
+
+    def get_vendordata2_raw(self):
+        return self.vendordata2_raw
 
     # the data sources' config_obj is a cloud-config formated
     # object that came to it from ways other than cloud-config
@@ -809,7 +831,7 @@ def instance_id_matches_system_uuid(instance_id, field='system-uuid'):
     if not instance_id:
         return False
 
-    dmi_value = util.read_dmi_data(field)
+    dmi_value = dmi.read_dmi_data(field)
     if not dmi_value:
         return False
     return instance_id.lower() == dmi_value.lower()
