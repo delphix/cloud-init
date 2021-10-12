@@ -1,16 +1,21 @@
 ## template:jinja
 [Unit]
 Description=Initial cloud-init job (metadata service crawler)
+{% if variant not in ["photon"] %}
 DefaultDependencies=no
+{% endif %}
 After=local-fs.target
 Wants=cloud-init-local.service
+Wants=sshd-keygen.service
+Wants=sshd.service
 After=cloud-init-local.service
 After=systemd-networkd-wait-online.service
 After=nss-lookup.target
 {% if variant in ["ubuntu", "unknown", "debian"] %}
 After=networking.service
 {% endif %}
-{% if variant in ["almalinux", "centos", "fedora", "rhel"] %}
+{% if variant in ["almalinux", "centos", "eurolinux", "fedora", "rhel", 
+                  "rocky", "virtuozzo"] %}
 After=network.service
 After=NetworkManager.service
 {% endif %}
