@@ -104,6 +104,13 @@ interface given the information it has available.
 Finally after selecting the "right" interface, a configuration is
 generated and applied to the system.
 
+.. note::
+
+   PhotonOS disables fallback networking configuration by default leaving
+   network unrendered when no other network config is provided.
+   If fallback config is still desired on PhotonOS, it can be enabled by
+   providing `disable_fallback_netcfg: false` in
+   `/etc/cloud/cloud.cfg:sys_config` settings.
 
 Network Configuration Sources
 =============================
@@ -147,6 +154,10 @@ The following Datasources optionally provide network configuration:
 - :ref:`datasource_upcloud`
 
   - `UpCloud JSON metadata`_
+
+- :ref:`datasource_vultr`
+
+  - `Vultr JSON metadata`_
 
 For more information on network configuration formats
 
@@ -262,5 +273,6 @@ Example output converting V2 to sysconfig:
 .. _OpenStack Metadata Service Network: https://specs.openstack.org/openstack/nova-specs/specs/liberty/implemented/metadata-service-network-info.html
 .. _SmartOS JSON Metadata: https://eng.joyent.com/mdata/datadict.html
 .. _UpCloud JSON metadata: https://developers.upcloud.com/1.3/8-servers/#metadata-service
+.. _Vultr JSON metadata: https://www.vultr.com/metadata/
 
 .. vi: textwidth=78
