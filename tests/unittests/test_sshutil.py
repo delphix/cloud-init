@@ -1,6 +1,9 @@
 # This file is part of cloud-init. See LICENSE file for license information.
 
+import os
+
 from collections import namedtuple
+from functools import partial
 from unittest.mock import patch
 
 from cloudinit import ssh_util
@@ -8,11 +11,46 @@ from cloudinit.tests import helpers as test_helpers
 from cloudinit import util
 
 # https://stackoverflow.com/questions/11351032/
-FakePwEnt = namedtuple(
-    'FakePwEnt',
-    ['pw_dir', 'pw_gecos', 'pw_name', 'pw_passwd', 'pw_shell', 'pwd_uid'])
+FakePwEnt = namedtuple('FakePwEnt', [
+    'pw_name',
+    'pw_passwd',
+    'pw_uid',
+    'pw_gid',
+    'pw_gecos',
+    'pw_dir',
+    'pw_shell',
+])
 FakePwEnt.__new__.__defaults__ = tuple(
     "UNSET_%s" % n for n in FakePwEnt._fields)
+
+
+def mock_get_owner(updated_permissions, value):
+    try:
+        return updated_permissions[value][0]
+    except ValueError:
+        return util.get_owner(value)
+
+
+def mock_get_group(updated_permissions, value):
+    try:
+        return updated_permissions[value][1]
+    except ValueError:
+        return util.get_group(value)
+
+
+def mock_get_user_groups(username):
+    return username
+
+
+def mock_get_permissions(updated_permissions, value):
+    try:
+        return updated_permissions[value][2]
+    except ValueError:
+        return util.get_permissions(value)
+
+
+def mock_getpwnam(users, username):
+    return users[username]
 
 
 # Do not use these public keys, most of them are fetched from
@@ -552,11 +590,29 @@ class TestBasicAuthorizedKeyParse(test_helpers.CiTestCase):
             ssh_util.render_authorizedkeysfile_paths(
                 "/opt/%u/keys", "/home/bobby", "bobby"))
 
+    def test_user_file(self):
+        self.assertEqual(
+            ["/opt/bobby"],
+            ssh_util.render_authorizedkeysfile_paths(
+                "/opt/%u", "/home/bobby", "bobby"))
+
+    def test_user_file2(self):
+        self.assertEqual(
+            ["/opt/bobby/bobby"],
+            ssh_util.render_authorizedkeysfile_paths(
+                "/opt/%u/%u", "/home/bobby", "bobby"))
+
     def test_multiple(self):
         self.assertEqual(
             ["/keys/path1", "/keys/path2"],
             ssh_util.render_authorizedkeysfile_paths(
                 "/keys/path1 /keys/path2", "/home/bobby", "bobby"))
+
+    def test_multiple2(self):
+        self.assertEqual(
+            ["/keys/path1", "/keys/bobby"],
+            ssh_util.render_authorizedkeysfile_paths(
+                "/keys/path1 /keys/%u", "/home/bobby", "bobby"))
 
     def test_relative(self):
         self.assertEqual(
@@ -570,27 +626,65 @@ class TestBasicAuthorizedKeyParse(test_helpers.CiTestCase):
             ssh_util.render_authorizedkeysfile_paths(
                 "%h/.keys", "/homedirs/bobby", "bobby"))
 
+    def test_all(self):
+        self.assertEqual(
+            ["/homedirs/bobby/.keys", "/homedirs/bobby/.secret/keys",
+             "/keys/path1", "/opt/bobby/keys"],
+            ssh_util.render_authorizedkeysfile_paths(
+                "%h/.keys .secret/keys /keys/path1 /opt/%u/keys",
+                "/homedirs/bobby", "bobby"))
+
 
 class TestMultipleSshAuthorizedKeysFile(test_helpers.CiTestCase):
 
-    @patch("cloudinit.ssh_util.pwd.getpwnam")
-    def test_multiple_authorizedkeys_file_order1(self, m_getpwnam):
-        fpw = FakePwEnt(pw_name='bobby', pw_dir='/home2/bobby')
-        m_getpwnam.return_value = fpw
-        authorized_keys = self.tmp_path('authorized_keys')
-        util.write_file(authorized_keys, VALID_CONTENT['rsa'])
+    def create_fake_users(self, names, mock_permissions,
+                          m_get_group, m_get_owner, m_get_permissions,
+                          m_getpwnam, users):
+        homes = []
 
-        user_keys = self.tmp_path('user_keys')
-        util.write_file(user_keys, VALID_CONTENT['dsa'])
+        root = '/tmp/root'
+        fpw = FakePwEnt(pw_name="root", pw_dir=root)
+        users["root"] = fpw
 
-        sshd_config = self.tmp_path('sshd_config')
+        for name in names:
+            home = '/tmp/home/' + name
+            fpw = FakePwEnt(pw_name=name, pw_dir=home)
+            users[name] = fpw
+            homes.append(home)
+
+        m_get_permissions.side_effect = partial(
+            mock_get_permissions, mock_permissions)
+        m_get_owner.side_effect = partial(mock_get_owner, mock_permissions)
+        m_get_group.side_effect = partial(mock_get_group, mock_permissions)
+        m_getpwnam.side_effect = partial(mock_getpwnam, users)
+        return homes
+
+    def create_user_authorized_file(self, home, filename, content_key, keys):
+        user_ssh_folder = "%s/.ssh" % home
+        # /tmp/home/<user>/.ssh/authorized_keys = content_key
+        authorized_keys = self.tmp_path(filename, dir=user_ssh_folder)
+        util.write_file(authorized_keys, VALID_CONTENT[content_key])
+        keys[authorized_keys] = content_key
+        return authorized_keys
+
+    def create_global_authorized_file(self, filename, content_key, keys):
+        authorized_keys = self.tmp_path(filename, dir='/tmp')
+        util.write_file(authorized_keys, VALID_CONTENT[content_key])
+        keys[authorized_keys] = content_key
+        return authorized_keys
+
+    def create_sshd_config(self, authorized_keys_files):
+        sshd_config = self.tmp_path('sshd_config', dir="/tmp")
         util.write_file(
             sshd_config,
-            "AuthorizedKeysFile %s %s" % (authorized_keys, user_keys)
+            "AuthorizedKeysFile " + authorized_keys_files
         )
+        return sshd_config
 
+    def execute_and_check(self, user, sshd_config, solution, keys,
+                          delete_keys=True):
         (auth_key_fn, auth_key_entries) = ssh_util.extract_authorized_keys(
-            fpw.pw_name, sshd_config)
+            user, sshd_config)
         content = ssh_util.update_authorized_keys(auth_key_entries, [])
 
         self.assertEqual("%s/.ssh/authorized_keys" % fpw.pw_dir, auth_key_fn)

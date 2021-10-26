@@ -5,7 +5,7 @@ from cloudinit import distros
 from cloudinit.net import cmdline
 from cloudinit.net import (
     eni, interface_has_own_mac, natural_sort_key, netplan, network_state,
-    renderers, sysconfig)
+    renderers, sysconfig, networkd)
 from cloudinit.sources.helpers import openstack
 from cloudinit import temp_utils
 from cloudinit import subp
@@ -821,6 +821,32 @@ iface eth1 inet static
 
 NETWORK_CONFIGS = {
     'small': {
+        'expected_networkd_eth99': textwrap.dedent("""\
+            [Match]
+            Name=eth99
+            MACAddress=c0:d6:9f:2c:e8:80
+            [Address]
+            Address=192.168.21.3/24
+            [Network]
+            DHCP=ipv4
+            Domains=barley.maas sach.maas
+            Domains=wark.maas
+            DNS=1.2.3.4 5.6.7.8
+            DNS=8.8.8.8 8.8.4.4
+            [Route]
+            Gateway=65.61.151.37
+            Destination=0.0.0.0/0
+            Metric=10000
+        """).rstrip(' '),
+        'expected_networkd_eth1': textwrap.dedent("""\
+            [Match]
+            Name=eth1
+            MACAddress=cf:d6:af:48:e8:80
+            [Network]
+            DHCP=no
+            Domains=wark.maas
+            DNS=1.2.3.4 5.6.7.8
+        """).rstrip(' '),
         'expected_eni': textwrap.dedent("""\
             auto lo
             iface lo inet loopback
@@ -938,6 +964,12 @@ NETWORK_CONFIGS = {
         """),
     },
     'v4_and_v6': {
+        'expected_networkd': textwrap.dedent("""\
+            [Match]
+            Name=iface0
+            [Network]
+            DHCP=yes
+        """).rstrip(' '),
         'expected_eni': textwrap.dedent("""\
             auto lo
             iface lo inet loopback
@@ -973,6 +1005,17 @@ NETWORK_CONFIGS = {
         """).rstrip(' '),
     },
     'v4_and_v6_static': {
+        'expected_networkd': textwrap.dedent("""\
+            [Match]
+            Name=iface0
+            [Link]
+            MTUBytes=8999
+            [Network]
+            DHCP=no
+            [Address]
+            Address=192.168.14.2/24
+            Address=2001:1::1/64
+        """).rstrip(' '),
         'expected_eni': textwrap.dedent("""\
             auto lo
             iface lo inet loopback
@@ -1059,6 +1102,12 @@ NETWORK_CONFIGS = {
         """).rstrip(' '),
     },
     'dhcpv6_only': {
+        'expected_networkd': textwrap.dedent("""\
+            [Match]
+            Name=iface0
+            [Network]
+            DHCP=ipv6
+        """).rstrip(' '),
         'expected_eni': textwrap.dedent("""\
             auto lo
             iface lo inet loopback
@@ -1654,7 +1703,7 @@ pre-down route del -net 10.0.0.0/8 gw 11.0.0.1 metric 3 || true
         'expected_sysconfig_opensuse': {
             'ifcfg-bond0': textwrap.dedent("""\
                 BONDING_MASTER=yes
-                BONDING_OPTS="mode=active-backup """
+                BONDING_MODULE_OPTS="mode=active-backup """
                                            """xmit_hash_policy=layer3+4 """
                                            """miimon=100"
                 BONDING_SLAVE_0=eth1
@@ -2240,7 +2289,7 @@ iface bond0 inet6 static
         'expected_sysconfig_opensuse': {
             'ifcfg-bond0': textwrap.dedent("""\
         BONDING_MASTER=yes
-        BONDING_OPTS="mode=active-backup xmit_hash_policy=layer3+4 """
+        BONDING_MODULE_OPTS="mode=active-backup xmit_hash_policy=layer3+4 """
                                            """miimon=100 num_grat_arp=5 """
                                            """downdelay=10 updelay=20 """
                                            """fail_over_mac=active """
@@ -4371,6 +4420,56 @@ class TestCmdlineKlibcNetworkConfigSource(FilesystemMockingTestCase):
         )
         self.assertFalse(src.is_applicable())
 
+    def test_with_faux_ip(self):
+        content = {'net6-eno1.conf': DHCP6_CONTENT_1}
+        files = sorted(populate_dir(self.tmp_dir(), content))
+        src = cmdline.KlibcNetworkConfigSource(
+            _files=files,
+            _cmdline='foo iscsi_target_ip=root=/dev/sda',
+            _mac_addrs=self.macs,
+        )
+        self.assertFalse(src.is_applicable())
+
+    def test_empty_cmdline(self):
+        content = {'net6-eno1.conf': DHCP6_CONTENT_1}
+        files = sorted(populate_dir(self.tmp_dir(), content))
+        src = cmdline.KlibcNetworkConfigSource(
+            _files=files,
+            _cmdline='',
+            _mac_addrs=self.macs,
+        )
+        self.assertFalse(src.is_applicable())
+
+    def test_whitespace_cmdline(self):
+        content = {'net6-eno1.conf': DHCP6_CONTENT_1}
+        files = sorted(populate_dir(self.tmp_dir(), content))
+        src = cmdline.KlibcNetworkConfigSource(
+            _files=files,
+            _cmdline='          ',
+            _mac_addrs=self.macs,
+        )
+        self.assertFalse(src.is_applicable())
+
+    def test_cmdline_no_lhand(self):
+        content = {'net6-eno1.conf': DHCP6_CONTENT_1}
+        files = sorted(populate_dir(self.tmp_dir(), content))
+        src = cmdline.KlibcNetworkConfigSource(
+            _files=files,
+            _cmdline='=wut',
+            _mac_addrs=self.macs,
+        )
+        self.assertFalse(src.is_applicable())
+
+    def test_cmdline_embedded_ip(self):
+        content = {'net6-eno1.conf': DHCP6_CONTENT_1}
+        files = sorted(populate_dir(self.tmp_dir(), content))
+        src = cmdline.KlibcNetworkConfigSource(
+            _files=files,
+            _cmdline='opt="some things and ip=foo"',
+            _mac_addrs=self.macs,
+        )
+        self.assertFalse(src.is_applicable())
+
     def test_with_both_ip_ip6(self):
         content = {
             '/run/net-eth0.conf': DHCP_CONTENT_1,
@@ -4920,26 +5019,198 @@ class TestEniRoundTrip(CiTestCase):
             files['/etc/network/interfaces'].splitlines())
 
 
+class TestNetworkdNetRendering(CiTestCase):
+
+    def create_conf_dict(self, contents):
+        content_dict = {}
+        for line in contents:
+            if line:
+                line = line.strip()
+                if line and re.search(r'^\[(.+)\]$', line):
+                    content_dict[line] = []
+                    key = line
+                elif line:
+                    content_dict[key].append(line)
+
+        return content_dict
+
+    def compare_dicts(self, actual, expected):
+        for k, v in actual.items():
+            self.assertEqual(sorted(expected[k]), sorted(v))
+
+    @mock.patch("cloudinit.net.util.chownbyname", return_value=True)
+    @mock.patch("cloudinit.net.util.get_cmdline", return_value="root=myroot")
+    @mock.patch("cloudinit.net.sys_dev_path")
+    @mock.patch("cloudinit.net.read_sys_net")
+    @mock.patch("cloudinit.net.get_devicelist")
+    def test_networkd_default_generation(self, mock_get_devicelist,
+                                         mock_read_sys_net,
+                                         mock_sys_dev_path,
+                                         m_get_cmdline,
+                                         m_chown):
+        tmp_dir = self.tmp_dir()
+        _setup_test(tmp_dir, mock_get_devicelist,
+                    mock_read_sys_net, mock_sys_dev_path)
+
+        network_cfg = net.generate_fallback_config()
+        ns = network_state.parse_net_config_data(network_cfg,
+                                                 skip_broken=False)
+
+        render_dir = os.path.join(tmp_dir, "render")
+        os.makedirs(render_dir)
+
+        render_target = 'etc/systemd/network/10-cloud-init-eth1000.network'
+        renderer = networkd.Renderer({})
+        renderer.render_network_state(ns, target=render_dir)
+
+        self.assertTrue(os.path.exists(os.path.join(render_dir,
+                                                    render_target)))
+        with open(os.path.join(render_dir, render_target)) as fh:
+            contents = fh.readlines()
+
+        actual = self.create_conf_dict(contents)
+        print(actual)
+
+        expected = textwrap.dedent("""\
+            [Match]
+            Name=eth1000
+            [Network]
+            DHCP=ipv4""").rstrip(' ')
+
+        expected = self.create_conf_dict(expected.splitlines())
+
+        self.compare_dicts(actual, expected)
+
+
+class TestNetworkdRoundTrip(CiTestCase):
+
+    def create_conf_dict(self, contents):
+        content_dict = {}
+        for line in contents:
+            if line:
+                line = line.strip()
+                if line and re.search(r'^\[(.+)\]$', line):
+                    content_dict[line] = []
+                    key = line
+                elif line:
+                    content_dict[key].append(line)
+
+        return content_dict
+
+    def compare_dicts(self, actual, expected):
+        for k, v in actual.items():
+            self.assertEqual(sorted(expected[k]), sorted(v))
+
+    def _render_and_read(self, network_config=None, state=None, nwkd_path=None,
+                         dir=None):
+        if dir is None:
+            dir = self.tmp_dir()
+
+        if network_config:
+            ns = network_state.parse_net_config_data(network_config)
+        elif state:
+            ns = state
+        else:
+            raise ValueError("Expected data or state, got neither")
+
+        if not nwkd_path:
+            nwkd_path = '/etc/systemd/network/'
+
+        renderer = networkd.Renderer(config={'network_conf_dir': nwkd_path})
+
+        renderer.render_network_state(ns, target=dir)
+        return dir2dict(dir)
+
+    @mock.patch("cloudinit.net.util.chownbyname", return_value=True)
+    def testsimple_render_small_networkd(self, m_chown):
+        nwk_fn1 = '/etc/systemd/network/10-cloud-init-eth99.network'
+        nwk_fn2 = '/etc/systemd/network/10-cloud-init-eth1.network'
+        entry = NETWORK_CONFIGS['small']
+        files = self._render_and_read(network_config=yaml.load(entry['yaml']))
+
+        actual = files[nwk_fn1].splitlines()
+        actual = self.create_conf_dict(actual)
+
+        expected = entry['expected_networkd_eth99'].splitlines()
+        expected = self.create_conf_dict(expected)
+
+        self.compare_dicts(actual, expected)
+
+        actual = files[nwk_fn2].splitlines()
+        actual = self.create_conf_dict(actual)
+
+        expected = entry['expected_networkd_eth1'].splitlines()
+        expected = self.create_conf_dict(expected)
+
+        self.compare_dicts(actual, expected)
+
+    @mock.patch("cloudinit.net.util.chownbyname", return_value=True)
+    def testsimple_render_v4_and_v6(self, m_chown):
+        nwk_fn = '/etc/systemd/network/10-cloud-init-iface0.network'
+        entry = NETWORK_CONFIGS['v4_and_v6']
+        files = self._render_and_read(network_config=yaml.load(entry['yaml']))
+
+        actual = files[nwk_fn].splitlines()
+        actual = self.create_conf_dict(actual)
+
+        expected = entry['expected_networkd'].splitlines()
+        expected = self.create_conf_dict(expected)
+
+        self.compare_dicts(actual, expected)
+
+    @mock.patch("cloudinit.net.util.chownbyname", return_value=True)
+    def testsimple_render_v4_and_v6_static(self, m_chown):
+        nwk_fn = '/etc/systemd/network/10-cloud-init-iface0.network'
+        entry = NETWORK_CONFIGS['v4_and_v6_static']
+        files = self._render_and_read(network_config=yaml.load(entry['yaml']))
+
+        actual = files[nwk_fn].splitlines()
+        actual = self.create_conf_dict(actual)
+
+        expected = entry['expected_networkd'].splitlines()
+        expected = self.create_conf_dict(expected)
+
+        self.compare_dicts(actual, expected)
+
+    @mock.patch("cloudinit.net.util.chownbyname", return_value=True)
+    def testsimple_render_dhcpv6_only(self, m_chown):
+        nwk_fn = '/etc/systemd/network/10-cloud-init-iface0.network'
+        entry = NETWORK_CONFIGS['dhcpv6_only']
+        files = self._render_and_read(network_config=yaml.load(entry['yaml']))
+
+        actual = files[nwk_fn].splitlines()
+        actual = self.create_conf_dict(actual)
+
+        expected = entry['expected_networkd'].splitlines()
+        expected = self.create_conf_dict(expected)
+
+        self.compare_dicts(actual, expected)
+
+
 class TestRenderersSelect:
 
     @pytest.mark.parametrize(
-        'renderer_selected,netplan,eni,nm,scfg,sys', (
+        'renderer_selected,netplan,eni,nm,scfg,sys,networkd', (
             # -netplan -ifupdown -nm -scfg -sys raises error
-            (net.RendererNotFoundError, False, False, False, False, False),
+            (net.RendererNotFoundError, False, False, False, False, False,
+             False),
             # -netplan +ifupdown -nm -scfg -sys selects eni
-            ('eni', False, True, False, False, False),
+            ('eni', False, True, False, False, False, False),
             # +netplan +ifupdown -nm -scfg -sys selects eni
-            ('eni', True, True, False, False, False),
+            ('eni', True, True, False, False, False, False),
             # +netplan -ifupdown -nm -scfg -sys selects netplan
-            ('netplan', True, False, False, False, False),
+            ('netplan', True, False, False, False, False, False),
             # Ubuntu with Network-Manager installed
             # +netplan -ifupdown +nm -scfg -sys selects netplan
-            ('netplan', True, False, True, False, False),
+            ('netplan', True, False, True, False, False, False),
             # Centos/OpenSuse with Network-Manager installed selects sysconfig
             # -netplan -ifupdown +nm -scfg +sys selects netplan
-            ('sysconfig', False, False, True, False, True),
+            ('sysconfig', False, False, True, False, True, False),
+            # -netplan -ifupdown -nm -scfg -sys +networkd selects networkd
+            ('networkd', False, False, False, False, False, True),
         ),
     )
+    @mock.patch("cloudinit.net.renderers.networkd.available")
     @mock.patch("cloudinit.net.renderers.netplan.available")
     @mock.patch("cloudinit.net.renderers.sysconfig.available")
     @mock.patch("cloudinit.net.renderers.sysconfig.available_sysconfig")
@@ -4947,7 +5218,8 @@ class TestRenderersSelect:
     @mock.patch("cloudinit.net.renderers.eni.available")
     def test_valid_renderer_from_defaults_depending_on_availability(
         self, m_eni_avail, m_nm_avail, m_scfg_avail, m_sys_avail,
-        m_netplan_avail, renderer_selected, netplan, eni, nm, scfg, sys
+        m_netplan_avail, m_networkd_avail, renderer_selected,
+        netplan, eni, nm, scfg, sys, networkd
     ):
         """Assert proper renderer per DEFAULT_PRIORITY given availability."""
         m_eni_avail.return_value = eni          # ifupdown pkg presence
@@ -4955,6 +5227,7 @@ class TestRenderersSelect:
         m_scfg_avail.return_value = scfg        # sysconfig presence
         m_sys_avail.return_value = sys          # sysconfig/ifup/down presence
         m_netplan_avail.return_value = netplan  # netplan presence
+        m_networkd_avail.return_value = networkd  # networkd presence
         if isinstance(renderer_selected, str):
             (renderer_name, _rnd_class) = renderers.select(
                 priority=renderers.DEFAULT_PRIORITY
@@ -4987,7 +5260,7 @@ class TestNetRenderers(CiTestCase):
         # available should only be called until one is found.
         m_eni_avail.return_value = True
         m_sysc_avail.side_effect = Exception("Should not call me")
-        found = renderers.search(priority=['eni', 'sysconfig'], first=True)
+        found = renderers.search(priority=['eni', 'sysconfig'], first=True)[0]
         self.assertEqual(['eni'], [found[0]])
 
     @mock.patch("cloudinit.net.renderers.sysconfig.available")
@@ -5018,6 +5291,7 @@ class TestNetRenderers(CiTestCase):
             ('opensuse-tumbleweed', '', ''),
             ('sles', '', ''),
             ('centos', '', ''),
+            ('eurolinux', '', ''),
             ('fedora', '', ''),
             ('redhat', '', ''),
         ]
@@ -5027,6 +5301,12 @@ class TestNetRenderers(CiTestCase):
                 util.system_info.cache_clear()
             result = sysconfig.available()
             self.assertTrue(result)
+
+    @mock.patch("cloudinit.net.renderers.networkd.available")
+    def test_networkd_available(self, m_nwkd_avail):
+        m_nwkd_avail.return_value = True
+        found = renderers.search(priority=['networkd'], first=False)
+        self.assertEqual('networkd', found[0][0])
 
 
 @mock.patch(
