@@ -12,8 +12,8 @@ After=nss-lookup.target
 {% if variant in ["ubuntu", "unknown", "debian"] %}
 After=networking.service
 {% endif %}
-{% if variant in ["almalinux", "centos", "eurolinux", "fedora", "rhel", 
-                  "rocky", "virtuozzo"] %}
+{% if variant in ["almalinux", "centos", "cloudlinux", "eurolinux", "fedora",
+                  "openEuler", "rhel", "rocky", "virtuozzo"] %}
 After=network.service
 After=NetworkManager.service
 {% endif %}
