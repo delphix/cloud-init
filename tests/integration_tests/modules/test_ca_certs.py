@@ -10,10 +10,11 @@ import os.path
 
 import pytest
 
+
 USER_DATA = """\
 #cloud-config
-ca_certs:
-  remove_defaults: true
+ca-certs:
+  remove-defaults: true
   trusted:
     - |
       -----BEGIN CERTIFICATE-----

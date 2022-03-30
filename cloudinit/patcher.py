@@ -10,9 +10,8 @@ import logging
 import sys
 
 # Default fallback format
-FALL_FORMAT = (
-    "FALLBACK: %(asctime)s - %(filename)s[%(levelname)s]: " + "%(message)s"
-)
+FALL_FORMAT = ('FALLBACK: %(asctime)s - %(filename)s[%(levelname)s]: ' +
+               '%(message)s')
 
 
 class QuietStreamHandler(logging.StreamHandler):
@@ -35,8 +34,6 @@ def patch_logging():
             fallback_handler.flush()
         except IOError:
             pass
-
-    setattr(logging.Handler, "handleError", handleError)
-
+    setattr(logging.Handler, 'handleError', handleError)
 
 # vi: ts=4 expandtab

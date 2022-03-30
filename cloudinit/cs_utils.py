@@ -24,13 +24,14 @@ import platform
 
 from cloudinit import serial
 
+
 # these high timeouts are necessary as read may read a lot of data.
 READ_TIMEOUT = 60
 WRITE_TIMEOUT = 10
 
-SERIAL_PORT = "/dev/ttyS1"
-if platform.system() == "Windows":
-    SERIAL_PORT = "COM2"
+SERIAL_PORT = '/dev/ttyS1'
+if platform.system() == 'Windows':
+    SERIAL_PORT = 'COM2'
 
 
 class Cepko(object):
@@ -38,7 +39,6 @@ class Cepko(object):
     One instance of that object could be use for one or more
     queries to the serial port.
     """
-
     request_pattern = "<\n{}\n>"
 
     def get(self, key="", request_pattern=None):
@@ -64,18 +64,17 @@ class CepkoResult(object):
     as the instance is initialized and stores the result in both raw and
     marshalled format.
     """
-
     def __init__(self, request):
         self.request = request
         self.raw_result = self._execute()
         self.result = self._marshal(self.raw_result)
 
     def _execute(self):
-        connection = serial.Serial(
-            port=SERIAL_PORT, timeout=READ_TIMEOUT, writeTimeout=WRITE_TIMEOUT
-        )
-        connection.write(self.request.encode("ascii"))
-        return connection.readline().strip(b"\x04\n").decode("ascii")
+        connection = serial.Serial(port=SERIAL_PORT,
+                                   timeout=READ_TIMEOUT,
+                                   writeTimeout=WRITE_TIMEOUT)
+        connection.write(self.request.encode('ascii'))
+        return connection.readline().strip(b'\x04\n').decode('ascii')
 
     def _marshal(self, raw_result):
         try:
@@ -94,6 +93,5 @@ class CepkoResult(object):
 
     def __iter__(self):
         return self.result.__iter__()
-
 
 # vi: ts=4 expandtab

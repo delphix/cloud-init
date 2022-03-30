@@ -9,5 +9,4 @@
 class ConfigSource(object):
     """Specifies a source for the Config Content."""
 
-
 # vi: ts=4 expandtab

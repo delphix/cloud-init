@@ -107,8 +107,7 @@ NetworkManager does not.
 
 **macaddress**: *<(scalar)>*
 
-Device's MAC address in the form xx:xx:xx:xx:xx:xx. Globs are not allowed.
-Letters must be lowercase.
+Device's MAC address in the form XX:XX:XX:XX:XX:XX. Globs are not allowed.
 
 .. note::
 
@@ -132,7 +131,7 @@ supported. Matching on driver is *only* supported with networkd.
 
   # fixed MAC address
   match:
-    macaddress: 11:22:33:aa:bb:ff
+    macaddress: 11:22:33:AA:BB:FF
 
   # first card of driver ``ixgbe``
   match:
@@ -527,4 +526,4 @@ This is a complex example which shows most available features: ::
         dhcp4: yes
 
 .. _netplan: https://netplan.io
-.. vi: textwidth=79
+.. vi: textwidth=78

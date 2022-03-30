@@ -12,7 +12,7 @@ from unittest import mock
 
 import pytest
 
-from cloudinit import helpers, subp, util
+from cloudinit import helpers, subp
 
 
 class _FixtureUtils:
@@ -65,7 +65,7 @@ class _FixtureUtils:
         return result[0]
 
 
-@pytest.fixture(autouse=True)
+@pytest.yield_fixture(autouse=True)
 def disable_subp_usage(request, fixture_utils):
     """
     Across all (pytest) tests, ensure that subp.subp is not invoked.
@@ -138,7 +138,6 @@ def disable_subp_usage(request, fixture_utils):
                 " this either by modifying your test code, or by modifying"
                 " disable_subp_usage to handle precedence."
             )
-
     else:
         # Look this up before our patch is in place, so we have access to
         # the real implementation in side_effect
@@ -166,7 +165,7 @@ def fixture_utils():
     return _FixtureUtils
 
 
-@pytest.fixture
+@pytest.yield_fixture
 def httpretty():
     """
     Enable HTTPretty for duration of the testcase, resetting before and after.
@@ -202,19 +201,3 @@ def paths(tmpdir):
         "run_dir": tmpdir.mkdir("run_dir").strpath,
     }
     return helpers.Paths(dirs)
-
-
-@pytest.fixture(autouse=True, scope="session")
-def monkeypatch_system_info():
-    def my_system_info():
-        return {
-            "platform": "invalid",
-            "system": "invalid",
-            "release": "invalid",
-            "python": "invalid",
-            "uname": ["invalid"] * 6,
-            "dist": ("Distro", "-1.1", "Codename"),
-            "variant": "ubuntu",
-        }
-
-    util.system_info = my_system_info

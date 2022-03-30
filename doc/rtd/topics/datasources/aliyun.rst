@@ -86,4 +86,4 @@ If no user-data is provided, this will return a 404.
     #!/bin/sh
     echo "Hello World."
 
-.. vi: textwidth=79
+.. vi: textwidth=78
