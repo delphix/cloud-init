@@ -31,7 +31,10 @@ specified as a jinja template with the following variables set:
 
 """
 
-from cloudinit import templater, util, version
+from cloudinit import templater
+from cloudinit import util
+from cloudinit import version
+
 from cloudinit.settings import PER_ALWAYS
 
 frequency = PER_ALWAYS
@@ -46,7 +49,7 @@ FINAL_MESSAGE_DEF = (
 
 def handle(_name, cfg, cloud, log, args):
 
-    msg_in = ""
+    msg_in = ''
     if len(args) != 0:
         msg_in = str(args[0])
     else:
@@ -61,18 +64,14 @@ def handle(_name, cfg, cloud, log, args):
     cver = version.version_string()
     try:
         subs = {
-            "uptime": uptime,
-            "timestamp": ts,
-            "version": cver,
-            "datasource": str(cloud.datasource),
+            'uptime': uptime,
+            'timestamp': ts,
+            'version': cver,
+            'datasource': str(cloud.datasource),
         }
         subs.update(dict([(k.upper(), v) for k, v in subs.items()]))
-        util.multi_log(
-            "%s\n" % (templater.render_string(msg_in, subs)),
-            console=False,
-            stderr=True,
-            log=log,
-        )
+        util.multi_log("%s\n" % (templater.render_string(msg_in, subs)),
+                       console=False, stderr=True, log=log)
     except Exception:
         util.logexc(log, "Failed to render final message template")
 
@@ -85,6 +84,5 @@ def handle(_name, cfg, cloud, log, args):
 
     if cloud.datasource.is_disconnected:
         log.warning("Used fallback datasource")
-
 
 # vi: ts=4 expandtab

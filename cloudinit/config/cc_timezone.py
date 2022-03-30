@@ -27,6 +27,7 @@ the timezone from cloud config.
 """
 
 from cloudinit import util
+
 from cloudinit.settings import PER_INSTANCE
 
 frequency = PER_INSTANCE
@@ -44,6 +45,5 @@ def handle(name, cfg, cloud, log, args):
 
     # Let the distro handle settings its timezone
     cloud.distro.set_timezone(timezone)
-
 
 # vi: ts=4 expandtab

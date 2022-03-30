@@ -15,9 +15,8 @@ class _CustomSafeLoader(yaml.SafeLoader):
 
 
 _CustomSafeLoader.add_constructor(
-    "tag:yaml.org,2002:python/unicode",
-    _CustomSafeLoader.construct_python_unicode,
-)
+    'tag:yaml.org,2002:python/unicode',
+    _CustomSafeLoader.construct_python_unicode)
 
 
 class NoAliasSafeDumper(yaml.dumper.SafeDumper):
@@ -28,21 +27,19 @@ class NoAliasSafeDumper(yaml.dumper.SafeDumper):
 
 
 def load(blob):
-    return yaml.load(blob, Loader=_CustomSafeLoader)
+    return(yaml.load(blob, Loader=_CustomSafeLoader))
 
 
 def dumps(obj, explicit_start=True, explicit_end=True, noalias=False):
     """Return data in nicely formatted yaml."""
 
-    return yaml.dump(
-        obj,
-        line_break="\n",
-        indent=4,
-        explicit_start=explicit_start,
-        explicit_end=explicit_end,
-        default_flow_style=False,
-        Dumper=(NoAliasSafeDumper if noalias else yaml.dumper.Dumper),
-    )
-
+    return yaml.dump(obj,
+                     line_break="\n",
+                     indent=4,
+                     explicit_start=explicit_start,
+                     explicit_end=explicit_end,
+                     default_flow_style=False,
+                     Dumper=(NoAliasSafeDumper
+                             if noalias else yaml.dumper.Dumper))
 
 # vi: ts=4 expandtab

@@ -60,7 +60,10 @@ from io import BytesIO
 
 from configobj import ConfigObj
 
-from cloudinit import subp, type_utils, util
+from cloudinit import type_utils
+from cloudinit import subp
+from cloudinit import util
+
 from cloudinit.settings import PER_INSTANCE
 
 frequency = PER_INSTANCE
@@ -68,15 +71,15 @@ frequency = PER_INSTANCE
 LSC_CLIENT_CFG_FILE = "/etc/landscape/client.conf"
 LS_DEFAULT_FILE = "/etc/default/landscape-client"
 
-distros = ["ubuntu"]
+distros = ['ubuntu']
 
 # defaults taken from stock client.conf in landscape-client 11.07.1.1-0ubuntu2
 LSC_BUILTIN_CFG = {
-    "client": {
-        "log_level": "info",
-        "url": "https://landscape.canonical.com/message-system",
-        "ping_url": "http://landscape.canonical.com/ping",
-        "data_path": "/var/lib/landscape/client",
+    'client': {
+        'log_level': "info",
+        'url': "https://landscape.canonical.com/message-system",
+        'ping_url': "http://landscape.canonical.com/ping",
+        'data_path': "/var/lib/landscape/client",
     }
 }
 
@@ -94,13 +97,11 @@ def handle(_name, cfg, cloud, log, _args):
         raise RuntimeError(
             "'landscape' key existed in config, but not a dictionary type,"
             " is a {_type} instead".format(
-                _type=type_utils.obj_name(ls_cloudcfg)
-            )
-        )
+                _type=type_utils.obj_name(ls_cloudcfg)))
     if not ls_cloudcfg:
         return
 
-    cloud.distro.install_packages(("landscape-client",))
+    cloud.distro.install_packages(('landscape-client',))
 
     merge_data = [
         LSC_BUILTIN_CFG,
@@ -133,6 +134,5 @@ def merge_together(objs):
         else:
             cfg.merge(ConfigObj(obj))
     return cfg
-
 
 # vi: ts=4 expandtab

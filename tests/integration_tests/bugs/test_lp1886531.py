@@ -13,6 +13,7 @@ import pytest
 
 from tests.integration_tests.util import verify_clean_log
 
+
 USER_DATA = """\
 #cloud-config
 bootcmd:
@@ -21,6 +22,7 @@ bootcmd:
 
 
 class TestLp1886531:
+
     @pytest.mark.user_data(USER_DATA)
     def test_lp1886531(self, client):
         log_content = client.read_from_file("/var/log/cloud-init.log")
