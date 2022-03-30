@@ -11,7 +11,6 @@ import pytest
 from tests.integration_tests.clouds import ImageSpecification
 from tests.integration_tests.instances import IntegrationInstance
 
-
 USER_DATA = """\
 #cloud-config
 # Add groups to the system
@@ -39,6 +38,10 @@ AHWYPYb2FT.lbioDm2RrkJPb9BZMN1O/
     gecos: Magic Cloud App Daemon User
     inactive: true
     system: true
+  - name: eric
+    uid: 1742
+  - name: archivist
+    uid: '1743'
 """
 
 
@@ -76,6 +79,10 @@ class TestUsersGroups:
             ),
             # Test the cloudy user
             (["passwd", "cloudy"], r"cloudy:x:[0-9]{3,4}:"),
+            # Test str uid
+            (["passwd", "eric"], r"eric:x:1742:"),
+            # Test int uid
+            (["passwd", "archivist"], r"archivist:x:1743:"),
         ],
     )
     def test_users_groups(self, regex, getent_args, class_client):
@@ -84,7 +91,9 @@ class TestUsersGroups:
         assert re.search(regex, result.stdout) is not None, (
             "'getent {}' resulted in '{}', "
             "but expected to match regex {}".format(
-                ' '.join(getent_args), result.stdout, regex))
+                " ".join(getent_args), result.stdout, regex
+            )
+        )
 
     def test_user_root_in_secret(self, class_client):
         """Test root user is in 'secret' group."""
@@ -105,19 +114,20 @@ def test_sudoers_includedir(client: IntegrationInstance):
     https://github.com/canonical/cloud-init/pull/783
     """
     if ImageSpecification.from_os_image().release in [
-        'xenial', 'bionic', 'focal'
+        "bionic",
+        "focal",
     ]:
         raise pytest.skip(
-            'Test requires version of sudo installed on groovy and later'
+            "Test requires version of sudo installed on groovy and later"
         )
     client.execute("sed -i 's/#include/@include/g' /etc/sudoers")
 
-    sudoers = client.read_from_file('/etc/sudoers')
-    if '@includedir /etc/sudoers.d' not in sudoers:
+    sudoers = client.read_from_file("/etc/sudoers")
+    if "@includedir /etc/sudoers.d" not in sudoers:
         client.execute("echo '@includedir /etc/sudoers.d' >> /etc/sudoers")
     client.instance.clean()
     client.restart()
-    sudoers = client.read_from_file('/etc/sudoers')
+    sudoers = client.read_from_file("/etc/sudoers")
 
-    assert '#includedir' not in sudoers
-    assert sudoers.count('includedir /etc/sudoers.d') == 1
+    assert "#includedir" not in sudoers
+    assert sudoers.count("includedir /etc/sudoers.d") == 1
