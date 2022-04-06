@@ -279,7 +279,7 @@ class TestNetworkConfigFromOpcImds:
         secondary_nic_cfg = oracle_ds.network_config["ethernets"]["ens3"]
         assert secondary_nic_cfg["dhcp4"] is False
         assert secondary_nic_cfg["dhcp6"] is False
-        assert mac_addr == secondary_nic_cfg["match"]["macaddress"]
+        assert "ens3" == secondary_nic_cfg["match"]["name"]
         assert 9000 == secondary_nic_cfg["mtu"]
 
         assert 1 == len(secondary_nic_cfg["addresses"])

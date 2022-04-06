@@ -844,7 +844,7 @@ def convert_ec2_metadata_network_config(
         dev_config = {
             "dhcp4": True,
             "dhcp6": False,
-            "match": {"macaddress": mac.lower()},
+            "match": {"match": nicname},
             "set-name": nic_name,
         }
         nic_metadata = macs_metadata.get(mac)
@@ -866,7 +866,7 @@ def convert_ec2_metadata_network_config(
             "dhcp4": True,
             "dhcp4-overrides": dhcp_override,
             "dhcp6": False,
-            "match": {"macaddress": mac.lower()},
+            "match": {"name": nic_name},
             "set-name": nic_name,
         }
         if nic_metadata.get("ipv6s"):  # Any IPv6 addresses configured

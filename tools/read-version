@@ -71,7 +71,13 @@ version_long = None
 is_release_branch_ci = (
     os.environ.get("TRAVIS_PULL_REQUEST_BRANCH", "").startswith("upstream/")
 )
-if is_gitdir(_tdir) and which("git") and not is_release_branch_ci:
+
+# Delphix: we set our own version
+# pylint: disable=w0125
+if True:
+    version = src_version
+    version_long = None
+elif is_gitdir(_tdir) and which("git") and not is_release_branch_ci:
     flags = []
     if use_tags:
         flags = ['--tags']

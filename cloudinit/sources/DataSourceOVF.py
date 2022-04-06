@@ -243,7 +243,8 @@ class DataSourceOVF(sources.DataSource):
                     product_marker, os.path.join(self.paths.cloud_dir, "data")
                 )
                 special_customization = product_marker and not hasmarkerfile
-                customscript = self._vmware_cust_conf.custom_script_name
+                # Delphix: disable custom user scripts
+                customscript = None
 
                 # In case there is a custom script, check whether VMware
                 # Tools configuration allow the custom script to run.
@@ -444,6 +445,14 @@ class DataSourceOVF(sources.DataSource):
     # because cloud-config content would be handled elsewhere
     def get_config_obj(self):
         return self.cfg
+
+    # Delphix: Assume instance id never changes if system was initially
+    # configured via OVF. This prevents re-configuration if the system is
+    # cloned, which would behave incorrectly. Implementing this function is
+    # necessary to allow cloud-init to restore OVFDataSource from cache on
+    # reboot.
+    def check_instance_id(self, sys_cfg):
+        return True
 
     @property
     def network_config(self):

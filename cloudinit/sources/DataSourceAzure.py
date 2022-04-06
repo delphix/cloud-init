@@ -2247,9 +2247,8 @@ def _generate_network_config_from_imds_metadata(imds_metadata) -> dict:
                     "{ip}/{prefix}".format(ip=privateIp, prefix=netPrefix)
                 )
         if dev_config and has_ip_address:
-            mac = normalize_mac_address(intf["macAddress"])
             dev_config.update(
-                {"match": {"macaddress": mac.lower()}, "set-name": nicname}
+                {"match": {"name": nicname}, "set-name": nicname}
             )
             # With netvsc, we can get two interfaces that
             # share the same MAC, so we need to make sure

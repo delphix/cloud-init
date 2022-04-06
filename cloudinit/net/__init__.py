@@ -522,13 +522,13 @@ def generate_fallback_config(blacklist_drivers=None, config_driver=None):
         # can't read any interfaces addresses (or there are none); give up
         return None
 
-    # netfail cannot use mac for matching, they have duplicate macs
-    if is_netfail_master(target_name):
-        match = {"name": target_name}
-    else:
-        match = {
-            "macaddress": read_sys_net_safe(target_name, "address").lower()
-        }
+    #
+    # Always match on the name, rather than the MAC address. This way,
+    # if the MAC address changes (which is possible VM environments),
+    # the network configuration will still apply.
+    #
+    match = {"name": target_name}
+
     cfg = {"dhcp4": True, "set-name": target_name, "match": match}
     if config_driver:
         driver = device_driver(target_name)
