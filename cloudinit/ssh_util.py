@@ -403,6 +403,8 @@ def check_create_path(username, filename, strictmodes):
 
     return True
 
+def not_cli(path):
+    return "/cli/" not in path
 
 def extract_authorized_keys(username, sshd_cfg_file=DEF_SSHD_CFG):
     (ssh_dir, pw_ent) = users_ssh_info(username)
@@ -412,9 +414,12 @@ def extract_authorized_keys(username, sshd_cfg_file=DEF_SSHD_CFG):
     with util.SeLinuxGuard(ssh_dir, recursive=True):
         try:
             ssh_cfg = parse_ssh_config_map(sshd_cfg_file)
-            key_paths = ssh_cfg.get(
+            raw_key_paths = ssh_cfg.get(
                 "authorizedkeysfile", "%h/.ssh/authorized_keys"
             )
+            # Delphix: We don't want cloud-init to manipulate any of our cli
+            # keys, so we filter out any matching paths.
+            key_paths = ' '.join(filter(not_cli, raw_key_paths.split()))
             strictmodes = ssh_cfg.get("strictmodes", "yes")
             auth_key_fns = render_authorizedkeysfile_paths(
                 key_paths, pw_ent.pw_dir, username
@@ -422,7 +427,7 @@ def extract_authorized_keys(username, sshd_cfg_file=DEF_SSHD_CFG):
 
         except (IOError, OSError):
             # Give up and use a default key filename
-            auth_key_fns[0] = default_authorizedkeys_file
+            auth_key_fns = [default_authorizedkeys_file]
             util.logexc(
                 LOG,
                 "Failed extracting 'AuthorizedKeysFile' in SSH "

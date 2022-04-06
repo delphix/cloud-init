@@ -286,7 +286,7 @@ class DataSourceOracle(sources.DataSource):
                     "mtu": MTU,
                     "dhcp4": False,
                     "dhcp6": False,
-                    "match": {"macaddress": mac_address},
+                    "match": {"name": name},
                 }
 
 
