@@ -5,6 +5,10 @@ After=network-online.target cloud-config.target
 After=snapd.seeded.service
 Wants=network-online.target cloud-config.target
 ConditionVirtualization=!container
+{% if variant == "rhel" %}
+ConditionPathExists=!/etc/cloud/cloud-init.disabled
+ConditionKernelCommandLine=!cloud-init=disabled
+{% endif %}
 
 [Service]
 Type=oneshot

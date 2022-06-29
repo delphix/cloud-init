@@ -8,6 +8,10 @@ Before=apt-daily.service
 {% endif %}
 Wants=network-online.target cloud-config.service
 ConditionVirtualization=!container
+{% if variant == "rhel" %}
+ConditionPathExists=!/etc/cloud/cloud-init.disabled
+ConditionKernelCommandLine=!cloud-init=disabled
+{% endif %}
 
 
 [Service]
@@ -16,7 +20,16 @@ ExecStart=/usr/bin/cloud-init modules --mode=final
 RemainAfterExit=yes
 TimeoutSec=0
 KillMode=process
+{% if variant == "rhel" %}
+# Restart NetworkManager if it is present and running.
+ExecStartPost=/bin/sh -c 'u=NetworkManager.service; \
+ out=$(systemctl show --property=SubState $u) || exit; \
+ [ "$out" = "SubState=running" ] || exit 0; \
+ systemctl reload-or-try-restart $u'
+{% else %}
 TasksMax=infinity
+{% endif %}
+
 
 # Output needs to appear in instance console output
 StandardOutput=journal+console
