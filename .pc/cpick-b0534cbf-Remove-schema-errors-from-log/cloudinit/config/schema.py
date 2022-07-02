@@ -196,7 +196,6 @@ def validate_cloudconfig_schema(
     schema: dict = None,
     strict: bool = False,
     strict_metaschema: bool = False,
-    log_details: bool = True,
 ):
     """Validate provided config meets the schema definition.
 
@@ -209,9 +208,6 @@ def validate_cloudconfig_schema(
        logging warnings.
     @param strict_metaschema: Boolean, when True validates schema using strict
        metaschema definition at runtime (currently unused)
-    @param log_details: Boolean, when True logs details of validation errors.
-       If there are concerns about logging sensitive userdata, this should
-       be set to False.
 
     @raises: SchemaValidationError when provided config does not validate
         against the provided schema.
@@ -236,17 +232,12 @@ def validate_cloudconfig_schema(
         errors += ((path, error.message),)
     if errors:
         if strict:
-            # This could output/log sensitive data
             raise SchemaValidationError(errors)
-        if log_details:
-            messages = ["{0}: {1}".format(k, msg) for k, msg in errors]
-            details = "\n" + "\n".join(messages)
         else:
-            details = (
-                "Please run 'sudo cloud-init schema --system' to "
-                "see the schema errors."
+            messages = ["{0}: {1}".format(k, msg) for k, msg in errors]
+            LOG.warning(
+                "Invalid cloud-config provided:\n%s", "\n".join(messages)
             )
-        LOG.warning("Invalid cloud-config provided: %s", details)
 
 
 def annotated_cloudconfig_file(

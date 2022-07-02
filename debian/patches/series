@@ -1,2 +1,3 @@
 retain-apt-partner-pocket.patch
 cpick-a2e62738-Fix-cc_phone_home-requiring-tries-1500
+cpick-b0534cbf-Remove-schema-errors-from-log

@@ -1,3 +1,14 @@
+cloud-init (22.2-0ubuntu1~20.04.3) focal-security; urgency=medium
+
+  * SECURITY UPDATE: schema errors can cause cloud-init to leak
+    userdata to system logs
+    - d/cloud-init.postinst: redact previously leaked schema errors
+      from logs
+    - Remove schema errors from log (LP: #1978422)
+    - CVE-2022-2084
+
+ -- James Falcon <james.falcon@canonical.com>  Wed, 15 Jun 2022 11:34:44 -0500
+
 cloud-init (22.2-0ubuntu1~20.04.2) focal; urgency=medium
 
   * cherry-pick a2e62738: Fix cc_phone_home requiring 'tries' (#1500)
