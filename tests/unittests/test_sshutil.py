@@ -6,6 +6,7 @@ from functools import partial
 from unittest.mock import patch
 
 from cloudinit import ssh_util, util
+from cloudinit.temp_utils import mkdtemp
 from tests.unittests import helpers as test_helpers
 
 # https://stackoverflow.com/questions/11351032/
@@ -691,6 +692,8 @@ class TestBasicAuthorizedKeyParse(test_helpers.CiTestCase):
 
 
 class TestMultipleSshAuthorizedKeysFile(test_helpers.CiTestCase):
+    tmp_d = mkdtemp()
+
     def create_fake_users(
         self,
         names,
@@ -703,12 +706,12 @@ class TestMultipleSshAuthorizedKeysFile(test_helpers.CiTestCase):
     ):
         homes = []
 
-        root = "/tmp/root"
+        root = self.tmp_d + "/root"
         fpw = FakePwEnt(pw_name="root", pw_dir=root)
         users["root"] = fpw
 
         for name in names:
-            home = "/tmp/home/" + name
+            home = self.tmp_d + "/home/" + name
             fpw = FakePwEnt(pw_name=name, pw_dir=home)
             users[name] = fpw
             homes.append(home)
@@ -730,13 +733,13 @@ class TestMultipleSshAuthorizedKeysFile(test_helpers.CiTestCase):
         return authorized_keys
 
     def create_global_authorized_file(self, filename, content_key, keys):
-        authorized_keys = self.tmp_path(filename, dir="/tmp")
+        authorized_keys = self.tmp_path(filename, dir=self.tmp_d)
         util.write_file(authorized_keys, VALID_CONTENT[content_key])
         keys[authorized_keys] = content_key
         return authorized_keys
 
     def create_sshd_config(self, authorized_keys_files):
-        sshd_config = self.tmp_path("sshd_config", dir="/tmp")
+        sshd_config = self.tmp_path("sshd_config", dir=self.tmp_d)
         util.write_file(
             sshd_config, "AuthorizedKeysFile " + authorized_keys_files
         )

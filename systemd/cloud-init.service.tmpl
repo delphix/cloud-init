@@ -1,7 +1,7 @@
 ## template:jinja
 [Unit]
 Description=Initial cloud-init job (metadata service crawler)
-{% if variant not in ["photon"] %}
+{% if variant not in ["photon", "rhel"] %}
 DefaultDependencies=no
 {% endif %}
 After=local-fs.target
@@ -35,6 +35,10 @@ Conflicts=shutdown.target
 {% endif %}
 Before=systemd-user-sessions.service
 ConditionVirtualization=!container
+{% if variant == "rhel" %}
+ConditionPathExists=!/etc/cloud/cloud-init.disabled
+ConditionKernelCommandLine=!cloud-init=disabled
+{% endif %}
 
 [Service]
 Type=oneshot

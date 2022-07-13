@@ -18,21 +18,28 @@ runcmd:
   - echo 'hi' > /var/tmp/test
 """
 
+# The '-' in 'hashed-password' fails schema validation
 INVALID_USER_DATA_SCHEMA = """\
 #cloud-config
-updates:
- notnetwork: -1
-apt_pipelining: bogus
+users:
+  - default
+  - name: newsuper
+    gecos: Big Stuff
+    groups: users, admin
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    hashed-password: asdfasdf
+    shell: /bin/bash
+    lock_passwd: true
 """
 
 
 @pytest.mark.user_data(VALID_USER_DATA)
 def test_valid_userdata(client: IntegrationInstance):
-    """Test `cloud-init devel schema` with valid userdata.
+    """Test `cloud-init schema` with valid userdata.
 
     PR #575
     """
-    result = client.execute("cloud-init devel schema --system")
+    result = client.execute("cloud-init schema --system")
     assert result.ok
     assert "Valid cloud-config: system userdata" == result.stdout.strip()
     result = client.execute("cloud-init status --long")
@@ -44,11 +51,11 @@ def test_valid_userdata(client: IntegrationInstance):
 
 @pytest.mark.user_data(INVALID_USER_DATA_HEADER)
 def test_invalid_userdata(client: IntegrationInstance):
-    """Test `cloud-init devel schema` with invalid userdata.
+    """Test `cloud-init schema` with invalid userdata.
 
     PR #575
     """
-    result = client.execute("cloud-init devel schema --system")
+    result = client.execute("cloud-init schema --system")
     assert not result.ok
     assert "Cloud config schema errors" in result.stderr
     assert 'needs to begin with "#cloud-config"' in result.stderr
@@ -69,11 +76,12 @@ def test_invalid_userdata_schema(client: IntegrationInstance):
     assert result.ok
     log = client.read_from_file("/var/log/cloud-init.log")
     warning = (
-        "[WARNING]: Invalid cloud-config provided:\napt_pipelining: 'bogus'"
-        " is not valid under any of the given schemas\nupdates: Additional"
-        " properties are not allowed ('notnetwork' was unexpected)"
+        "[WARNING]: Invalid cloud-config provided: Please run "
+        "'sudo cloud-init schema --system' to see the schema errors."
     )
     assert warning in log
+    assert "asdfasdf" not in log
+
     result = client.execute("cloud-init status --long")
     if not result.ok:
         raise AssertionError(
