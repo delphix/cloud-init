@@ -4,7 +4,7 @@ import copy
 import io
 import os
 import re
-from typing import Mapping
+from typing import Mapping, Optional
 
 from cloudinit import log as logging
 from cloudinit import subp, util
@@ -28,6 +28,7 @@ KNOWN_DISTROS = [
     "fedora",
     "miraclelinux",
     "openEuler",
+    "openmandriva",
     "rhel",
     "rocky",
     "suse",
@@ -361,7 +362,7 @@ class Renderer(renderer.Renderer):
         ]
     )
 
-    templates = {}
+    templates: dict = {}
 
     def __init__(self, config=None):
         if not config:
@@ -979,8 +980,11 @@ class Renderer(renderer.Renderer):
         return contents
 
     def render_network_state(
-        self, network_state: NetworkState, templates=None, target=None
-    ):
+        self,
+        network_state: NetworkState,
+        templates: Optional[dict] = None,
+        target=None,
+    ) -> None:
         if not templates:
             templates = self.templates
         file_mode = 0o644

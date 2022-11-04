@@ -16,7 +16,7 @@ import stat
 import string
 import urllib.parse
 from io import StringIO
-from typing import Any, Mapping, Type
+from typing import Any, Mapping, MutableMapping, Optional, Type
 
 from cloudinit import importer
 from cloudinit import log as logging
@@ -25,6 +25,7 @@ from cloudinit.distros.parsers import hosts
 from cloudinit.features import ALLOW_EC2_MIRRORS_ON_NON_AWS_INSTANCE_TYPES
 from cloudinit.net import activators, eni, network_state, renderers
 from cloudinit.net.network_state import parse_net_config_data
+from cloudinit.net.renderer import Renderer
 
 from .networking import LinuxNetworking, Networking
 
@@ -47,6 +48,7 @@ OSFAMILIES = {
         "fedora",
         "miraclelinux",
         "openEuler",
+        "openmandriva",
         "photon",
         "rhel",
         "rocky",
@@ -75,8 +77,9 @@ class Distro(persistence.CloudInitPickleMixin, metaclass=abc.ABCMeta):
     ci_sudoers_fn = "/etc/sudoers.d/90-cloud-init-users"
     hostname_conf_fn = "/etc/hostname"
     tz_zone_dir = "/usr/share/zoneinfo"
+    default_owner = "root:root"
     init_cmd = ["service"]  # systemctl, service etc
-    renderer_configs: Mapping[str, Mapping[str, Any]] = {}
+    renderer_configs: Mapping[str, MutableMapping[str, Any]] = {}
     _preferred_ntp_clients = None
     networking_cls: Type[Networking] = LinuxNetworking
     # This is used by self.shutdown_command(), and can be overridden in
@@ -116,7 +119,18 @@ class Distro(persistence.CloudInitPickleMixin, metaclass=abc.ABCMeta):
             "_write_network_config needs implementation.\n" % self.name
         )
 
-    def _write_network_state(self, network_state):
+    @property
+    def network_activator(self) -> Optional[Type[activators.NetworkActivator]]:
+        """Return the configured network activator for this environment."""
+        priority = util.get_cfg_by_path(
+            self._cfg, ("network", "activators"), None
+        )
+        try:
+            return activators.select_activator(priority=priority)
+        except activators.NoActivatorException:
+            return None
+
+    def _get_renderer(self) -> Renderer:
         priority = util.get_cfg_by_path(
             self._cfg, ("network", "renderers"), None
         )
@@ -126,6 +140,9 @@ class Distro(persistence.CloudInitPickleMixin, metaclass=abc.ABCMeta):
             "Selected renderer '%s' from priority list: %s", name, priority
         )
         renderer = render_cls(config=self.renderer_configs.get(name))
+        return renderer
+
+    def _write_network_state(self, network_state, renderer: Renderer):
         renderer.render_network_state(network_state)
 
     def _find_tz_file(self, tz):
@@ -228,21 +245,22 @@ class Distro(persistence.CloudInitPickleMixin, metaclass=abc.ABCMeta):
         """
         # This method is preferred to apply_network which only takes
         # a much less complete network config format (interfaces(5)).
-        network_state = parse_net_config_data(netconfig)
         try:
-            self._write_network_state(network_state)
+            renderer = self._get_renderer()
         except NotImplementedError:
             # backwards compat until all distros have apply_network_config
             return self._apply_network_from_network_config(
                 netconfig, bring_up=bring_up
             )
 
+        network_state = parse_net_config_data(netconfig, renderer=renderer)
+        self._write_network_state(network_state, renderer)
+
         # Now try to bring them up
         if bring_up:
             LOG.debug("Bringing up newly configured network interfaces")
-            try:
-                network_activator = activators.select_activator()
-            except activators.NoActivatorException:
+            network_activator = self.network_activator
+            if not network_activator:
                 LOG.warning(
                     "No network activator found, not bringing up "
                     "network interfaces"
@@ -509,6 +527,15 @@ class Distro(persistence.CloudInitPickleMixin, metaclass=abc.ABCMeta):
             if isinstance(groups, str):
                 groups = groups.split(",")
 
+            if isinstance(groups, dict):
+                LOG.warning(
+                    "DEPRECATED: The user %s has a 'groups' config value of"
+                    " type dict which is deprecated and will be removed in a"
+                    " future version of cloud-init. Use a comma-delimited"
+                    " string or array instead: group1,group2.",
+                    name,
+                )
+
             # remove any white spaces in group names, most likely
             # that came in as a string like: groups: group1, group2
             groups = [g.strip() for g in groups]
@@ -630,8 +657,16 @@ class Distro(persistence.CloudInitPickleMixin, metaclass=abc.ABCMeta):
             self.lock_passwd(name)
 
         # Configure sudo access
-        if "sudo" in kwargs and kwargs["sudo"] is not False:
-            self.write_sudo_rules(name, kwargs["sudo"])
+        if "sudo" in kwargs:
+            if kwargs["sudo"]:
+                self.write_sudo_rules(name, kwargs["sudo"])
+            elif kwargs["sudo"] is False:
+                LOG.warning(
+                    "DEPRECATED: The user %s has a 'sudo' config value of"
+                    " 'false' which will be dropped after April 2027."
+                    " Use 'null' instead.",
+                    name,
+                )
 
         # Import SSH keys
         if "ssh_authorized_keys" in kwargs:
@@ -715,6 +750,16 @@ class Distro(persistence.CloudInitPickleMixin, metaclass=abc.ABCMeta):
             raise e
 
         return True
+
+    def chpasswd(self, plist_in: list, hashed: bool):
+        payload = (
+            "\n".join(
+                (":".join([name, password]) for name, password in plist_in)
+            )
+            + "\n"
+        )
+        cmd = ["chpasswd"] + (["-e"] if hashed else [])
+        subp.subp(cmd, payload)
 
     def ensure_sudo_dir(self, path, sudo_base="/etc/sudoers"):
         # Ensure the dir is included and that
@@ -1063,7 +1108,7 @@ def _get_arch_package_mirror_info(package_mirrors, arch):
     return default
 
 
-def fetch(name) -> Type[Distro]:
+def fetch(name: str) -> Type[Distro]:
     locs, looked_locs = importer.find_module(name, ["", __name__], ["Distro"])
     if not locs:
         raise ImportError(

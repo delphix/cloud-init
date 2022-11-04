@@ -1,3 +1,239 @@
+22.3.4
+ - Fix Oracle DS primary interface when using IMDS (LP: #1989686)
+
+22.3.3
+ - Fix Oracle DS not setting subnet when using IMDS (LP: #1989686)
+
+22.3.2
+ - azure: define new attribute for pre-22.3 pickles (#1725)
+ - sources/azure: ensure instance id is always correct (#1727)
+
+22.3.1
+ - Fix v2 interface matching when no MAC (LP: #1986551)
+ - test: reduce number of network dependencies in flaky test (#1702)
+ - docs: publish cc_ubuntu_autoinstall docs to rtd (#1696)
+ - net: Fix EphemeraIPNetwork (#1697) [Alberto Contreras]
+ - test: make ansible test work across older versions (#1691)
+ - Networkd multi-address support/fix (#1685) [Teodor Garzdin]
+ - make: drop broken targets (#1688)
+ - net: Passthough v2 netconfigs in netplan systems (#1650)
+   [Alberto Contreras] (LP: #1978543)
+ - NM ipv6 connection does not work on Azure and Openstack (#1616)
+   [Emanuele Giuseppe Esposito]
+ - Fix check_format_tip (#1679) [Alberto Contreras]
+ - DataSourceVMware: fix var use before init (#1674)
+   [Andrew Kutz] (LP: #1987005)
+ - rpm/copr: ensure RPM represents new clean.d dir artifacts (#1680)
+ - test: avoid centos leaked check of /etc/yum.repos.d/epel-testing.repo
+   (#1676)
+
+22.3
+ - sources: obj.pkl cache should be written anyime get_data is run (#1669)
+ - schema: drop release number from version file (#1664)
+ - pycloudlib: bump to quiet azure HTTP info logs (#1668)
+ - test: fix wireguard integration tests (#1666)
+ - Github is deprecating the 18.04 runner starting 12.1 (#1665)
+ - integration tests: Ensure one setup for all tests (#1661)
+ - tests: ansible test fixes (#1660)
+ - Prevent concurrency issue in test_webhook_hander.py (#1658)
+ - Workaround net_setup_link race with udev (#1655) (LP: #1983516)
+ - test: drop erroneous lxd assertion, verify command succeeded (#1657)
+ - Fix Chrony usage on Centos Stream (#1648) [Sven Haardiek] (LP: #1885952)
+ - sources/azure: handle network unreachable errors for savable PPS (#1642)
+   [Chris Patterson]
+ - Return cc_set_hostname to PER_INSTANCE frequency (#1651) (LP: #1983811)
+ - test: Collect integration test time by default (#1638)
+ - test: Drop forced package install hack in lxd integration test (#1649)
+ - schema: Resolve user-data if --system given (#1644)
+   [Alberto Contreras] (LP: #1983306)
+ - test: use fake filesystem to avoid file removal (#1647)
+   [Alberto Contreras]
+ - tox: Fix tip-flake8 and tip-mypy (#1635) [Alberto Contreras]
+ - config: Add wireguard config module (#1570) [Fabian Lichtenegger-Lukas]
+ - tests: can run without azure-cli, tests expect inactive ansible (#1643)
+ - typing: Type UrlResponse.contents (#1633) [Alberto Contreras]
+ - testing: fix references to `DEPRECATED.` (#1641) [Alberto Contreras]
+ - ssh_util: Handle sshd_config.d folder [Alberto Contreras] (LP: #1968873)
+ - schema: Enable deprecations in cc_update_etc_hosts (#1631)
+   [Alberto Contreras]
+ - Add Ansible Config Module (#1579)
+ - util: Support Idle process state in get_proc_ppid() (#1637)
+ - schema: Enable deprecations in cc_growpart (#1628) [Alberto Contreras]
+ - schema: Enable deprecations in cc_users_groups (#1627)
+   [Alberto Contreras]
+ - util: Fix error path and parsing in get_proc_ppid()
+ - main: avoid downloading full contents cmdline urls (#1606)
+   [Alberto Contreras] (LP: #1937319)
+ - schema: Enable deprecations in cc_scripts_vendor (#1629)
+   [Alberto Contreras]
+ - schema: Enable deprecations in cc_set_passwords (#1630)
+   [Alberto Contreras]
+ - sources/azure: add experimental support for preprovisioned os disks
+   (#1622) [Chris Patterson]
+ - Remove configobj a_to_u calls (#1632) [Stefano Rivera]
+ - cc_debug: Drop this module (#1614) [Alberto Contreras]
+ - schema: add aggregate descriptions in anyOf/oneOf (#1636)
+ - testing: migrate test_sshutil to pytest (#1617) [Alberto Contreras]
+ - testing: Fix test_ca_certs integration test (#1626) [Alberto Contreras]
+ - testing: add support for pycloudlib's pro images (#1604)
+   [Alberto Contreras]
+ - testing: migrate test_cc_set_passwords to pytest (#1615)
+   [Alberto Contreras]
+ - network: add system_info network activator cloud.cfg overrides (#1619)
+   (LP: #1958377)
+ - docs: Align git remotes with uss-tableflip setup (#1624)
+   [Alberto Contreras]
+ - testing: cover active config module checks (#1609) [Alberto Contreras]
+ - lxd: lvm avoid thinpool when kernel module absent
+ - lxd: enable MTU configuration in cloud-init
+ - doc: pin doc8 to last passing version
+ - cc_set_passwords fixes (#1590)
+ - Modernise importer.py and type ModuleDetails (#1605) [Alberto Contreras]
+ - config: Def activate_by_schema_keys for t-z (#1613) [Alberto Contreras]
+ - config: define activate_by_schema_keys for p-r mods (#1611)
+   [Alberto Contreras]
+ - clean: add param to remove /etc/machine-id for golden image creation
+ - config: define `activate_by_schema_keys` for a-f mods (#1608)
+   [Alberto Contreras]
+ - config: define activate_by_schema_keys for s mods (#1612)
+   [Alberto Contreras]
+ - sources/azure: reorganize tests for network config (#1586)
+   [Chris Patterson]
+ - config: Define activate_by_schema_keys for g-n mods (#1610)
+   [Alberto Contreras]
+ - meta-schema: add infra to skip inapplicable modules [Alberto Contreras]
+ - sources/azure: don't set cfg["password"] for default user pw (#1592)
+   [Chris Patterson]
+ - schema: activate grub-dpkg deprecations (#1600) [Alberto Contreras]
+ - docs: clarify user password purposes (#1593)
+ - cc_lxd: Add btrfs and lvm lxd storage options (SC-1026) (#1585)
+ - archlinux: Fix distro naming[1] (#1601) [Kristian Klausen]
+ - cc_ubuntu_autoinstall: support live-installer autoinstall config
+ - clean: allow third party cleanup scripts in /etc/cloud/clean.d (#1581)
+ - sources/azure: refactor chassis asset tag handling (#1574)
+   [Chris Patterson]
+ - Add "netcho" as contributor (#1591) [Kaloyan Kotlarski]
+ - testing: drop impish support (#1596) [Alberto Contreras]
+ - black: fix missed formatting issue which landed in main (#1594)
+ - bsd: Don't assume that root user is in root group (#1587)
+ - docs: Fix comment typo regarding use of packages (#1582)
+   [Peter Mescalchin]
+ - Update govc command in VMWare walkthrough (#1576) [manioo8]
+ - Update .github-cla-signers (#1588) [Daniel Mullins]
+ - Rename the openmandriva user to omv (#1575) [Bernhard Rosenkraenzer]
+ - sources/azure: increase read-timeout to 60 seconds for wireserver
+   (#1571) [Chris Patterson]
+ - Resource leak cleanup (#1556)
+ - testing: remove appereances of FakeCloud (#1584) [Alberto Contreras]
+ - Fix expire passwords for hashed passwords (#1577)
+   [Sadegh Hayeri] (LP: #1979065)
+ - mounts: fix suggested_swapsize for > 64GB hosts (#1569) [Steven Stallion]
+ - Update chpasswd schema to deprecate password parsing (#1517)
+ - tox: Remove entries from default envlist (#1578) (LP: #1980854)
+ - tests: add test for parsing static dns for existing devices (#1557)
+   [Jonas Konrad]
+ - testing: port cc_ubuntu_advantage test to pytest (#1559)
+   [Alberto Contreras]
+ - Schema deprecation handling (#1549) [Alberto Contreras]
+ - Enable pytest to run in parallel (#1568)
+ - sources/azure: refactor ovf-env.xml parsing (#1550) [Chris Patterson]
+ - schema: Force stricter validation (#1547)
+ - ubuntu advantage config: http_proxy, https_proxy (#1512)
+   [Fabian Lichtenegger-Lukas]
+ - net: fix interface matching support (#1552) (LP: #1979877)
+ - Fuzz testing jsonchema (#1499) [Alberto Contreras]
+ - testing: Wait for changed boot-id in test_status.py (#1548)
+ - CI: Fix GH pinned-format jobs (#1558) [Alberto Contreras]
+ - Typo fix (#1560) [Jaime Hablutzel]
+ - tests: mock dns lookup that causes long timeouts (#1555)
+ - tox: add unpinned env for do_format and check_format (#1554)
+ - cc_ssh_import_id: Substitute deprecated warn (#1553) [Alberto Contreras]
+ - Remove schema errors from log (#1551) (LP: #1978422) (CVE-2022-2084)
+ - Update WebHookHandler to run as background thread (SC-456) (#1491)
+   (LP: #1910552)
+ - testing: Don't run custom cloud dir test on Bionic (#1542)
+ - bash completion: update schema command (#1543) (LP: #1979547)
+ - CI: add non-blocking run against the linters tip versions (#1531)
+   [Paride Legovini]
+ - Change groups within the users schema to support lists and strings
+   (#1545) [RedKrieg]
+ - make it clear which username should go in the contributing doc (#1546)
+ - Pin setuptools for Travis (SC-1136) (#1540)
+ - Fix LXD datasource crawl when BOOT enabled (#1537)
+ - testing: Fix wrong path in dual stack test (#1538)
+ - cloud-config: honor cloud_dir setting (#1523)
+   [Alberto Contreras] (LP: #1976564)
+ - Add python3-debconf to pkg-deps.json Build-Depends (#1535)
+   [Alberto Contreras]
+ - redhat spec: udev/rules.d lives under /usr/lib on rhel-based systems
+   (#1536)
+ - tests/azure: add test coverage for DisableSshPasswordAuthentication
+   (#1534) [Chris Patterson]
+ - summary: Add david-caro to the cla signers (#1527) [David Caro]
+ - Add support for OpenMandriva (https://openmandriva.org/) (#1520)
+   [Bernhard Rosenkraenzer]
+ - tests/azure: refactor ovf creation (#1533) [Chris Patterson]
+ - Improve DataSourceOVF error reporting when script disabled (#1525) [rong]
+ - tox: integration-tests-jenkins: softfail if only some test failed
+   (#1528) [Paride Legovini]
+ - CI: drop linters from Travis CI (moved to GH Actions) (#1530)
+   [Paride Legovini]
+ - sources/azure: remove unused encoding support for customdata (#1526)
+   [Chris Patterson]
+ - sources/azure: remove unused metadata captured when parsing ovf (#1524)
+   [Chris Patterson]
+ - sources/azure: remove dscfg parsing from ovf-env.xml (#1522)
+   [Chris Patterson]
+ - Remove extra space from ec2 dual stack crawl message (#1521)
+ - tests/azure: use namespaces in generated ovf-env.xml documents (#1519)
+   [Chris Patterson]
+ - setup.py: adjust udev/rules default path (#1513)
+   [Emanuele Giuseppe Esposito]
+ - Add python3-deconf dependency (#1506) [Alberto Contreras]
+ - Change match macadress param for network v2 config (#1518)
+   [Henrique Caricatti Capozzi]
+ - sources/azure: remove unused userdata property from ovf (#1516)
+   [Chris Patterson]
+ - sources/azure: minor refactoring to network config generation (#1497)
+   [Chris Patterson]
+ - net: Implement link-local ephemeral ipv6
+ - Rename function to avoid confusion (#1501)
+ - Fix cc_phone_home requiring 'tries' (#1500) (LP: #1977952)
+ - datasources: replace networking functions with stdlib and cloudinit.net
+   code
+ - Remove xenial references (#1472) [Alberto Contreras]
+ - Oracle ds changes (#1474) [Alberto Contreras] (LP: #1967942)
+ - improve runcmd docs (#1498)
+ - add 3.11-dev to Travis CI (#1493)
+ - Only run github actions on pull request (#1496)
+ - Fix integration test client creation (#1494) [Alberto Contreras]
+ - tox: add link checker environment, fix links (#1480)
+ - cc_ubuntu_advantage: Fix doc (#1487) [Alberto Contreras]
+ - cc_yum_add_repo: Fix repo id canonicalization (#1489)
+   [Alberto Contreras] (LP: #1975818)
+ - Add linitio as contributor in the project (#1488) [Kevin Allioli]
+ - net-convert: use yaml.dump for debugging python NetworkState obj (#1484)
+   (LP: #1975907)
+ - test_schema: no relative $ref URLs, replace $ref with local path (#1486)
+ - cc_set_hostname: do not write "localhost" when no hostname is given
+   (#1453) [Emanuele Giuseppe Esposito]
+ - Update .github-cla-signers (#1478) [rong]
+ - schema: write_files defaults, versions $ref full URL and add vscode
+   (#1479)
+ - docs: fix external links, add one more to the list (#1477)
+ - doc: Document how to change module frequency (#1481)
+ - tests: bump pycloudlib (#1482)
+ - tests: bump pycloudlib pinned commit for kinetic Azure (#1476)
+ - testing: fix test_status.py (#1475)
+ - integration tests: If KEEP_INSTANCE = True, log IP (#1473)
+ - Drop mypy excluded files (#1454) [Alberto Contreras]
+ - Docs additions (#1470)
+ - Add "formatting tests" to Github Actions
+ - Remove unused arguments in function signature (#1471)
+ - Changelog: correct errant classification of LP issues as GH (#1464)
+ - Use Network-Manager and Netplan as default renderers for RHEL and Fedora
+   (#1465) [Emanuele Giuseppe Esposito]
+
 22.2
  - Fix test due to caplog incompatibility (#1461) [Alberto Contreras]
  - Align rhel custom files with upstream (#1431)
@@ -21,16 +257,15 @@
  - tests: cc_set_passoword update for systemd, non-systemd distros  (#1449)
  - Fix bug in url_helper/dual_stack() logging (#1426)
  - schema: render schema paths from _CustomSafeLoaderWithMarks (#1391)
-   (GH: SC-929)
  - testing: Make integration tests kinetic friendly (#1441)
  - Handle error if SSH service no present. (#1422)
-   [Alberto Contreras] (GH: #1969526)
+   [Alberto Contreras] (LP: #1969526)
  - Fix network-manager activator availability and order (#1438)
  - sources/azure: remove reprovisioning marker (#1414) [Chris Patterson]
  - upstart: drop vestigial support for upstart (#1421)
  - testing: Ensure NoCloud detected in test (#1439)
  - Update .github-cla-signers kallioli [Kevin Allioli]
- - Consistently strip top-level network key (#1417) (GH: #1906187)
+ - Consistently strip top-level network key (#1417) (LP: #1906187)
  - testing: Fix LXD VM metadata test (#1430)
  - testing: Add NoCloud setup for NoCloud test (#1425)
  - Update linters and adapt code for compatibility (#1434) [Paride Legovini]
@@ -43,9 +278,9 @@
  - tests: verify_ordered_items fallback to re.escape if needed (#1420)
  - Misc module cleanup (#1418)
  - docs: Fix doc warnings and enable errors (#1419)
-   [Alberto Contreras] (GH: #1876341)
+   [Alberto Contreras] (LP: #1876341)
  - Refactor cloudinit.sources.NetworkConfigSource to enum (#1413)
-   [Alberto Contreras] (GH: #1874875)
+   [Alberto Contreras] (LP: #1874875)
  - Don't fail if IB and Ethernet devices 'collide' (#1411)
  - Use cc_* module meta defintion over hardcoded vars (SC-888) (#1385)
  - Fix cc_rsyslog.py initialization (#1404) [Alberto Contreras]
@@ -57,13 +292,13 @@
  - Allow growpart to resize encrypted partitions (#1316)
  - Fix typo in integration_test.rst (#1405) [Alberto Contreras]
  - cloudinit.net refactor: apply_network_config_names (#1388)
-   [Alberto Contreras] (GH: #1884602)
+   [Alberto Contreras] (LP: #1884602)
  - tests/azure: add fixtures for hardcoded paths (markers and data_dir)
    (#1399) [Chris Patterson]
  - testing: Add responses workaround for focal/impish (#1403)
  - cc_ssh_import_id: fix is_key_in_nested_dict to avoid early False
  - Fix ds-identify not detecting NoCloud seed in config (#1381)
-   (GH: #1876375)
+   (LP: #1876375)
  - sources/azure: retry dhcp for failed processes (#1401) [Chris Patterson]
  - Move notes about refactorization out of CONTRIBUTING.rst (#1389)
  - Shave ~8ms off generator runtime (#1387)
@@ -78,28 +313,27 @@
  - sources/azure: only wait for primary nic to be attached during restore
    (#1378) [Anh Vo]
  - cc_ntp: migrated legacy schema to cloud-init-schema.json (#1384)
-   (GH: SC-803)
  - Network functions refactor and bugfixes (#1383)
  - schema: add JSON defs for modules cc_users_groups (#1379)
-   (GH: SC-928, SC-846, SC-897, #1858930)
+   (LP: #1858930)
  - Fix doc typo (#1382) [Alberto Contreras]
  - Add support for dual stack IPv6/IPv4 IMDS to Ec2 (#1160)
- - Fix KeyError when rendering sysconfig IPv6 routes (#1380) (GH: #1958506)
+ - Fix KeyError when rendering sysconfig IPv6 routes (#1380) (LP: #1958506)
  - Return a namedtuple from subp() (#1376)
  - Mypy stubs and other tox maintenance (SC-920) (#1374)
  - Distro Compatibility Fixes (#1375)
  - Pull in Gentoo patches (#1372)
  - schema: add json defs for modules U-Z (#1360)
-   (GH: #1858928, #1858929, #1858931, #1858932)
+   (LP: #1858928, #1858929, #1858931, #1858932)
  - util: atomically update sym links to avoid Suppress FileNotFoundError
-   when reading status (#1298) [Adam Collard] (GH: LP:1962150)
+   when reading status (#1298) [Adam Collard] (LP: #1962150)
  - schema: add json defs for modules scripts-timezone (SC-801) (#1365)
  - docs: Add first tutorial (SC-900) (#1368)
  - BUG 1473527: module ssh-authkey-fingerprints fails Input/output error…
-   (#1340) [Andrew Lee] (GH: #1473527)
+   (#1340) [Andrew Lee] (LP: #1473527)
  - add arch hosts template (#1371)
  - ds-identify: detect LXD for VMs launched from host with > 5.10 kernel
-   (#1370) (GH: #1968085)
+   (#1370) (LP: #1968085)
  - Support EC2 tags in instance metadata (#1309) [Eduardo Dobay]
  - schema: add json defs for modules e-install (SC-651) (#1366)
  - Improve "(no_create_home|system): true" test (#1367) [Jeffrey 'jf' Lim]
@@ -122,7 +356,7 @@
  - testing: Add missing is_FreeBSD mock to networking test (#1353)
  - Add --no-update to add-apt-repostory call (SC-880) (#1337)
  - schema: add json defs for modules K-L (#1321)
-   (GH: #1858899, #1858900, #1858901, #1858902)
+   (LP: #1858899, #1858900, #1858901, #1858902)
  - docs: Re-order readthedocs install (#1354)
  - Stop cc_ssh_authkey_fingerprints from ALWAYS creating home (#1343)
    [Jeffrey 'jf' Lim]
@@ -131,14 +365,14 @@
  - sources/azure: move get_ip_from_lease_value out of shim (#1324)
    [Chris Patterson]
  - Fix cloud-init status --wait when no datasource found (#1349)
-   (GH: #1966085)
+   (LP: #1966085)
  - schema: add JSON defs for modules resize-salt (SC-654) (#1341)
  - Add myself as a future contributor (#1345) [Neal Gompa (ニール・ゴンパ)]
  - Update .github-cla-signers (#1342) [Jeffrey 'jf' Lim]
  - add Requires=cloud-init-hotplugd.socket in cloud-init-hotplugd.service
    file (#1335) [yangzz-97]
  - Fix sysconfig render when set-name is missing (#1327)
-   [Andrew Kutz] (GH: #1855945)
+   [Andrew Kutz] (LP: #1855945)
  - Refactoring helper funcs out of NetworkState (#1336) [Andrew Kutz]
  - url_helper: add tuple support for readurl timeout (#1328)
    [Chris Patterson]
@@ -162,7 +396,7 @@
  - Doc cleanups (#1317)
  - docs improvements (#1312)
  - add support for jinja do statements, add unit test (#1314)
-   [Paul Bruno] (GH: #1962759)
+   [Paul Bruno] (LP: #1962759)
  - sources/azure: prevent tight loops for DHCP retries (#1285)
    [Chris Patterson]
  - net/dhcp: surface type of DHCP lease failure to caller (#1276)
@@ -177,7 +411,7 @@
    [Adam Collard]
  - check for existing symlink while force creating symlink (#1281)
    [Shreenidhi Shedi]
- - Do not silently ignore integer uid (#1280) (GH: #1875772)
+ - Do not silently ignore integer uid (#1280) (LP: #1875772)
  - tests: create a IPv4/IPv6 VPC in Ec2 integration tests (#1291)
  - Integration test fix ppa  (#1296)
  - tests: on official EC2. cloud-id actually startswith aws not ec2 (#1289)
@@ -319,8 +553,7 @@
  - sources/azure: remove unnecessary hostname bounce (#1143)
    [Chris Patterson]
  - find_devs/openbsd: accept ISO on disk (#1132)
-   [Gonéri Le Bouder] (GH:
-   https://github.com/ContainerCraft/kmi/issues/12)
+   [Gonéri Le Bouder]
  - Improve error log message when mount failed (#1140) [Ksenija Stanojevic]
  - add KsenijaS as a contributor (#1145) [Ksenija Stanojevic]
  - travis - don't run integration tests if no deb (#1139)
@@ -328,14 +561,14 @@
  - testing: Add deterministic test id (#1138)
  - mock sleep() in azure test (#1137)
  - Add miraclelinux support (#1128) [Haruki TSURUMOTO]
- - docs: Make MACs lowercase in network config (#1135) (GH: #1876941)
+ - docs: Make MACs lowercase in network config (#1135) (LP: #1876941)
  - Add Strict Metaschema Validation (#1101)
  - update dead link (#1133)
  - cloudinit/net: handle two different routes for the same ip (#1124)
    [Emanuele Giuseppe Esposito]
  - docs: pin mistune dependency (#1134)
  - Reorganize unit test locations under tests/unittests (#1126)
- - Fix exception when no activator found (#1129) (GH: #1948681)
+ - Fix exception when no activator found (#1129) (LP: #1948681)
  - jinja: provide and document jinja-safe key aliases in instance-data
    (SC-622) (#1123)
  - testing: Remove date from final_message test (SC-638) (#1127)
@@ -352,7 +585,7 @@
  - lxd: add preference for LXD cloud-init.* config keys over user keys
    (#1108)
  - VMware: source /etc/network/interfaces.d/* on Debian
-   [chengcheng-chcheng] (GH: #1950136)
+   [chengcheng-chcheng] (LP: #1950136)
  - Add cjp256 as contributor (#1109) [Chris Patterson]
  - integration_tests: Ensure log directory exists before symlinking to it
    (#1110)
@@ -362,8 +595,8 @@
  - tests: specialize lxd_discovery test for lxd_vm vendordata (#1106)
  - Add convenience symlink to integration test output (#1105)
  - Fix for set-name bug in networkd renderer (#1100)
-   [Andrew Kutz] (GH: #1949407)
- - Wait for apt lock (#1034) (GH: #1944611)
+   [Andrew Kutz] (LP: #1949407)
+ - Wait for apt lock (#1034) (LP: #1944611)
  - testing: stop chef test from running on openstack (#1102)
  - alpine.py: add options to the apk upgrade command (#1089) [dermotbradley]
 
