@@ -32,9 +32,8 @@ when true, and when false it will force the short hostname. Otherwise, the
 hostname to use is distro-dependent.
 
 .. note::
-    cloud-init performs no hostname input validation before sending the
-    hostname to distro-specific tools, and most tools will not accept a
-    trailing dot on the FQDN.
+    We strip a trailing . from the FQDN, if it is present. This causes problems
+    with a lot of tools, if it is left in place.
 
 This module will run in the init-local stage before networking is configured
 if the hostname is set by metadata or user data on the local system.
@@ -92,6 +91,8 @@ def handle(name, cfg, cloud, log, _args):
         cloud.distro.set_option("prefer_fqdn_over_hostname", hostname_fqdn)
 
     (hostname, fqdn) = util.get_hostname_fqdn(cfg, cloud)
+    if fqdn[-1] == '.':
+        fqdn = fqdn[:-1]
     # Check for previous successful invocation of set-hostname
 
     # set-hostname artifact file accounts for both hostname and fqdn
