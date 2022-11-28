@@ -13,9 +13,6 @@ from cloudinit import subp, util
 from cloudinit.helpers import Paths
 from cloudinit.safeyaml import YAMLError
 from cloudinit.sources import DataSourceOVF as dsovf
-from cloudinit.sources.helpers.vmware.imc.config_custom_script import (
-    CustomScriptNotFound,
-)
 from tests.unittests.helpers import CiTestCase, mock, wrap_and_call
 
 MPATH = "cloudinit.sources.DataSourceOVF."

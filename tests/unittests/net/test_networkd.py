@@ -1,5 +1,7 @@
 # This file is part of cloud-init. See LICENSE file for license information.
 
+from unittest import mock
+
 from cloudinit import safeyaml
 from cloudinit.net import network_state, networkd
 
@@ -10,6 +12,7 @@ network:
     eth0:
       match:
         macaddress: '00:11:22:33:44:55'
+      addresses: [172.16.10.2/12, 172.16.10.3/12]
       nameservers:
         search: [spam.local, eggs.local]
         addresses: [8.8.8.8]
@@ -22,7 +25,13 @@ network:
         addresses: [4.4.4.4]
 """
 
-V2_CONFIG_SET_NAME_RENDERED_ETH0 = """[Match]
+V2_CONFIG_SET_NAME_RENDERED_ETH0 = """[Address]
+Address=172.16.10.2/12
+
+[Address]
+Address=172.16.10.3/12
+
+[Match]
 MACAddress=00:11:22:33:44:55
 Name=eth0
 
@@ -47,13 +56,15 @@ Domains=foo.local bar.local
 
 class TestNetworkdRenderState:
     def _parse_network_state_from_config(self, config):
-        yaml = safeyaml.load(config)
-        return network_state.parse_net_config_data(yaml["network"])
+        with mock.patch("cloudinit.net.network_state.get_interfaces_by_mac"):
+            yaml = safeyaml.load(config)
+            return network_state.parse_net_config_data(yaml["network"])
 
     def test_networkd_render_with_set_name(self):
-        ns = self._parse_network_state_from_config(V2_CONFIG_SET_NAME)
-        renderer = networkd.Renderer()
-        rendered_content = renderer._render_content(ns)
+        with mock.patch("cloudinit.net.get_interfaces_by_mac"):
+            ns = self._parse_network_state_from_config(V2_CONFIG_SET_NAME)
+            renderer = networkd.Renderer()
+            rendered_content = renderer._render_content(ns)
 
         assert "eth0" in rendered_content
         assert rendered_content["eth0"] == V2_CONFIG_SET_NAME_RENDERED_ETH0

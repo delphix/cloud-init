@@ -7,9 +7,11 @@
 import copy
 import functools
 import logging
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from cloudinit import safeyaml, util
 from cloudinit.net import (
+    find_interface_name_from_mac,
     get_interfaces_by_mac,
     ipv4_mask_to_net_prefix,
     ipv6_mask_to_net_prefix,
@@ -19,6 +21,9 @@ from cloudinit.net import (
     is_ipv6_network,
     net_prefix_to_ipv4_mask,
 )
+
+if TYPE_CHECKING:
+    from cloudinit.net.renderer import Renderer
 
 LOG = logging.getLogger(__name__)
 
@@ -44,7 +49,7 @@ NETWORK_V2_KEY_FILTER = [
     "accept-ra",
 ]
 
-NET_CONFIG_TO_V2 = {
+NET_CONFIG_TO_V2: Dict[str, Dict[str, Any]] = {
     "bond": {
         "bond-ad-select": "ad-select",
         "bond-arp-interval": "arp-interval",
@@ -56,7 +61,7 @@ NET_CONFIG_TO_V2 = {
         "bond-miimon": "mii-monitor-interval",
         "bond-min-links": "min-links",
         "bond-mode": "mode",
-        "bond-num-grat-arp": "gratuitious-arp",
+        "bond-num-grat-arp": "gratuitous-arp",
         "bond-primary": "primary",
         "bond-primary-reselect": "primary-reselect-policy",
         "bond-updelay": "up-delay",
@@ -134,14 +139,16 @@ class CommandHandlerMeta(type):
 
 
 class NetworkState(object):
-    def __init__(self, network_state, version=NETWORK_STATE_VERSION):
+    def __init__(
+        self, network_state: dict, version: int = NETWORK_STATE_VERSION
+    ):
         self._network_state = copy.deepcopy(network_state)
         self._version = version
         self.use_ipv6 = network_state.get("use_ipv6", False)
         self._has_default_route = None
 
     @property
-    def config(self):
+    def config(self) -> dict:
         return self._network_state["config"]
 
     @property
@@ -202,6 +209,20 @@ class NetworkState(object):
             route.get("prefix") == 0 and route.get("network") in default_nets
         )
 
+    @classmethod
+    def to_passthrough(cls, network_state: dict) -> "NetworkState":
+        """Instantiates a `NetworkState` without interpreting its data.
+
+        That means only `config` and `version` are copied.
+
+        :param network_state: Network state data.
+        :return: Instance of `NetworkState`.
+        """
+        kwargs = {}
+        if "version" in network_state:
+            kwargs["version"] = network_state["version"]
+        return cls({"config": network_state}, **kwargs)
+
 
 class NetworkStateInterpreter(metaclass=CommandHandlerMeta):
 
@@ -216,16 +237,27 @@ class NetworkStateInterpreter(metaclass=CommandHandlerMeta):
         "config": None,
     }
 
-    def __init__(self, version=NETWORK_STATE_VERSION, config=None):
+    def __init__(
+        self,
+        version=NETWORK_STATE_VERSION,
+        config=None,
+        renderer=None,  # type: Optional[Renderer]
+    ):
         self._version = version
         self._config = config
         self._network_state = copy.deepcopy(self.initial_network_state)
         self._network_state["config"] = config
         self._parsed = False
-        self._interface_dns_map = {}
+        self._interface_dns_map: dict = {}
+        self._renderer = renderer
 
     @property
-    def network_state(self):
+    def network_state(self) -> NetworkState:
+        from cloudinit.net.netplan import Renderer as NetplanRenderer
+
+        if self._version == 2 and isinstance(self._renderer, NetplanRenderer):
+            LOG.debug("Passthrough netplan v2 config")
+            return NetworkState.to_passthrough(self._config)
         return NetworkState(self._network_state, version=self._version)
 
     @property
@@ -265,10 +297,6 @@ class NetworkStateInterpreter(metaclass=CommandHandlerMeta):
 
     def as_dict(self):
         return {"version": self._version, "config": self._config}
-
-    def get_network_state(self):
-        ns = self.network_state
-        return ns
 
     def parse_config(self, skip_broken=True):
         if self._version == 1:
@@ -314,6 +342,12 @@ class NetworkStateInterpreter(metaclass=CommandHandlerMeta):
                 }
 
     def parse_config_v2(self, skip_broken=True):
+        from cloudinit.net.netplan import Renderer as NetplanRenderer
+
+        if isinstance(self._renderer, NetplanRenderer):
+            # Nothing to parse as we are going to perform a Netplan passthrough
+            return
+
         for command_type, command in self._config.items():
             if command_type in ["version", "renderer"]:
                 continue
@@ -699,15 +733,14 @@ class NetworkStateInterpreter(metaclass=CommandHandlerMeta):
             #   * interface name looked up by mac
             #   * value of "eth" key from this loop
             name = eth
-            set_name = cfg.get("set-name", None)
+            set_name = cfg.get("set-name")
             if set_name:
                 name = set_name
             elif mac_address and ifaces_by_mac:
                 lcase_mac_address = mac_address.lower()
-                for iface_mac, iface_name in ifaces_by_mac.items():
-                    if lcase_mac_address == iface_mac.lower():
-                        name = iface_name
-                        break
+                mac = find_interface_name_from_mac(lcase_mac_address)
+                if mac:
+                    name = mac
             phy_cmd["name"] = name
 
             driver = match.get("driver", None)
@@ -763,7 +796,7 @@ class NetworkStateInterpreter(metaclass=CommandHandlerMeta):
             " netplan rendering support."
         )
 
-    def _v2_common(self, cfg):
+    def _v2_common(self, cfg) -> None:
         LOG.debug("v2_common: handling config:\n%s", cfg)
         for iface, dev_cfg in cfg.items():
             if "set-name" in dev_cfg:
@@ -779,6 +812,15 @@ class NetworkStateInterpreter(metaclass=CommandHandlerMeta):
                 if len(dns) > 0:
                     name_cmd.update({"address": dns})
                 self.handle_nameserver(name_cmd)
+
+                mac_address: Optional[str] = dev_cfg.get("match", {}).get(
+                    "macaddress"
+                )
+                if mac_address:
+                    real_if_name = find_interface_name_from_mac(mac_address)
+                    if real_if_name:
+                        iface = real_if_name
+
                 self._handle_individual_nameserver(name_cmd, iface)
 
     def _handle_bond_bridge(self, command, cmd_type=None):
@@ -795,13 +837,12 @@ class NetworkStateInterpreter(metaclass=CommandHandlerMeta):
                 for (key, value) in item_cfg.items()
                 if key not in NETWORK_V2_KEY_FILTER
             )
-            # we accept the fixed spelling, but write the old for compatibility
-            # Xenial does not have an updated netplan which supports the
-            # correct spelling.  LP: #1756701
+            # We accept both spellings (as netplan does).  LP: #1756701
+            # Normalize internally to the new spelling:
             params = item_params.get("parameters", {})
-            grat_value = params.pop("gratuitous-arp", None)
+            grat_value = params.pop("gratuitious-arp", None)
             if grat_value:
-                params["gratuitious-arp"] = grat_value
+                params["gratuitous-arp"] = grat_value
 
             v1_cmd = {
                 "type": cmd_type,
@@ -1038,7 +1079,11 @@ def _normalize_subnets(subnets):
     return [_normalize_subnet(s) for s in subnets]
 
 
-def parse_net_config_data(net_config, skip_broken=True) -> NetworkState:
+def parse_net_config_data(
+    net_config: dict,
+    skip_broken: bool = True,
+    renderer=None,  # type: Optional[Renderer]
+) -> NetworkState:
     """Parses the config, returns NetworkState object
 
     :param net_config: curtin network config dict
@@ -1052,9 +1097,11 @@ def parse_net_config_data(net_config, skip_broken=True) -> NetworkState:
         config = net_config
 
     if version and config is not None:
-        nsi = NetworkStateInterpreter(version=version, config=config)
+        nsi = NetworkStateInterpreter(
+            version=version, config=config, renderer=renderer
+        )
         nsi.parse_config(skip_broken=skip_broken)
-        state = nsi.get_network_state()
+        state = nsi.network_state
 
     if not state:
         raise RuntimeError(
