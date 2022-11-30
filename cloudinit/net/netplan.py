@@ -2,6 +2,8 @@
 
 import copy
 import os
+import textwrap
+from typing import Optional, cast
 
 from cloudinit import log as logging
 from cloudinit import safeyaml, subp, util
@@ -238,7 +240,12 @@ class Renderer(renderer.Renderer):
                 LOG.debug("Failed to list features from netplan info: %s", e)
         return self._features
 
-    def render_network_state(self, network_state, templates=None, target=None):
+    def render_network_state(
+        self,
+        network_state: NetworkState,
+        templates: Optional[dict] = None,
+        target=None,
+    ) -> None:
         # check network state for version
         # if v2, then extract network_state.config
         # else render_v2_from_state
@@ -274,12 +281,27 @@ class Renderer(renderer.Renderer):
             LOG.debug("netplan net_setup_link postcmd disabled")
             return
         setup_lnk = ["udevadm", "test-builtin", "net_setup_link"]
-        for cmd in [
-            setup_lnk + [SYS_CLASS_NET + iface]
-            for iface in get_devicelist()
-            if os.path.islink(SYS_CLASS_NET + iface)
-        ]:
-            subp.subp(cmd, capture=True)
+
+        # It's possible we can race a udev rename and attempt to run
+        # net_setup_link on a device that no longer exists. When this happens,
+        # we don't know what the device was renamed to, so re-gather the
+        # entire list of devices and try again.
+        last_exception = Exception
+        for _ in range(5):
+            try:
+                for iface in get_devicelist():
+                    if os.path.islink(SYS_CLASS_NET + iface):
+                        subp.subp(
+                            setup_lnk + [SYS_CLASS_NET + iface], capture=True
+                        )
+                break
+            except subp.ProcessExecutionError as e:
+                last_exception = e
+        else:
+            raise RuntimeError(
+                "'udevadm test-builtin net_setup_link' unable to run "
+                "successfully for all devices."
+            ) from last_exception
 
     def _render_content(self, network_state: NetworkState):
 
@@ -293,7 +315,7 @@ class Renderer(renderer.Renderer):
             )
 
         ethernets = {}
-        wifis = {}
+        wifis: dict = {}
         bridges = {}
         bonds = {}
         vlans = {}
@@ -335,8 +357,11 @@ class Renderer(renderer.Renderer):
                 bond = {}
                 bond_config = {}
                 # extract bond params and drop the bond_ prefix as it's
-                # redundent in v2 yaml format
-                v2_bond_map = NET_CONFIG_TO_V2.get("bond")
+                # redundant in v2 yaml format
+                v2_bond_map = cast(dict, NET_CONFIG_TO_V2.get("bond"))
+                # Previous cast is needed to help mypy to know that the key is
+                # present in `NET_CONFIG_TO_V2`. This could probably be removed
+                # by using `Literal` when supported.
                 for match in ["bond_", "bond-"]:
                     bond_params = _get_params_dict_by_match(ifcfg, match)
                     for (param, value) in bond_params.items():
@@ -348,7 +373,7 @@ class Renderer(renderer.Renderer):
                 if len(bond_config) > 0:
                     bond.update({"parameters": bond_config})
                 if ifcfg.get("mac_address"):
-                    bond["macaddress"] = ifcfg.get("mac_address").lower()
+                    bond["macaddress"] = ifcfg["mac_address"].lower()
                 slave_interfaces = ifcfg.get("bond-slaves")
                 if slave_interfaces == "none":
                     _extract_bond_slaves_by_name(interfaces, bond, ifname)
@@ -357,19 +382,24 @@ class Renderer(renderer.Renderer):
 
             elif if_type == "bridge":
                 # required_keys = ['name', 'bridge_ports']
-                ports = sorted(copy.copy(ifcfg.get("bridge_ports")))
-                bridge = {
+                bridge_ports = ifcfg.get("bridge_ports")
+                # mypy wrong error. `copy(None)` is supported:
+                ports = sorted(copy.copy(bridge_ports))  # type: ignore
+                bridge: dict = {
                     "interfaces": ports,
                 }
                 # extract bridge params and drop the bridge prefix as it's
-                # redundent in v2 yaml format
+                # redundant in v2 yaml format
                 match_prefix = "bridge_"
                 params = _get_params_dict_by_match(ifcfg, match_prefix)
                 br_config = {}
 
                 # v2 yaml uses different names for the keys
                 # and at least one value format change
-                v2_bridge_map = NET_CONFIG_TO_V2.get("bridge")
+                v2_bridge_map = cast(dict, NET_CONFIG_TO_V2.get("bridge"))
+                # Previous cast is needed to help mypy to know that the key is
+                # present in `NET_CONFIG_TO_V2`. This could probably be removed
+                # by using `Literal` when supported.
                 for (param, value) in params.items():
                     newname = v2_bridge_map.get(param)
                     if newname is None:
@@ -386,7 +416,7 @@ class Renderer(renderer.Renderer):
                 if len(br_config) > 0:
                     bridge.update({"parameters": br_config})
                 if ifcfg.get("mac_address"):
-                    bridge["macaddress"] = ifcfg.get("mac_address").lower()
+                    bridge["macaddress"] = ifcfg["mac_address"].lower()
                 _extract_addresses(ifcfg, bridge, ifname, self.features)
                 bridges.update({ifname: bridge})
 
@@ -421,7 +451,7 @@ class Renderer(renderer.Renderer):
                     explicit_end=False,
                     noalias=True,
                 )
-                txt = util.indent(dump, " " * 4)
+                txt = textwrap.indent(dump, " " * 4)
                 return [txt]
             return []
 

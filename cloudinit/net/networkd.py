@@ -7,11 +7,12 @@
 #
 # This file is part of cloud-init. See LICENSE file for license information.
 
-import os
 from collections import OrderedDict
+from typing import Optional
 
 from cloudinit import log as logging
 from cloudinit import subp, util
+from cloudinit.net.network_state import NetworkState
 
 from . import renderer
 
@@ -45,10 +46,16 @@ class CfgParser:
         for k, v in sorted(self.conf_dict.items()):
             if not v:
                 continue
-            contents += "[" + k + "]\n"
-            for e in sorted(v):
-                contents += e + "\n"
-            contents += "\n"
+            if k == "Address":
+                for e in sorted(v):
+                    contents += "[" + k + "]\n"
+                    contents += e + "\n"
+                    contents += "\n"
+            else:
+                contents += "[" + k + "]\n"
+                for e in sorted(v):
+                    contents += e + "\n"
+                contents += "\n"
 
         return contents
 
@@ -218,16 +225,21 @@ class Renderer(renderer.Renderer):
         util.write_file(net_fn, conf)
         util.chownbyname(net_fn, net_fn_owner, net_fn_owner)
 
-    def render_network_state(self, network_state, templates=None, target=None):
-        fp_nwkd = self.network_conf_dir
+    def render_network_state(
+        self,
+        network_state: NetworkState,
+        templates: Optional[dict] = None,
+        target=None,
+    ) -> None:
+        network_dir = self.network_conf_dir
         if target:
-            fp_nwkd = subp.target_path(target) + fp_nwkd
+            network_dir = subp.target_path(target) + network_dir
 
-        util.ensure_dir(os.path.dirname(fp_nwkd))
+        util.ensure_dir(network_dir)
 
         ret_dict = self._render_content(network_state)
         for k, v in ret_dict.items():
-            self.create_network_file(k, v, fp_nwkd)
+            self.create_network_file(k, v, network_dir)
 
     def _render_content(self, ns):
         ret_dict = {}
@@ -243,7 +255,7 @@ class Renderer(renderer.Renderer):
                 self.parse_routes(route, cfg)
 
             if ns.version == 2:
-                name = iface["name"]
+                name: Optional[str] = iface["name"]
                 # network state doesn't give dhcp domain info
                 # using ns.config as a workaround here
 
@@ -258,8 +270,8 @@ class Renderer(renderer.Renderer):
                         if dev_cfg.get("set-name") == name:
                             name = dev_name
                             break
-
-                self.dhcp_domain(ns.config["ethernets"][name], cfg)
+                if name in ns.config["ethernets"]:
+                    self.dhcp_domain(ns.config["ethernets"][name], cfg)
 
             ret_dict.update({link: cfg.get_final_conf()})
 

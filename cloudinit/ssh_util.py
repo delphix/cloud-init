@@ -403,8 +403,10 @@ def check_create_path(username, filename, strictmodes):
 
     return True
 
+
 def not_cli(path):
     return "/cli/" not in path
+
 
 def extract_authorized_keys(username, sshd_cfg_file=DEF_SSHD_CFG):
     (ssh_dir, pw_ent) = users_ssh_info(username)
@@ -549,11 +551,28 @@ def parse_ssh_config_map(fname):
     return ret
 
 
+def _includes_dconf(fname: str) -> bool:
+    if not os.path.isfile(fname):
+        return False
+    with open(fname, "r") as f:
+        for line in f:
+            if line.startswith(f"Include {fname}.d/*.conf"):
+                return True
+    return False
+
+
 def update_ssh_config(updates, fname=DEF_SSHD_CFG):
     """Read fname, and update if changes are necessary.
 
     @param updates: dictionary of desired values {Option: value}
     @return: boolean indicating if an update was done."""
+    if _includes_dconf(fname):
+        if not os.path.isdir(f"{fname}.d"):
+            util.ensure_dir(f"{fname}.d", mode=0o755)
+        fname = os.path.join(f"{fname}.d", "50-cloud-init.conf")
+        if not os.path.isfile(fname):
+            # Ensure root read-only:
+            util.ensure_file(fname, 0o600)
     lines = parse_ssh_config(fname)
     changed = update_ssh_config_lines(lines=lines, updates=updates)
     if changed:

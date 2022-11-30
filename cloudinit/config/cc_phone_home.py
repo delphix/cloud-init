@@ -88,6 +88,7 @@ meta: MetaSchema = {
             """
         ),
     ],
+    "activate_by_schema_keys": ["phone_home"],
 }
 
 __doc__ = get_meta_doc(meta)
@@ -129,7 +130,7 @@ def handle(name, cfg, cloud, log, args):
     post_list = ph_cfg.get("post", "all")
     tries = ph_cfg.get("tries")
     try:
-        tries = int(tries)  # type: ignore
+        tries = int(tries)  # pyright: ignore
     except (ValueError, TypeError):
         tries = 10
         util.logexc(
@@ -143,8 +144,8 @@ def handle(name, cfg, cloud, log, args):
 
     all_keys = {
         "instance_id": cloud.get_instance_id(),
-        "hostname": cloud.get_hostname(),
-        "fqdn": cloud.get_hostname(fqdn=True),
+        "hostname": cloud.get_hostname().hostname,
+        "fqdn": cloud.get_hostname(fqdn=True).hostname,
     }
 
     pubkeys = {
