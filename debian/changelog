@@ -1,3 +1,33 @@
+cloud-init (22.4.2-0ubuntu0~20.04.2) focal; urgency=medium
+
+  * d/compat & d/control: revert bump debhelper-comat to v10. Avoid
+    service restarts across package upgrade (LP: #1999159)
+    - d/compat: replaced with compat level 9
+    - d/control: Build-Depends: revert to debhelper >= 9
+
+ -- Chad Smith <chad.smith@canonical.com>  Thu, 08 Dec 2022 09:45:11 -0700
+
+cloud-init (22.4.2-0ubuntu0~20.04.1) focal; urgency=medium
+
+  * Upstream snapshot based on 22.4.2 upstream release. (LP: #1996645)
+    - List of changes from upstream can be found at
+      https://raw.githubusercontent.com/canonical/cloud-init/22.4.2/ChangeLog
+    - Includes (LP: #1997559, #1844191) not present in 22.4.0.
+
+ -- James Falcon <james.falcon@canonical.com>  Mon, 28 Nov 2022 10:48:49 -0600
+
+cloud-init (22.4-0ubuntu0~20.04.1) focal; urgency=medium
+
+  * d/control: drop python3-httpretty from Build-Depends
+  * d/cloud-init.templates: Add NWCS to datasource list
+  * refresh patches:
+    + debian/patches/expire-on-hashed-users.patch
+  * Upstream snapshot based on 22.4 upstream release. (LP: #1996645)
+    List of changes from upstream can be found at
+    https://raw.githubusercontent.com/canonical/cloud-init/22.4/ChangeLog
+
+ -- James Falcon <james.falcon@canonical.com>  Tue, 15 Nov 2022 16:17:27 -0600
+
 cloud-init (22.3.4-0ubuntu1~20.04.1) focal; urgency=medium
 
   * New upstream bugfix release. (LP: #1987318)
