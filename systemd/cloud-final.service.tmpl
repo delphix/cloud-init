@@ -11,7 +11,6 @@ Wants=network-online.target cloud-config.service
 ConditionPathExists=!/etc/cloud/cloud-init.disabled
 ConditionKernelCommandLine=!cloud-init=disabled
 {% endif %}
-ConditionalVirtualization=!container
 
 
 [Service]
