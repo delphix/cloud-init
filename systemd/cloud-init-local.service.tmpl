@@ -26,7 +26,6 @@ Before=sysinit.target
 Conflicts=shutdown.target
 {% endif %}
 RequiresMountsFor=/var/lib/cloud
-ConditionVirtualization=!container
 {% if variant == "rhel" %}
 ConditionPathExists=!/etc/cloud/cloud-init.disabled
 ConditionKernelCommandLine=!cloud-init=disabled

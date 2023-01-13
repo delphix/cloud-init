@@ -8,7 +8,6 @@ Wants=network-online.target cloud-config.target
 ConditionPathExists=!/etc/cloud/cloud-init.disabled
 ConditionKernelCommandLine=!cloud-init=disabled
 {% endif %}
-ConditionalVirtualization=!container
 
 [Service]
 Type=oneshot
