@@ -7,7 +7,6 @@ DefaultDependencies=no
 Wants=cloud-init-local.service
 After=cloud-init-local.service
 After=systemd-networkd-wait-online.service
-After=nss-lookup.target
 {% if variant in ["ubuntu", "unknown", "debian"] %}
 After=networking.service
 {% endif %}
