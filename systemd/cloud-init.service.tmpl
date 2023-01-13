@@ -4,7 +4,6 @@ Description=Initial cloud-init job (metadata service crawler)
 {% if variant not in ["photon", "rhel"] %}
 DefaultDependencies=no
 {% endif %}
-After=local-fs.target
 Wants=cloud-init-local.service
 After=cloud-init-local.service
 After=systemd-networkd-wait-online.service
