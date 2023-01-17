@@ -762,5 +762,812 @@ class TestMultipleSshAuthorizedKeysFile:
         self.assertTrue(VALID_CONTENT['rsa'] in content)
         self.assertFalse(VALID_CONTENT['dsa'] in content)
 
+    @pytest.mark.skip()
+    @pytest.mark.parametrize("inverted", [False, True])
+    @patch("cloudinit.ssh_util.pwd.getpwnam")
+    @patch("cloudinit.util.get_permissions")
+    @patch("cloudinit.util.get_owner")
+    @patch("cloudinit.util.get_group")
+    def test_single_user_two_local_files(
+        self,
+        m_get_group,
+        m_get_owner,
+        m_get_permissions,
+        m_getpwnam,
+        inverted,
+        tmpdir,
+    ):
+        user_bobby = "bobby"
+        keys = {}
+        users = {}
+        mock_permissions = {
+            tmpdir.join("home", "bobby"): ("bobby", "bobby", 0o700),
+            tmpdir.join("home", "bobby", ".ssh"): ("bobby", "bobby", 0o700),
+            tmpdir.join("home", "bobby", ".ssh", "user_keys"): (
+                "bobby",
+                "bobby",
+                0o600,
+            ),
+            tmpdir.join("home", "bobby", ".ssh", "authorized_keys"): (
+                "bobby",
+                "bobby",
+                0o600,
+            ),
+        }
+
+        homes = self.create_fake_users(
+            [user_bobby],
+            mock_permissions,
+            m_get_group,
+            m_get_owner,
+            m_get_permissions,
+            m_getpwnam,
+            users,
+            tmpdir,
+        )
+        home = homes[0]
+
+        # /tmp/home/bobby/.ssh/authorized_keys = rsa
+        authorized_keys = self.create_user_authorized_file(
+            home, "authorized_keys", "rsa", keys
+        )
+
+        # /tmp/home/bobby/.ssh/user_keys = dsa
+        user_keys = self.create_user_authorized_file(
+            home, "user_keys", "dsa", keys
+        )
+
+        # /tmp/sshd_config
+        if not inverted:
+            options = f"{authorized_keys} {user_keys}"
+        else:
+            options = f"{user_keys} {authorized_keys}"
+        sshd_config = self.create_sshd_config(options, tmpdir)
+
+        if not inverted:
+            exec_args = (user_bobby, sshd_config, authorized_keys, keys)
+        else:
+            exec_args = (user_bobby, sshd_config, user_keys, keys)
+
+        self.execute_and_check(*exec_args)
+
+    @pytest.mark.skip()
+    @pytest.mark.parametrize("inverted", [False, True])
+    @patch("cloudinit.ssh_util.pwd.getpwnam")
+    @patch("cloudinit.util.get_permissions")
+    @patch("cloudinit.util.get_owner")
+    @patch("cloudinit.util.get_group")
+    def test_single_user_local_global_files(
+        self,
+        m_get_group,
+        m_get_owner,
+        m_get_permissions,
+        m_getpwnam,
+        inverted,
+        tmpdir,
+    ):
+        user_bobby = "bobby"
+        keys = {}
+        users = {}
+        mock_permissions = {
+            tmpdir.join("home", "bobby"): ("bobby", "bobby", 0o700),
+            tmpdir.join("home", "bobby", ".ssh"): ("bobby", "bobby", 0o700),
+            tmpdir.join("home", "bobby", ".ssh", "user_keys"): (
+                "bobby",
+                "bobby",
+                0o600,
+            ),
+            tmpdir.join("home", "bobby", ".ssh", "authorized_keys"): (
+                "bobby",
+                "bobby",
+                0o600,
+            ),
+        }
+
+        homes = self.create_fake_users(
+            [user_bobby],
+            mock_permissions,
+            m_get_group,
+            m_get_owner,
+            m_get_permissions,
+            m_getpwnam,
+            users,
+            tmpdir,
+        )
+        home = homes[0]
+
+        # /tmp/home/bobby/.ssh/authorized_keys = rsa
+        authorized_keys = self.create_user_authorized_file(
+            home, "authorized_keys", "rsa", keys
+        )
+
+        # /tmp/home/bobby/.ssh/user_keys = dsa
+        user_keys = self.create_user_authorized_file(
+            home, "user_keys", "dsa", keys
+        )
+
+        authorized_keys_global = self.create_global_authorized_file(
+            "etc/ssh/authorized_keys", "ecdsa", keys, tmpdir
+        )
+
+        if not inverted:
+            options = f"{authorized_keys_global} {user_keys} {authorized_keys}"
+        else:
+            options = f"{authorized_keys_global} {authorized_keys} {user_keys}"
+        sshd_config = self.create_sshd_config(options, tmpdir)
+
+        if not inverted:
+            exec_args = (user_bobby, sshd_config, user_keys, keys)
+        else:
+            exec_args = (user_bobby, sshd_config, authorized_keys, keys)
+        self.execute_and_check(*exec_args)
+
+    @pytest.mark.skip()
+    @patch("cloudinit.ssh_util.pwd.getpwnam")
+    @patch("cloudinit.util.get_permissions")
+    @patch("cloudinit.util.get_owner")
+    @patch("cloudinit.util.get_group")
+    def test_single_user_global_file(
+        self, m_get_group, m_get_owner, m_get_permissions, m_getpwnam, tmpdir
+    ):
+        user_bobby = "bobby"
+        keys = {}
+        users = {}
+        mock_permissions = {
+            tmpdir.join("home", "bobby"): ("bobby", "bobby", 0o700),
+            tmpdir.join("home", "bobby", ".ssh"): ("bobby", "bobby", 0o700),
+            tmpdir.join("home", "bobby", ".ssh", "authorized_keys"): (
+                "bobby",
+                "bobby",
+                0o600,
+            ),
+        }
+
+        homes = self.create_fake_users(
+            [user_bobby],
+            mock_permissions,
+            m_get_group,
+            m_get_owner,
+            m_get_permissions,
+            m_getpwnam,
+            users,
+            tmpdir,
+        )
+        home = homes[0]
+
+        # /tmp/etc/ssh/authorized_keys = rsa
+        authorized_keys_global = self.create_global_authorized_file(
+            "etc/ssh/authorized_keys", "rsa", keys, tmpdir
+        )
+
+        options = "%s" % authorized_keys_global
+        sshd_config = self.create_sshd_config(options, tmpdir)
+
+        default = "%s/.ssh/authorized_keys" % home
+        self.execute_and_check(user_bobby, sshd_config, default, keys)
+
+    @pytest.mark.skip()
+    @patch("cloudinit.ssh_util.pwd.getpwnam")
+    @patch("cloudinit.util.get_permissions")
+    @patch("cloudinit.util.get_owner")
+    @patch("cloudinit.util.get_group")
+    def test_two_users_local_file_standard(
+        self, m_get_group, m_get_owner, m_get_permissions, m_getpwnam, tmpdir
+    ):
+        keys = {}
+        users = {}
+        mock_permissions = {
+            tmpdir.join("home", "bobby"): ("bobby", "bobby", 0o700),
+            tmpdir.join("home", "bobby", ".ssh"): ("bobby", "bobby", 0o700),
+            tmpdir.join("home", "bobby", ".ssh", "authorized_keys"): (
+                "bobby",
+                "bobby",
+                0o600,
+            ),
+            tmpdir.join("home", "suzie"): ("suzie", "suzie", 0o700),
+            tmpdir.join("home", "suzie", ".ssh"): ("suzie", "suzie", 0o700),
+            tmpdir.join("home", "suzie", ".ssh", "authorized_keys"): (
+                "suzie",
+                "suzie",
+                0o600,
+            ),
+        }
+
+        user_bobby = "bobby"
+        user_suzie = "suzie"
+        homes = self.create_fake_users(
+            [user_bobby, user_suzie],
+            mock_permissions,
+            m_get_group,
+            m_get_owner,
+            m_get_permissions,
+            m_getpwnam,
+            users,
+            tmpdir,
+        )
+        home_bobby = homes[0]
+        home_suzie = homes[1]
+
+        # /tmp/home/bobby/.ssh/authorized_keys = rsa
+        authorized_keys = self.create_user_authorized_file(
+            home_bobby, "authorized_keys", "rsa", keys
+        )
+
+        # /tmp/home/suzie/.ssh/authorized_keys = rsa
+        authorized_keys2 = self.create_user_authorized_file(
+            home_suzie, "authorized_keys", "ssh-xmss@openssh.com", keys
+        )
+
+        options = ".ssh/authorized_keys"
+        sshd_config = self.create_sshd_config(options, tmpdir)
+
+        self.execute_and_check(user_bobby, sshd_config, authorized_keys, keys)
+        self.execute_and_check(user_suzie, sshd_config, authorized_keys2, keys)
+
+    @pytest.mark.skip()
+    @patch("cloudinit.ssh_util.pwd.getpwnam")
+    @patch("cloudinit.util.get_permissions")
+    @patch("cloudinit.util.get_owner")
+    @patch("cloudinit.util.get_group")
+    def test_two_users_local_file_custom(
+        self, m_get_group, m_get_owner, m_get_permissions, m_getpwnam, tmpdir
+    ):
+        keys = {}
+        users = {}
+        mock_permissions = {
+            tmpdir.join("home", "bobby"): ("bobby", "bobby", 0o700),
+            tmpdir.join("home", "bobby", ".ssh"): ("bobby", "bobby", 0o700),
+            tmpdir.join("home", "bobby", ".ssh", "authorized_keys2"): (
+                "bobby",
+                "bobby",
+                0o600,
+            ),
+            tmpdir.join("home", "suzie"): ("suzie", "suzie", 0o700),
+            tmpdir.join("home", "suzie", ".ssh"): ("suzie", "suzie", 0o700),
+            tmpdir.join("home", "suzie", ".ssh", "authorized_keys2"): (
+                "suzie",
+                "suzie",
+                0o600,
+            ),
+        }
+
+        user_bobby = "bobby"
+        user_suzie = "suzie"
+        homes = self.create_fake_users(
+            [user_bobby, user_suzie],
+            mock_permissions,
+            m_get_group,
+            m_get_owner,
+            m_get_permissions,
+            m_getpwnam,
+            users,
+            tmpdir,
+        )
+        home_bobby = homes[0]
+        home_suzie = homes[1]
+
+        # /tmp/home/bobby/.ssh/authorized_keys2 = rsa
+        authorized_keys = self.create_user_authorized_file(
+            home_bobby, "authorized_keys2", "rsa", keys
+        )
+
+        # /tmp/home/suzie/.ssh/authorized_keys2 = rsa
+        authorized_keys2 = self.create_user_authorized_file(
+            home_suzie, "authorized_keys2", "ssh-xmss@openssh.com", keys
+        )
+
+        options = ".ssh/authorized_keys2"
+        sshd_config = self.create_sshd_config(options, tmpdir)
+
+        self.execute_and_check(user_bobby, sshd_config, authorized_keys, keys)
+        self.execute_and_check(user_suzie, sshd_config, authorized_keys2, keys)
+
+    @pytest.mark.skip()
+    @patch("cloudinit.ssh_util.pwd.getpwnam")
+    @patch("cloudinit.util.get_permissions")
+    @patch("cloudinit.util.get_owner")
+    @patch("cloudinit.util.get_group")
+    def test_two_users_local_global_files(
+        self, m_get_group, m_get_owner, m_get_permissions, m_getpwnam, tmpdir
+    ):
+        keys = {}
+        users = {}
+        mock_permissions = {
+            tmpdir.join("home", "bobby"): ("bobby", "bobby", 0o700),
+            tmpdir.join("home", "bobby", ".ssh"): ("bobby", "bobby", 0o700),
+            tmpdir.join("home", "bobby", ".ssh", "authorized_keys2"): (
+                "bobby",
+                "bobby",
+                0o600,
+            ),
+            tmpdir.join("home", "bobby", ".ssh", "user_keys3"): (
+                "bobby",
+                "bobby",
+                0o600,
+            ),
+            tmpdir.join("home", "suzie"): ("suzie", "suzie", 0o700),
+            tmpdir.join("home", "suzie", ".ssh"): ("suzie", "suzie", 0o700),
+            tmpdir.join("home", "suzie", ".ssh", "authorized_keys2"): (
+                "suzie",
+                "suzie",
+                0o600,
+            ),
+            tmpdir.join("home", "suzie", ".ssh", "user_keys3"): (
+                "suzie",
+                "suzie",
+                0o600,
+            ),
+        }
+
+        user_bobby = "bobby"
+        user_suzie = "suzie"
+        homes = self.create_fake_users(
+            [user_bobby, user_suzie],
+            mock_permissions,
+            m_get_group,
+            m_get_owner,
+            m_get_permissions,
+            m_getpwnam,
+            users,
+            tmpdir,
+        )
+        home_bobby = homes[0]
+        home_suzie = homes[1]
+
+        # /tmp/home/bobby/.ssh/authorized_keys2 = rsa
+        self.create_user_authorized_file(
+            home_bobby, "authorized_keys2", "rsa", keys
+        )
+        # /tmp/home/bobby/.ssh/user_keys3 = dsa
+        user_keys = self.create_user_authorized_file(
+            home_bobby, "user_keys3", "dsa", keys
+        )
+
+        # /tmp/home/suzie/.ssh/authorized_keys2 = rsa
+        authorized_keys2 = self.create_user_authorized_file(
+            home_suzie, "authorized_keys2", "ssh-xmss@openssh.com", keys
+        )
+
+        # /tmp/etc/ssh/authorized_keys = ecdsa
+        authorized_keys_global = self.create_global_authorized_file(
+            "etc/ssh/authorized_keys2", "ecdsa", keys, tmpdir
+        )
+
+        options = "%s %s %%h/.ssh/authorized_keys2" % (
+            authorized_keys_global,
+            user_keys,
+        )
+        sshd_config = self.create_sshd_config(options, tmpdir)
+
+        self.execute_and_check(user_bobby, sshd_config, user_keys, keys)
+        self.execute_and_check(user_suzie, sshd_config, authorized_keys2, keys)
+
+    @pytest.mark.skip()
+    @patch("cloudinit.util.get_user_groups")
+    @patch("cloudinit.ssh_util.pwd.getpwnam")
+    @patch("cloudinit.util.get_permissions")
+    @patch("cloudinit.util.get_owner")
+    @patch("cloudinit.util.get_group")
+    def test_two_users_local_global_files_badguy(
+        self,
+        m_get_group,
+        m_get_owner,
+        m_get_permissions,
+        m_getpwnam,
+        m_get_user_groups,
+        tmpdir,
+    ):
+        keys = {}
+        users = {}
+        mock_permissions = {
+            tmpdir.join("home", "bobby"): ("bobby", "bobby", 0o700),
+            tmpdir.join("home", "bobby", ".ssh"): ("bobby", "bobby", 0o700),
+            tmpdir.join("home", "bobby", ".ssh", "authorized_keys2"): (
+                "bobby",
+                "bobby",
+                0o600,
+            ),
+            tmpdir.join("home", "bobby", ".ssh", "user_keys3"): (
+                "bobby",
+                "bobby",
+                0o600,
+            ),
+            tmpdir.join("home", "badguy"): ("root", "root", 0o755),
+            tmpdir.join("home", "badguy", "home"): ("root", "root", 0o755),
+            tmpdir.join("home", "badguy", "home", "bobby"): (
+                "root",
+                "root",
+                0o655,
+            ),
+        }
+
+        user_bobby = "bobby"
+        user_badguy = "badguy"
+        home_bobby, *_ = self.create_fake_users(
+            [user_bobby, user_badguy],
+            mock_permissions,
+            m_get_group,
+            m_get_owner,
+            m_get_permissions,
+            m_getpwnam,
+            users,
+            tmpdir,
+        )
+        m_get_user_groups.side_effect = mock_get_user_groups
+
+        # /tmp/home/bobby/.ssh/authorized_keys2 = rsa
+        authorized_keys = self.create_user_authorized_file(
+            home_bobby, "authorized_keys2", "rsa", keys
+        )
+        # /tmp/home/bobby/.ssh/user_keys3 = dsa
+        user_keys = self.create_user_authorized_file(
+            home_bobby, "user_keys3", "dsa", keys
+        )
+
+        # /tmp/home/badguy/home/bobby = ""
+        authorized_keys2 = str(tmpdir.join("home", "badguy", "home", "bobby"))
+        util.write_file(authorized_keys2, "")
+
+        # /tmp/etc/ssh/authorized_keys = ecdsa
+        authorized_keys_global = self.create_global_authorized_file(
+            "etc/ssh/authorized_keys2", "ecdsa", keys, tmpdir
+        )
+
+        # /tmp/sshd_config
+        options = "%s %%h/.ssh/authorized_keys2 %s %s" % (
+            authorized_keys2,
+            authorized_keys_global,
+            user_keys,
+        )
+        sshd_config = self.create_sshd_config(options, tmpdir)
+
+        self.execute_and_check(user_bobby, sshd_config, authorized_keys, keys)
+        self.execute_and_check(
+            user_badguy, sshd_config, authorized_keys2, keys
+        )
+
+    @pytest.mark.skip()
+    @patch("cloudinit.util.get_user_groups")
+    @patch("cloudinit.ssh_util.pwd.getpwnam")
+    @patch("cloudinit.util.get_permissions")
+    @patch("cloudinit.util.get_owner")
+    @patch("cloudinit.util.get_group")
+    def test_two_users_unaccessible_file(
+        self,
+        m_get_group,
+        m_get_owner,
+        m_get_permissions,
+        m_getpwnam,
+        m_get_user_groups,
+        tmpdir,
+    ):
+        keys = {}
+        users = {}
+        mock_permissions = {
+            tmpdir.join("home", "bobby"): ("bobby", "bobby", 0o700),
+            tmpdir.join("home", "bobby", ".ssh"): ("bobby", "bobby", 0o700),
+            tmpdir.join("home", "bobby", ".ssh", "authorized_keys"): (
+                "bobby",
+                "bobby",
+                0o600,
+            ),
+            tmpdir.join("etc"): ("root", "root", 0o755),
+            tmpdir.join("etc", "ssh"): ("root", "root", 0o755),
+            tmpdir.join("etc", "ssh", "userkeys"): ("root", "root", 0o700),
+            tmpdir.join("etc", "ssh", "userkeys", "bobby"): (
+                "bobby",
+                "bobby",
+                0o600,
+            ),
+            tmpdir.join("etc", "ssh", "userkeys", "badguy"): (
+                "badguy",
+                "badguy",
+                0o600,
+            ),
+            tmpdir.join("home", "badguy"): ("badguy", "badguy", 0o700),
+            tmpdir.join("home", "badguy", ".ssh"): ("badguy", "badguy", 0o700),
+            tmpdir.join("home", "badguy", ".ssh", "authorized_keys"): (
+                "badguy",
+                "badguy",
+                0o600,
+            ),
+        }
+
+        user_bobby = "bobby"
+        user_badguy = "badguy"
+        homes = self.create_fake_users(
+            [user_bobby, user_badguy],
+            mock_permissions,
+            m_get_group,
+            m_get_owner,
+            m_get_permissions,
+            m_getpwnam,
+            users,
+            tmpdir,
+        )
+        m_get_user_groups.side_effect = mock_get_user_groups
+        home_bobby = homes[0]
+        home_badguy = homes[1]
+
+        # /tmp/home/bobby/.ssh/authorized_keys = rsa
+        authorized_keys = self.create_user_authorized_file(
+            home_bobby, "authorized_keys", "rsa", keys
+        )
+        # /tmp/etc/ssh/userkeys/bobby = dsa
+        # assume here that we can bypass userkeys, despite permissions
+        self.create_global_authorized_file(
+            "etc/ssh/userkeys/bobby", "dsa", keys, tmpdir
+        )
+
+        # /tmp/home/badguy/.ssh/authorized_keys = ssh-xmss@openssh.com
+        authorized_keys2 = self.create_user_authorized_file(
+            home_badguy, "authorized_keys", "ssh-xmss@openssh.com", keys
+        )
+
+        # /tmp/etc/ssh/userkeys/badguy = ecdsa
+        self.create_global_authorized_file(
+            "etc/ssh/userkeys/badguy", "ecdsa", keys, tmpdir
+        )
+
+        # /tmp/sshd_config
+        options = str(
+            tmpdir.join("etc", "ssh", "userkeys", "%u .ssh", "authorized_keys")
+        )
+        sshd_config = self.create_sshd_config(options, tmpdir)
+
+        self.execute_and_check(user_bobby, sshd_config, authorized_keys, keys)
+        self.execute_and_check(
+            user_badguy, sshd_config, authorized_keys2, keys
+        )
+
+    @pytest.mark.skip()
+    @patch("cloudinit.util.get_user_groups")
+    @patch("cloudinit.ssh_util.pwd.getpwnam")
+    @patch("cloudinit.util.get_permissions")
+    @patch("cloudinit.util.get_owner")
+    @patch("cloudinit.util.get_group")
+    def test_two_users_accessible_file(
+        self,
+        m_get_group,
+        m_get_owner,
+        m_get_permissions,
+        m_getpwnam,
+        m_get_user_groups,
+        tmpdir,
+    ):
+        keys = {}
+        users = {}
+        mock_permissions = {
+            tmpdir.join("home", "bobby"): ("bobby", "bobby", 0o700),
+            tmpdir.join("home", "bobby", ".ssh"): ("bobby", "bobby", 0o700),
+            tmpdir.join("home", "bobby", ".ssh", "authorized_keys"): (
+                "bobby",
+                "bobby",
+                0o600,
+            ),
+            tmpdir.join("etc"): ("root", "root", 0o755),
+            tmpdir.join("etc", "ssh"): ("root", "root", 0o755),
+            tmpdir.join("etc", "ssh", "userkeys"): ("root", "root", 0o755),
+            tmpdir.join("etc", "ssh", "userkeys", "bobby"): (
+                "bobby",
+                "bobby",
+                0o600,
+            ),
+            tmpdir.join("etc", "ssh", "userkeys", "badguy"): (
+                "badguy",
+                "badguy",
+                0o600,
+            ),
+            tmpdir.join("home", "badguy"): ("badguy", "badguy", 0o700),
+            tmpdir.join("home", "badguy", ".ssh"): ("badguy", "badguy", 0o700),
+            tmpdir.join("home", "badguy", ".ssh", "authorized_keys"): (
+                "badguy",
+                "badguy",
+                0o600,
+            ),
+        }
+
+        user_bobby = "bobby"
+        user_badguy = "badguy"
+        homes = self.create_fake_users(
+            [user_bobby, user_badguy],
+            mock_permissions,
+            m_get_group,
+            m_get_owner,
+            m_get_permissions,
+            m_getpwnam,
+            users,
+            tmpdir,
+        )
+        m_get_user_groups.side_effect = mock_get_user_groups
+        home_bobby = homes[0]
+        home_badguy = homes[1]
+
+        # /tmp/home/bobby/.ssh/authorized_keys = rsa
+        self.create_user_authorized_file(
+            home_bobby, "authorized_keys", "rsa", keys
+        )
+        # /tmp/etc/ssh/userkeys/bobby = dsa
+        # assume here that we can bypass userkeys, despite permissions
+        authorized_keys = self.create_global_authorized_file(
+            "etc/ssh/userkeys/bobby", "dsa", keys, tmpdir
+        )
+
+        # /tmp/home/badguy/.ssh/authorized_keys = ssh-xmss@openssh.com
+        self.create_user_authorized_file(
+            home_badguy, "authorized_keys", "ssh-xmss@openssh.com", keys
+        )
+
+        # /tmp/etc/ssh/userkeys/badguy = ecdsa
+        authorized_keys2 = self.create_global_authorized_file(
+            "etc/ssh/userkeys/badguy", "ecdsa", keys, tmpdir
+        )
+
+        # /tmp/sshd_config
+        options = str(
+            tmpdir.join("etc", "ssh", "userkeys", "%u .ssh", "authorized_keys")
+        )
+        sshd_config = self.create_sshd_config(options, tmpdir)
+
+        self.execute_and_check(user_bobby, sshd_config, authorized_keys, keys)
+        self.execute_and_check(
+            user_badguy, sshd_config, authorized_keys2, keys
+        )
+
+    @pytest.mark.skip()
+    @pytest.mark.parametrize("inverted", [False, True])
+    @patch("cloudinit.util.get_user_groups")
+    @patch("cloudinit.ssh_util.pwd.getpwnam")
+    @patch("cloudinit.util.get_permissions")
+    @patch("cloudinit.util.get_owner")
+    @patch("cloudinit.util.get_group")
+    def test_two_users_hardcoded_single_user_file(
+        self,
+        m_get_group,
+        m_get_owner,
+        m_get_permissions,
+        m_getpwnam,
+        m_get_user_groups,
+        inverted,
+        tmpdir,
+    ):
+        keys = {}
+        users = {}
+        mock_permissions = {
+            tmpdir.join("home", "bobby"): ("bobby", "bobby", 0o700),
+            tmpdir.join("home", "bobby", ".ssh"): ("bobby", "bobby", 0o700),
+            tmpdir.join("home", "bobby", ".ssh", "authorized_keys"): (
+                "bobby",
+                "bobby",
+                0o600,
+            ),
+            tmpdir.join("home", "suzie"): ("suzie", "suzie", 0o700),
+            tmpdir.join("home", "suzie", ".ssh"): ("suzie", "suzie", 0o700),
+            tmpdir.join("home", "suzie", ".ssh", "authorized_keys"): (
+                "suzie",
+                "suzie",
+                0o600,
+            ),
+        }
+
+        user_bobby = "bobby"
+        user_suzie = "suzie"
+        homes = self.create_fake_users(
+            [user_bobby, user_suzie],
+            mock_permissions,
+            m_get_group,
+            m_get_owner,
+            m_get_permissions,
+            m_getpwnam,
+            users,
+            tmpdir,
+        )
+        home_bobby = homes[0]
+        home_suzie = homes[1]
+        m_get_user_groups.side_effect = mock_get_user_groups
+
+        # /tmp/home/bobby/.ssh/authorized_keys = rsa
+        authorized_keys = self.create_user_authorized_file(
+            home_bobby, "authorized_keys", "rsa", keys
+        )
+
+        # /tmp/home/suzie/.ssh/authorized_keys = ssh-xmss@openssh.com
+        authorized_keys2 = self.create_user_authorized_file(
+            home_suzie, "authorized_keys", "ssh-xmss@openssh.com", keys
+        )
+
+        # /tmp/sshd_config
+        if not inverted:
+            expected_keys = authorized_keys
+        else:
+            expected_keys = authorized_keys2
+        options = "%s" % (expected_keys)
+        sshd_config = self.create_sshd_config(options, tmpdir)
+
+        if not inverted:
+            expected_bobby = expected_keys
+            expected_suzie = "%s/.ssh/authorized_keys" % home_suzie
+        else:
+            expected_bobby = "%s/.ssh/authorized_keys" % home_bobby
+            expected_suzie = expected_keys
+        self.execute_and_check(user_bobby, sshd_config, expected_bobby, keys)
+        self.execute_and_check(user_suzie, sshd_config, expected_suzie, keys)
+
+    @pytest.mark.skip()
+    @patch("cloudinit.util.get_user_groups")
+    @patch("cloudinit.ssh_util.pwd.getpwnam")
+    @patch("cloudinit.util.get_permissions")
+    @patch("cloudinit.util.get_owner")
+    @patch("cloudinit.util.get_group")
+    def test_two_users_hardcoded_user_files(
+        self,
+        m_get_group,
+        m_get_owner,
+        m_get_permissions,
+        m_getpwnam,
+        m_get_user_groups,
+        tmpdir,
+    ):
+        keys = {}
+        users = {}
+        mock_permissions = {
+            tmpdir.join("home", "bobby"): ("bobby", "bobby", 0o700),
+            tmpdir.join("home", "bobby", ".ssh"): ("bobby", "bobby", 0o700),
+            tmpdir.join("home", "bobby", ".ssh", "authorized_keys"): (
+                "bobby",
+                "bobby",
+                0o600,
+            ),
+            tmpdir.join("home", "suzie"): ("suzie", "suzie", 0o700),
+            tmpdir.join("home", "suzie", ".ssh"): ("suzie", "suzie", 0o700),
+            tmpdir.join("home", "suzie", ".ssh", "authorized_keys"): (
+                "suzie",
+                "suzie",
+                0o600,
+            ),
+        }
+
+        user_bobby = "bobby"
+        user_suzie = "suzie"
+        homes = self.create_fake_users(
+            [user_bobby, user_suzie],
+            mock_permissions,
+            m_get_group,
+            m_get_owner,
+            m_get_permissions,
+            m_getpwnam,
+            users,
+            tmpdir,
+        )
+        home_bobby = homes[0]
+        home_suzie = homes[1]
+        m_get_user_groups.side_effect = mock_get_user_groups
+
+        # /tmp/home/bobby/.ssh/authorized_keys = rsa
+        authorized_keys = self.create_user_authorized_file(
+            home_bobby, "authorized_keys", "rsa", keys
+        )
+
+        # /tmp/home/suzie/.ssh/authorized_keys = ssh-xmss@openssh.com
+        authorized_keys2 = self.create_user_authorized_file(
+            home_suzie, "authorized_keys", "ssh-xmss@openssh.com", keys
+        )
+
+        # /tmp/etc/ssh/authorized_keys = ecdsa
+        authorized_keys_global = self.create_global_authorized_file(
+            "etc/ssh/authorized_keys", "ecdsa", keys, tmpdir
+        )
+
+        # /tmp/sshd_config
+        options = "%s %s %s" % (
+            authorized_keys_global,
+            authorized_keys,
+            authorized_keys2,
+        )
+        sshd_config = self.create_sshd_config(options, tmpdir)
+
+        self.execute_and_check(user_bobby, sshd_config, authorized_keys, keys)
+        self.execute_and_check(user_suzie, sshd_config, authorized_keys2, keys)
+
 
 # vi: ts=4 expandtab
