@@ -68,12 +68,7 @@ travis_ci_release_br = bool(
 )
 is_release_branch_ci = bool(github_ci_release_br or travis_ci_release_br)
 
-# Delphix: we set our own version
-# pylint: disable=w0125
-if True:
-    version = src_version
-    version_long = None
-elif is_gitdir(_tdir) and which("git") and not is_release_branch_ci:
+if is_gitdir(_tdir) and which("git") and not is_release_branch_ci:
     # This cmd can be simplified to ["git", "branch", "--show-current"]
     # after bionic EOL.
     branch_name = tiny_p(["git", "rev-parse", "--abbrev-ref", "HEAD"]).strip()
