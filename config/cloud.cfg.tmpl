@@ -108,6 +108,7 @@ cloud_init_modules:
 {% endif %}
  - rsyslog
 {% endif %}
+ - users-groups
  - ssh
 
 # The modules that run in the 'config' stage
@@ -153,6 +154,7 @@ cloud_config_modules:
  - apk-configure
 {% endif %}
  - ntp
+ - timezone
  - disable-ec2-metadata
  - runcmd
 {% if variant in ["ubuntu", "unknown", "debian"] %}
@@ -184,6 +186,7 @@ cloud_final_modules:
  - scripts-per-boot
  - scripts-per-instance
  - scripts-user
+ - ssh-authkey-fingerprints
  - keys-to-console
  - install-hotplug
  - phone-home
@@ -383,5 +386,3 @@ system_info:
    network:
       renderers: ['network-manager', 'networkd']
 {% endif %}
-
-disable_vmware_customization: false
