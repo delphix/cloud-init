@@ -153,6 +153,7 @@ cloud_config_modules:
  - apk-configure
 {% endif %}
  - ntp
+ - timezone
  - disable-ec2-metadata
  - runcmd
 {% if variant in ["ubuntu", "unknown", "debian"] %}
