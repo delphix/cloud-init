@@ -101,8 +101,6 @@ def handle(
         cloud.distro.set_option("prefer_fqdn_over_hostname", hostname_fqdn)
 
     (hostname, fqdn, is_default) = util.get_hostname_fqdn(cfg, cloud)
-    if fqdn[-1] == '.':
-        fqdn = fqdn[:-1]
     if is_default and hostname == "localhost":
         # https://github.com/systemd/systemd/commit/d39079fcaa05e23540d2b1f0270fa31c22a7e9f1
         log.debug("Hostname is localhost. Let other services handle this.")

@@ -1135,6 +1135,19 @@ def dos2unix(contents):
     return contents.replace("\r\n", "\n")
 
 
+def sanitize_fqdn(fqdn):
+    output = ''
+    allowed = re.compile('[a-zA-Z0-9.-]')
+    for character in fqdn:
+        if allowed.match(character):
+            output = output + character
+            continue
+        output = output + str(ord(character))
+    if output[-1] == '.':
+        output = output[:-1]
+    return output
+
+
 HostnameFqdnInfo = namedtuple(
     "HostnameFqdnInfo",
     ["hostname", "fqdn", "is_default"],
@@ -1181,6 +1194,8 @@ def get_hostname_fqdn(cfg, cloud, metadata_only=False):
                 hostname, is_default = cloud.get_hostname(
                     metadata_only=metadata_only
                 )
+    if fqdn is not None:
+        fqdn = sanitize_fqdn(fqdn)
     return HostnameFqdnInfo(hostname, fqdn, is_default)
 
 
