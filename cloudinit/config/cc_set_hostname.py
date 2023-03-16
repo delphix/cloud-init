@@ -97,8 +97,6 @@ def handle(
         cloud.distro.set_option("prefer_fqdn_over_hostname", hostname_fqdn)
 
     (hostname, fqdn, is_default) = util.get_hostname_fqdn(cfg, cloud)
-    if fqdn[-1] == '.':
-        fqdn = fqdn[:-1]
     # Check for previous successful invocation of set-hostname
 
     # set-hostname artifact file accounts for both hostname and fqdn
