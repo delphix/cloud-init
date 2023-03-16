@@ -1135,6 +1135,12 @@ def dos2unix(contents):
     return contents.replace("\r\n", "\n")
 
 
+# We have this function to help deal with problematic FQDNs. Some customers
+# put unsupported or unnecessary things in their DNS domain names, and these
+# can cause problems for the tooling on the Delphix Engine. This function
+# attempts to replace any invalid characters with their integer ascii
+# representation, and removes trailing dots from domain names, two issues
+# we've encountered.
 def sanitize_fqdn(fqdn):
     output = ''
     allowed = re.compile('[a-zA-Z0-9.-]')
