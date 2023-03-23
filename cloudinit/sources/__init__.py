@@ -307,6 +307,33 @@ class DataSource(CloudInitPickleMixin, metaclass=abc.ABCMeta):
     def __str__(self):
         return type_utils.obj_name(self)
 
+    def ds_detect(self) -> bool:
+        """Check if running on this datasource"""
+        return True
+
+    def override_ds_detect(self):
+        """Override if either:
+        - only a single datasource defined (nothing to fall back to)
+        - TODO: commandline argument is used (ci.ds=OpenStack)
+        """
+        return self.sys_cfg.get("datasource_list", []) in (
+            [self.dsname],
+            [self.dsname, "None"],
+        )
+
+    def _check_and_get_data(self):
+        """Overrides runtime datasource detection"""
+        if self.override_ds_detect():
+            LOG.debug(
+                "Machine is configured to run on single datasource %s.", self
+            )
+        elif self.ds_detect():
+            LOG.debug("Machine is running on %s.", self)
+        else:
+            LOG.debug("Datasource type %s is not detected.", self)
+            return False
+        return self._get_data()
+
     def _get_standardized_metadata(self, instance_data):
         """Return a dictionary of standardized metadata keys."""
         local_hostname = self.get_hostname().hostname
@@ -370,7 +397,7 @@ class DataSource(CloudInitPickleMixin, metaclass=abc.ABCMeta):
         Minimally, the datasource should return a boolean True on success.
         """
         self._dirty_cache = True
-        return_value = self._get_data()
+        return_value = self._check_and_get_data()
         if not return_value:
             return return_value
         self.persist_instance_data()
@@ -435,12 +462,15 @@ class DataSource(CloudInitPickleMixin, metaclass=abc.ABCMeta):
         cloud_id = instance_data["v1"].get("cloud_id", "none")
         cloud_id_file = os.path.join(self.paths.run_dir, "cloud-id")
         util.write_file(f"{cloud_id_file}-{cloud_id}", f"{cloud_id}\n")
+        # cloud-id not found, then no previous cloud-id fle
+        prev_cloud_id_file = None
+        new_cloud_id_file = f"{cloud_id_file}-{cloud_id}"
+        # cloud-id found, then the prev cloud-id file is source of symlink
         if os.path.exists(cloud_id_file):
             prev_cloud_id_file = os.path.realpath(cloud_id_file)
-        else:
-            prev_cloud_id_file = cloud_id_file
-        util.sym_link(f"{cloud_id_file}-{cloud_id}", cloud_id_file, force=True)
-        if prev_cloud_id_file != cloud_id_file:
+
+        util.sym_link(new_cloud_id_file, cloud_id_file, force=True)
+        if prev_cloud_id_file and prev_cloud_id_file != new_cloud_id_file:
             util.del_file(prev_cloud_id_file)
         write_json(json_sensitive_file, processed_data, mode=0o600)
         json_file = self.paths.get_runpath("instance_data")

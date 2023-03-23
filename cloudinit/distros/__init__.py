@@ -57,14 +57,23 @@ OSFAMILIES = {
         "fedora",
         "mariner",
         "miraclelinux",
-        "openEuler",
         "openmandriva",
         "photon",
         "rhel",
         "rocky",
         "virtuozzo",
     ],
-    "suse": ["opensuse", "sles"],
+    "suse": [
+        "opensuse",
+        "opensuse-leap",
+        "opensuse-microos",
+        "opensuse-tumbleweed",
+        "sle_hpc",
+        "sle-micro",
+        "sles",
+    ],
+    "openEuler": ["openEuler"],
+    "OpenCloudOS": ["OpenCloudOS", "TencentOS"],
 }
 
 LOG = logging.getLogger(__name__)
