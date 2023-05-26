@@ -403,7 +403,7 @@ network:
                 transmit-hash-policy: layer3+4
                 up-delay: 0
             routes:
-            -   to: 0.0.0.0/0
+            -   to: default
                 via: 10.101.11.254
     vlans:
         bond0.3502:
@@ -2264,7 +2264,7 @@ pre-down route del -net 10.0.0.0/8 gw 11.0.0.1 metric 3 || true
                             - sacchromyces.maas
                             - brettanomyces.maas
                         routes:
-                        -   to: 0.0.0.0/0
+                        -   to: default
                             via: 192.168.0.1
         """
         ).rstrip(" "),
@@ -2993,7 +2993,7 @@ pre-down route del -net 10.0.0.0/8 gw 11.0.0.1 metric 3 || true
                          transmit-hash-policy: layer3+4
                          up-delay: 20
                      routes:
-                     -   to: 0.0.0.0/0
+                     -   to: default
                          via: 192.168.0.1
                      -   to: 10.1.3.0/24
                          via: 192.168.0.3
@@ -4077,7 +4077,7 @@ class TestGenerateFallbackConfig(CiTestCase):
                     "dhcp4": True,
                     "set-name": "eth0",
                     "match": {
-                        "name": "eth0",
+                        "macaddress": "00:11:22:33:44:55",
                         "driver": "hv_netsvc",
                     },
                 }
@@ -4161,7 +4161,14 @@ iface eth0 inet dhcp
         with open(os.path.join(render_dir, "netrules")) as fh:
             contents = fh.read()
         print(contents)
-        self.assertEqual("", contents.lstrip())
+        expected_rule = [
+            'SUBSYSTEM=="net"',
+            'ACTION=="add"',
+            'DRIVERS=="hv_netsvc"',
+            'ATTR{address}=="00:11:22:33:44:55"',
+            'NAME="eth0"',
+        ]
+        self.assertEqual(", ".join(expected_rule) + "\n", contents.lstrip())
 
     @mock.patch("cloudinit.net.sys_dev_path")
     @mock.patch("cloudinit.net.read_sys_net")
@@ -4241,7 +4248,14 @@ iface eth1 inet dhcp
         with open(os.path.join(render_dir, "netrules")) as fh:
             contents = fh.read()
         print(contents)
-        self.assertEqual("", contents.lstrip())
+        expected_rule = [
+            'SUBSYSTEM=="net"',
+            'ACTION=="add"',
+            'DRIVERS=="hv_netsvc"',
+            'ATTR{address}=="00:11:22:33:44:55"',
+            'NAME="eth1"',
+        ]
+        self.assertEqual(", ".join(expected_rule) + "\n", contents.lstrip())
 
     @mock.patch("cloudinit.util.get_cmdline")
     @mock.patch("cloudinit.util.udevadm_settle")
@@ -4454,6 +4468,7 @@ class TestRhelSysConfigRendering(CiTestCase):
 #
 BOOTPROTO=dhcp
 DEVICE=eth1000
+HWADDR=07-1c-c6-75-a4-be
 NM_CONTROLLED=no
 ONBOOT=yes
 TYPE=Ethernet
@@ -5362,6 +5377,7 @@ class TestOpenSuseSysConfigRendering(CiTestCase):
 # Created by cloud-init on instance boot automatically, do not edit.
 #
 BOOTPROTO=dhcp4
+LLADDR=07-1c-c6-75-a4-be
 STARTMODE=auto
 """.lstrip()
             self.assertEqual(expected_content, content)
@@ -5701,12 +5717,12 @@ class TestNetworkManagerRendering(CiTestCase):
                 id=cloud-init eth1000
                 uuid=8c517500-0c95-5308-9c8a-3092eebc44eb
                 type=ethernet
-                interface-name=eth1000
 
                 [user]
                 org.freedesktop.NetworkManager.origin=cloud-init
 
                 [ethernet]
+                mac-address=07:1C:C6:75:A4:BE
 
                 [ipv4]
                 method=auto
@@ -5996,7 +6012,7 @@ class TestNetplanNetRendering:
                     eth1000:
                       dhcp4: true
                       match:
-                        name: eth1000
+                        macaddress: 07-1c-c6-75-a4-be
                       set-name: eth1000
                   version: 2
                 """,
@@ -6031,9 +6047,9 @@ class TestNetplanNetRendering:
                         macaddress: 00:11:22:33:44:55
                       set-name: interface0
                       routes:
-                        - to: 0.0.0.0/0
+                        - to: default
                           via: 192.168.23.1
-                        - to: 0.0.0.0/0
+                        - to: default
                           via: 11.0.0.1
                 """,
                 id="physical_gateway46",
@@ -6070,9 +6086,9 @@ class TestNetplanNetRendering:
                       - eth0
                       - eth1
                       routes:
-                        - to: 0.0.0.0/0
+                        - to: default
                           via: 192.168.23.1
-                        - to: 0.0.0.0/0
+                        - to: default
                           via: 11.0.0.1
                     eth0: {}
                     eth1: {}
@@ -6109,9 +6125,9 @@ class TestNetplanNetRendering:
                       interfaces:
                       - eth0
                       routes:
-                        - to: 0.0.0.0/0
+                        - to: default
                           via: 192.168.23.1
-                        - to: 0.0.0.0/0
+                        - to: default
                           via: 11.0.0.1
                 """,
                 id="bridge_gateway46",
@@ -6145,9 +6161,9 @@ class TestNetplanNetRendering:
                       id: 101
                       link: eth0
                       routes:
-                        - to: 0.0.0.0/0
+                        - to: default
                           via: 192.168.23.1
-                        - to: 0.0.0.0/0
+                        - to: default
                           via: 11.0.0.1
                 """,
                 id="vlan_gateway46",
@@ -6196,7 +6212,7 @@ class TestNetplanNetRendering:
                         - exemplary
                       set-name: interface0
                       routes:
-                        - to: 0.0.0.0/0
+                        - to: default
                           via: 192.168.23.1
                 """,
                 id="nameserver_gateway4",
@@ -6231,7 +6247,7 @@ class TestNetplanNetRendering:
                       match:
                         macaddress: 00:11:22:33:44:55
                       routes:
-                      -   to: 0.0.0.0/0
+                      -   to: default
                           via: 192.168.23.1
                       -   to: 10.176.0.0/24
                           via: 10.184.225.121
@@ -6266,7 +6282,7 @@ class TestNetplanNetRendering:
                       match:
                         macaddress: 00:11:22:33:44:55
                       routes:
-                      -   to: 0.0.0.0/0
+                      -   to: default
                           via: 192.168.23.1
                       -   to: 192.167.225.122/24
                           via: 192.168.23.1
@@ -6302,10 +6318,10 @@ class TestNetplanNetRendering:
                       match:
                         macaddress: 00:11:22:33:44:55
                       routes:
-                      -   to: 0.0.0.0/0
+                      -   to: default
                           via: 192.168.255.1
                           on-link: true
-                      -   to: "::/0"
+                      -   to: default
                           via: 2001:ffff::1
                           on-link: true
                       set-name: interface0
@@ -7482,6 +7498,7 @@ class TestNetworkdNetRendering(CiTestCase):
             """\
             [Match]
             Name=eth1000
+            MACAddress=07-1c-c6-75-a4-be
             [Network]
             DHCP=ipv4"""
         ).rstrip(" ")
