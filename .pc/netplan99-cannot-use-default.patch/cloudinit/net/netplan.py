@@ -119,7 +119,7 @@ def _extract_addresses(config: dict, entry: dict, ifname, features=None):
             if subnet.get("gateway"):
                 new_route = {
                     "via": subnet.get("gateway"),
-                    "to": "::/0" if ":" in subnet["gateway"] else "0.0.0.0/0",
+                    "to": "default",
                 }
                 try:
                     subnet_gateway = ipaddress.ip_address(subnet["gateway"])

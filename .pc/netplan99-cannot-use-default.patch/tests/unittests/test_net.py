@@ -403,7 +403,7 @@ network:
                 transmit-hash-policy: layer3+4
                 up-delay: 0
             routes:
-            -   to: 0.0.0.0/0
+            -   to: default
                 via: 10.101.11.254
     vlans:
         bond0.3502:
@@ -2264,7 +2264,7 @@ pre-down route del -net 10.0.0.0/8 gw 11.0.0.1 metric 3 || true
                             - sacchromyces.maas
                             - brettanomyces.maas
                         routes:
-                        -   to: 0.0.0.0/0
+                        -   to: default
                             via: 192.168.0.1
         """
         ).rstrip(" "),
@@ -2993,7 +2993,7 @@ pre-down route del -net 10.0.0.0/8 gw 11.0.0.1 metric 3 || true
                          transmit-hash-policy: layer3+4
                          up-delay: 20
                      routes:
-                     -   to: 0.0.0.0/0
+                     -   to: default
                          via: 192.168.0.1
                      -   to: 10.1.3.0/24
                          via: 192.168.0.3
@@ -6047,9 +6047,9 @@ class TestNetplanNetRendering:
                         macaddress: 00:11:22:33:44:55
                       set-name: interface0
                       routes:
-                        - to: 0.0.0.0/0
+                        - to: default
                           via: 192.168.23.1
-                        - to: 0.0.0.0/0
+                        - to: default
                           via: 11.0.0.1
                 """,
                 id="physical_gateway46",
@@ -6086,9 +6086,9 @@ class TestNetplanNetRendering:
                       - eth0
                       - eth1
                       routes:
-                        - to: 0.0.0.0/0
+                        - to: default
                           via: 192.168.23.1
-                        - to: 0.0.0.0/0
+                        - to: default
                           via: 11.0.0.1
                     eth0: {}
                     eth1: {}
@@ -6125,9 +6125,9 @@ class TestNetplanNetRendering:
                       interfaces:
                       - eth0
                       routes:
-                        - to: 0.0.0.0/0
+                        - to: default
                           via: 192.168.23.1
-                        - to: 0.0.0.0/0
+                        - to: default
                           via: 11.0.0.1
                 """,
                 id="bridge_gateway46",
@@ -6161,9 +6161,9 @@ class TestNetplanNetRendering:
                       id: 101
                       link: eth0
                       routes:
-                        - to: 0.0.0.0/0
+                        - to: default
                           via: 192.168.23.1
-                        - to: 0.0.0.0/0
+                        - to: default
                           via: 11.0.0.1
                 """,
                 id="vlan_gateway46",
@@ -6212,7 +6212,7 @@ class TestNetplanNetRendering:
                         - exemplary
                       set-name: interface0
                       routes:
-                        - to: 0.0.0.0/0
+                        - to: default
                           via: 192.168.23.1
                 """,
                 id="nameserver_gateway4",
@@ -6247,7 +6247,7 @@ class TestNetplanNetRendering:
                       match:
                         macaddress: 00:11:22:33:44:55
                       routes:
-                      -   to: 0.0.0.0/0
+                      -   to: default
                           via: 192.168.23.1
                       -   to: 10.176.0.0/24
                           via: 10.184.225.121
@@ -6282,7 +6282,7 @@ class TestNetplanNetRendering:
                       match:
                         macaddress: 00:11:22:33:44:55
                       routes:
-                      -   to: 0.0.0.0/0
+                      -   to: default
                           via: 192.168.23.1
                       -   to: 192.167.225.122/24
                           via: 192.168.23.1
@@ -6318,10 +6318,10 @@ class TestNetplanNetRendering:
                       match:
                         macaddress: 00:11:22:33:44:55
                       routes:
-                      -   to: 0.0.0.0/0
+                      -   to: default
                           via: 192.168.255.1
                           on-link: true
-                      -   to: "::/0"
+                      -   to: default
                           via: 2001:ffff::1
                           on-link: true
                       set-name: interface0
