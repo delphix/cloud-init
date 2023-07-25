@@ -1,31 +1,11 @@
 """Tests for `cloud-init status`"""
-from time import sleep
-
 import pytest
 
-from tests.integration_tests.clouds import ImageSpecification, IntegrationCloud
+from tests.integration_tests.clouds import IntegrationCloud
 from tests.integration_tests.instances import IntegrationInstance
-
-
-# We're implementing our own here in case cloud-init status --wait
-# isn't working correctly (LP: #1966085)
-def _wait_for_cloud_init(client: IntegrationInstance):
-    last_exception = None
-    for _ in range(30):
-        try:
-            result = client.execute("cloud-init status")
-            if (
-                result
-                and result.ok
-                and ("running" not in result or "not run" not in result)
-            ):
-                return result
-        except Exception as e:
-            last_exception = e
-        sleep(1)
-    raise Exception(
-        "cloud-init status did not return successfully."
-    ) from last_exception
+from tests.integration_tests.integration_settings import PLATFORM
+from tests.integration_tests.releases import CURRENT_RELEASE, IS_UBUNTU, JAMMY
+from tests.integration_tests.util import wait_for_cloud_init
 
 
 def _remove_nocloud_dir_and_reboot(client: IntegrationInstance):
@@ -37,8 +17,11 @@ def _remove_nocloud_dir_and_reboot(client: IntegrationInstance):
     client.instance._wait_for_execute(old_boot_id=old_boot_id)
 
 
-@pytest.mark.ubuntu
-@pytest.mark.lxd_container
+@pytest.mark.skipif(not IS_UBUNTU, reason="Only ever tested on Ubuntu")
+@pytest.mark.skipif(
+    PLATFORM != "lxd_container",
+    reason="Test is LXD specific",
+)
 def test_wait_when_no_datasource(session_cloud: IntegrationCloud, setup_image):
     """Ensure that when no datasource is found, we get status: disabled
 
@@ -59,11 +42,9 @@ def test_wait_when_no_datasource(session_cloud: IntegrationCloud, setup_image):
         # No ubuntu user if cloud-init didn't run
         client.instance.username = "root"
         # Jammy and above will use LXD datasource by default
-        if ImageSpecification.from_os_image().release in [
-            "bionic",
-            "focal",
-        ]:
+        if CURRENT_RELEASE < JAMMY:
             _remove_nocloud_dir_and_reboot(client)
-        status_out = _wait_for_cloud_init(client).stdout.strip()
+        status_out = wait_for_cloud_init(client).stdout.strip()
         assert "status: disabled" in status_out
         assert client.execute("cloud-init status --wait").ok
+        assert client.execute("test -f /cmdline-userdata-success").ok

@@ -13,6 +13,7 @@ import copy
 import json
 import os
 import pickle
+import re
 from collections import namedtuple
 from enum import Enum, unique
 from typing import Any, Dict, List, Optional, Tuple
@@ -333,28 +334,45 @@ class DataSource(CloudInitPickleMixin, metaclass=abc.ABCMeta):
         """Check if running on this datasource"""
         return True
 
-    def override_ds_detect(self):
+    def override_ds_detect(self) -> bool:
         """Override if either:
         - only a single datasource defined (nothing to fall back to)
-        - TODO: commandline argument is used (ci.ds=OpenStack)
+        - commandline argument is used (ci.ds=OpenStack)
+
+        Note: get_cmdline() is required for the general case - when ds-identify
+        does not run, _something_ needs to detect the kernel command line
+        definition.
         """
-        return self.sys_cfg.get("datasource_list", []) in (
+        if self.dsname.lower() == parse_cmdline().lower():
+            LOG.debug(
+                "Machine is configured by the kernel commandline to run on "
+                "single datasource %s.",
+                self,
+            )
+            return True
+        elif self.sys_cfg.get("datasource_list", []) in (
             [self.dsname],
             [self.dsname, "None"],
-        )
+        ):
+            LOG.debug(
+                "Machine is configured to run on single datasource %s.", self
+            )
+            return True
+        return False
 
     def _check_and_get_data(self):
         """Overrides runtime datasource detection"""
         if self.override_ds_detect():
-            LOG.debug(
-                "Machine is configured to run on single datasource %s.", self
-            )
+            return self._get_data()
         elif self.ds_detect():
-            LOG.debug("Machine is running on %s.", self)
+            LOG.debug(
+                "Detected platform: %s. Checking for active instance data",
+                self,
+            )
+            return self._get_data()
         else:
             LOG.debug("Datasource type %s is not detected.", self)
             return False
-        return self._get_data()
 
     def _get_standardized_metadata(self, instance_data):
         """Return a dictionary of standardized metadata keys."""
@@ -917,10 +935,6 @@ class DataSource(CloudInitPickleMixin, metaclass=abc.ABCMeta):
     def network_config(self):
         return None
 
-    @property
-    def first_instance_boot(self):
-        return
-
     def setup(self, is_new_instance):
         """setup(is_new_instance)
 
@@ -1009,11 +1023,12 @@ def find_source(
     raise DataSourceNotFoundException(msg)
 
 
-# Return a list of classes that have the same depends as 'depends'
-# iterate through cfg_list, loading "DataSource*" modules
-# and calling their "get_datasource_list".
-# Return an ordered list of classes that match (if any)
 def list_sources(cfg_list, depends, pkg_list):
+    """Return a list of classes that have the same depends as 'depends'
+    iterate through cfg_list, loading "DataSource*" modules
+    and calling their "get_datasource_list".
+    Return an ordered list of classes that match (if any)
+    """
     src_list = []
     LOG.debug(
         "Looking for data source in: %s,"
@@ -1022,9 +1037,9 @@ def list_sources(cfg_list, depends, pkg_list):
         pkg_list,
         depends,
     )
-    for ds_name in cfg_list:
-        if not ds_name.startswith(DS_PREFIX):
-            ds_name = "%s%s" % (DS_PREFIX, ds_name)
+
+    for ds in cfg_list:
+        ds_name = importer.match_case_insensitive_module_name(ds)
         m_locs, _looked_locs = importer.find_module(
             ds_name, pkg_list, ["get_datasource_list"]
         )
@@ -1160,4 +1175,27 @@ def pkl_load(fname: str) -> Optional[DataSource]:
         return None
 
 
-# vi: ts=4 expandtab
+def parse_cmdline() -> str:
+    """Check if command line argument for this datasource was passed
+    Passing by command line overrides runtime datasource detection
+    """
+    cmdline = util.get_cmdline()
+    ds_parse_0 = re.search(r"ds=([^\s;]+)", cmdline)
+    ds_parse_1 = re.search(r"ci\.ds=([^\s;]+)", cmdline)
+    ds_parse_2 = re.search(r"ci\.datasource=([^\s;]+)", cmdline)
+    ds = ds_parse_0 or ds_parse_1 or ds_parse_2
+    deprecated = ds_parse_1 or ds_parse_2
+    if deprecated:
+        dsname = deprecated.group(1).strip()
+        util.deprecate(
+            deprecated=(
+                f"Defining the datasource on the commandline using "
+                f"ci.ds={dsname} or "
+                f"ci.datasource={dsname}"
+            ),
+            deprecated_version="23.2",
+            extra_message=f"Use ds={dsname} instead",
+        )
+    if ds and ds.group(1):
+        return ds.group(1)
+    return ""

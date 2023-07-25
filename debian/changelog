@@ -1,8 +1,44 @@
-cloud-init (23.1.2-0ubuntu0~20.04.2) focal-security; urgency=medium
+cloud-init (23.2.1-0ubuntu0~20.04.2) focal; urgency=medium
+
+  * d/apport-general-hook: correct type hints on Dict for py3.8
+    (LP: #2025376)
+
+ -- Chad Smith <chad.smith@canonical.com>  Thu, 29 Jun 2023 09:41:13 -0600
+
+cloud-init (23.2.1-0ubuntu0~20.04.1) focal; urgency=medium
+
+  * Upstream snapshot based on 23.2.1. (LP: #2025180).
+    List of changes from upstream can be found at
+    https://raw.githubusercontent.com/canonical/cloud-init/23.2.1/ChangeLog
+
+ -- Brett Holman <brett.holman@canonical.com>  Wed, 28 Jun 2023 16:14:16 -0600
+
+cloud-init (23.2-0ubuntu0~20.04.1) focal; urgency=medium
+
+  * d/control: Remove pep8 dependency. It is no longer used
+  * d/patches/netplan99-cannot-use-default.patch:
+    - Retain routes' definitions compatible with netplan 0.99 (Fixes: #4133)
+  * d/apport-general-hook.py: Add general apport hook to append cloud type,
+    image and instance size information to bug reports (LP: #1724623)
+  * d/cloud-init.preinst: Oracle to remove vestigial /etc/cloud.cloud.cfg.d/
+    99-disable-network-config.cfg because system config is now honored before
+    datasource config (LP: #1956788)
+  * d/cloud-init.preinst: Clean up vestigial
+    /etc/cloud/cloud.cfg.d/99-disable-network-activation.cfg on GCE instances
+    after fix in upstream google-guest-agent.
+  * Refresh patches against upstream/main:
+    - d/p/expire-on-hashed-users.patch
+    - d/p/retain-netplan-world-readable.patch
+  * Upstream snapshot based on 23.2. (LP: #2023110).
+    List of changes from upstream can be found at
+    https://raw.githubusercontent.com/canonical/cloud-init/23.2/ChangeLog
+
+ -- Chad Smith <chad.smith@canonical.com>  Tue, 06 Jun 2023 16:07:04 -0600
+
+cloud-init (23.1.2-0ubuntu0~20.04.2) focal; urgency=medium
 
   * d/patches/netplan99-cannot-use-default.patch:
     - Retain routes' definitions compatible with netplan 0.99 (Fixes: #4133)
-      (LP: #2020375)
 
  -- James Falcon <james.falcon@canonical.com>  Fri, 19 May 2023 12:57:02 -0500
 
