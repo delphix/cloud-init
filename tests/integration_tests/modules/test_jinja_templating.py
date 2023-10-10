@@ -17,7 +17,7 @@ USER_DATA = """\
 #cloud-config
 runcmd:
   - echo {{v1.local_hostname}} > /var/tmp/runcmd_output
-  - echo {{merged_cfg._doc}} >> /var/tmp/runcmd_output
+  - echo {{merged_system_cfg._doc}} >> /var/tmp/runcmd_output
   - echo {{v1['local-hostname']}} >> /var/tmp/runcmd_output
 """
 
@@ -52,7 +52,7 @@ def test_substitution_in_etc_cloud(client: IntegrationInstance):
     new_cloud_part = (
         "## template: jinja\n"
         "bootcmd:\n"
-        " - echo {{merged_cfg._doc}} > /var/tmp/bootcmd_output\n"
+        " - echo '{{merged_system_cfg._doc}}' > /var/tmp/bootcmd_output\n"
     )
     client.write_to_file(
         "/etc/cloud/cloud.cfg.d/50-jinja-test.cfg", new_cloud_part
@@ -93,7 +93,7 @@ def test_invalid_etc_cloud_substitution(client: IntegrationInstance):
     )
     client.write_to_file("/etc/cloud/cloud.cfg.d/50-no-var.cfg", no_var_part)
 
-    normal_part = "bootcmd:\n" " - echo hi > /var/tmp/bootcmd_output\n"
+    normal_part = "bootcmd:\n - echo hi > /var/tmp/bootcmd_output\n"
     client.write_to_file("/etc/cloud/cloud.cfg.d/60-normal.cfg", normal_part)
 
     client.execute("cloud-init clean --logs")

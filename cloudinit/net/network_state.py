@@ -229,7 +229,6 @@ class NetworkState:
 
 
 class NetworkStateInterpreter(metaclass=CommandHandlerMeta):
-
     initial_network_state = {
         "interfaces": {},
         "routes": [],
@@ -553,7 +552,7 @@ class NetworkStateInterpreter(metaclass=CommandHandlerMeta):
 
         # convert value to boolean
         bridge_stp = iface.get("bridge_stp")
-        if bridge_stp is not None and type(bridge_stp) != bool:
+        if bridge_stp is not None and not isinstance(bridge_stp, bool):
             if bridge_stp in ["on", "1", 1]:
                 bridge_stp = True
             elif bridge_stp in ["off", "0", 0]:
@@ -576,7 +575,7 @@ class NetworkStateInterpreter(metaclass=CommandHandlerMeta):
         search = []
         if "address" in command:
             addrs = command["address"]
-            if not type(addrs) == list:
+            if not isinstance(addrs, list):
                 addrs = [addrs]
             for addr in addrs:
                 nameservers.append(addr)
@@ -644,7 +643,6 @@ class NetworkStateInterpreter(metaclass=CommandHandlerMeta):
         self._handle_bond_bridge(command, cmd_type="bond")
 
     def handle_bridges(self, command):
-
         """
         v2_command = {
           br0: {
@@ -931,6 +929,7 @@ class NetworkStateInterpreter(metaclass=CommandHandlerMeta):
                     {
                         "destination": route.get("to"),
                         "gateway": route.get("via"),
+                        "metric": route.get("metric"),
                     }
                 )
             )
