@@ -1,6 +1,6 @@
 # Cloud-Init DataSource for VMware
 #
-# Copyright (c) 2018-2022 VMware, Inc. All Rights Reserved.
+# Copyright (c) 2018-2023 VMware, Inc. All Rights Reserved.
 #
 # Authors: Anish Swaminathan <anishs@vmware.com>
 #          Andrew Kutz <akutz@vmware.com>
@@ -73,7 +73,7 @@ import time
 
 import netifaces
 
-from cloudinit import dmi
+from cloudinit import atomic_helper, dmi
 from cloudinit import log as logging
 from cloudinit import net, sources, util
 from cloudinit.sources.helpers.vmware.imc import guestcust_util
@@ -418,10 +418,10 @@ def decode(key, enc_type, data):
     raw_data = None
     if enc_type in ["gzip+base64", "gz+b64"]:
         LOG.debug("Decoding %s format %s", enc_type, key)
-        raw_data = util.decomp_gzip(util.b64d(data))
+        raw_data = util.decomp_gzip(atomic_helper.b64d(data))
     elif enc_type in ["base64", "b64"]:
         LOG.debug("Decoding %s format %s", enc_type, key)
-        raw_data = util.b64d(data)
+        raw_data = atomic_helper.b64d(data)
     else:
         LOG.debug("Plain-text data %s", key)
         raw_data = data
@@ -551,7 +551,7 @@ def guestinfo_get_value(key, vmware_rpctool=VMWARE_RPCTOOL):
         util.logexc(
             LOG,
             "Unexpected error while trying to get "
-            + "guestinfo value for key %s",
+            "guestinfo value for key %s",
             key,
         )
 
@@ -593,7 +593,7 @@ def guestinfo_set_value(key, value, vmware_rpctool=VMWARE_RPCTOOL):
         util.logexc(
             LOG,
             "Unexpected error while trying to set "
-            + "guestinfo key=%s to value=%s",
+            "guestinfo key=%s to value=%s",
             key,
             value,
         )
@@ -609,7 +609,7 @@ def guestinfo_redact_keys(keys, vmware_rpctool=VMWARE_RPCTOOL):
     """
     if not keys:
         return
-    if not type(keys) in (list, tuple):
+    if type(keys) not in (list, tuple):
         keys = [keys]
     for key in keys:
         key_name = get_guestinfo_key_name(key)
@@ -719,7 +719,7 @@ def get_default_ip_addrs():
             af_inet4 = addr4_fams.get(netifaces.AF_INET)
             if af_inet4:
                 if len(af_inet4) > 1:
-                    LOG.warning(
+                    LOG.debug(
                         "device %s has more than one ipv4 address: %s",
                         dev4,
                         af_inet4,
@@ -737,7 +737,7 @@ def get_default_ip_addrs():
             af_inet6 = addr6_fams.get(netifaces.AF_INET6)
             if af_inet6:
                 if len(af_inet6) > 1:
-                    LOG.warning(
+                    LOG.debug(
                         "device %s has more than one ipv6 address: %s",
                         dev6,
                         af_inet6,
@@ -752,7 +752,7 @@ def get_default_ip_addrs():
         af_inet6 = addr4_fams.get(netifaces.AF_INET6)
         if af_inet6:
             if len(af_inet6) > 1:
-                LOG.warning(
+                LOG.debug(
                     "device %s has more than one ipv6 address: %s",
                     dev4,
                     af_inet6,
@@ -767,7 +767,7 @@ def get_default_ip_addrs():
         af_inet4 = addr6_fams.get(netifaces.AF_INET)
         if af_inet4:
             if len(af_inet4) > 1:
-                LOG.warning(
+                LOG.debug(
                     "device %s has more than one ipv4 address: %s",
                     dev6,
                     af_inet4,
@@ -977,7 +977,7 @@ def main():
     }
     host_info = wait_on_network(metadata)
     metadata = util.mergemanydict([metadata, host_info])
-    print(util.json_dumps(metadata))
+    print(atomic_helper.json_dumps(metadata))
 
 
 if __name__ == "__main__":
