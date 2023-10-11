@@ -1,0 +1,18 @@
+Description: Retain old groups in default user template
+Author: james.falcon@canonical.com
+Origin: backport
+Forwarded: not-needed
+Last-Update: 2023-07-24
+---
+This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
+--- a/config/cloud.cfg.tmpl
++++ b/config/cloud.cfg.tmpl
+@@ -17,7 +17,7 @@
+                   "photon": "wheel",
+                   "openmandriva": "wheel, users, systemd-journal",
+                   "suse": "cdrom, users",
+-                  "ubuntu": "adm, cdrom, dip, lxd, sudo",
++                  "ubuntu": "adm, audio, cdrom, dialout, dip, floppy, lxd, netdev, plugdev, sudo, video",
+                   "unknown": "adm, cdrom, dip, lxd, sudo"}) %}
+ {% set shells = ({"alpine": "/bin/ash", "dragonfly": "/bin/sh",
+                   "freebsd": "/bin/tcsh", "netbsd": "/bin/sh",

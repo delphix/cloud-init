@@ -2,10 +2,9 @@
 
 import json
 import logging
-from typing import Dict
 
 
-def _get_azure_data(ds_data) -> Dict[str, str]:
+def _get_azure_data(ds_data) -> dict[str, str]:
     compute = ds_data.get("meta_data", {}).get("imds", {}).get("compute")
     if not compute:
         return {}
@@ -22,7 +21,7 @@ def _get_azure_data(ds_data) -> Dict[str, str]:
     return azure_data
 
 
-def _get_ec2_data(ds_data) -> Dict[str, str]:
+def _get_ec2_data(ds_data) -> dict[str, str]:
     document = (
         ds_data.get("dynamic", {}).get("instance-identity", {}).get("document")
     )
