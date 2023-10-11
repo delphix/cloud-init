@@ -127,7 +127,7 @@ DI_DSNAME=""
 DI_DSLIST_DEFAULT="MAAS ConfigDrive NoCloud AltCloud Azure Bigstep \
 CloudSigma CloudStack DigitalOcean Vultr AliYun Ec2 GCE OpenNebula OpenStack \
 OVF SmartOS Scaleway Hetzner IBMCloud Oracle Exoscale RbxCloud UpCloud VMware \
-LXD NWCS"
+LXD NWCS Akamai"
 DI_DSLIST=""
 DI_MODE=""
 DI_ON_FOUND=""
@@ -739,6 +739,9 @@ probe_floppy() {
 dscheck_CloudStack() {
     is_container && return ${DS_NOT_FOUND}
     dmi_product_name_matches "CloudStack*" && return $DS_FOUND
+    if [ "$DI_VIRT" = "vmware" ] || [ "$DI_VIRT" = "xen" ]; then
+        return $DS_MAYBE
+    fi
     return $DS_NOT_FOUND
 }
 
@@ -751,6 +754,12 @@ dscheck_CloudSigma() {
     # http://paste.ubuntu.com/23624795/
     dmi_product_name_matches "CloudSigma" && return $DS_FOUND
     return $DS_NOT_FOUND
+}
+
+dscheck_Akamai() {
+    dmi_sys_vendor_is Linode && return ${DS_FOUND}
+    dmi_sys_vendor_is Akamai && return ${DS_FOUND}
+    return ${DS_NOT_FOUND}
 }
 
 check_config() {
@@ -814,7 +823,7 @@ dscheck_MAAS() {
 }
 
 # LXD datasource requires active /dev/lxd/sock
-# https://linuxcontainers.org/lxd/docs/master/dev-lxd
+# https://documentation.ubuntu.com/lxd/en/latest/dev-lxd/
 dscheck_LXD() {
     if is_socket_file /dev/lxd/sock; then
         return ${DS_FOUND}
@@ -931,14 +940,16 @@ vmware_guest_customization() {
 
     # we have to have the plugin to do vmware customization
     local found="" pkg="" pre="${PATH_ROOT}/usr/lib"
-    local x86="x86_64-linux-gnu" aarch="aarch64-linux-gnu"
+    local x86="x86_64-linux-gnu" aarch="aarch64-linux-gnu" i386="i386-linux-gnu"
     local ppath="plugins/vmsvc/libdeployPkgPlugin.so"
     for pkg in vmware-tools open-vm-tools; do
         if [ -f "$pre/$pkg/$ppath" -o -f "${pre}64/$pkg/$ppath" ]; then
             found="$pkg"; break;
         fi
         # search in multiarch dir
-        if [ -f "$pre/$x86/$pkg/$ppath" -o -f "$pre/$aarch/$pkg/$ppath" ]; then
+        if [ -f "$pre/$x86/$pkg/$ppath" ] || \
+           [ -f "$pre/$aarch/$pkg/$ppath" ] || \
+           [ -f "$pre/$i386/$pkg/$ppath" ]; then
             found="$pkg"; break;
         fi
     done

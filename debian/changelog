@@ -1,3 +1,20 @@
+cloud-init (23.3.1-0ubuntu1~20.04.1) focal; urgency=medium
+
+  * Upstream snapshot based on upstream/main at ee9078a7.
+  * d/cloud-init.maintscript: Remove the unused hook-network-manager
+    conffile. (LP: #2027861)
+  * d/patches/retain-old-groups.patch:
+    - Retain original groups in cloud.cfg.tmpl
+  * d/control: Add python3-passlib as needed for testing
+  * d/cloud-init.templates: enable Akamai by default.
+    Add Akamai to the default templates to allow datasource discovery.
+  * d/po/templates.pot: refresh with debconf-updatepo
+  * Upstream snapshot based on 23.3.1. (LP: #2033310).
+    List of changes from upstream can be found at
+    https://raw.githubusercontent.com/canonical/cloud-init/23.3.1/ChangeLog
+
+ -- James Falcon <james.falcon@canonical.com>  Wed, 06 Sep 2023 12:11:17 -0500
+
 cloud-init (23.2.2-0ubuntu0~20.04.1) focal; urgency=medium
 
   * Upstream snapshot based on 23.2.2.
@@ -13,14 +30,6 @@ cloud-init (23.2.1-0ubuntu0~20.04.2) focal; urgency=medium
     (LP: #2025376)
 
  -- Chad Smith <chad.smith@canonical.com>  Thu, 29 Jun 2023 09:41:13 -0600
-
-cloud-init (23.2.1-0ubuntu0~20.04.1) focal; urgency=medium
-
-  * Upstream snapshot based on 23.2.1. (LP: #2025180).
-    List of changes from upstream can be found at
-    https://raw.githubusercontent.com/canonical/cloud-init/23.2.1/ChangeLog
-
- -- Brett Holman <brett.holman@canonical.com>  Wed, 28 Jun 2023 16:14:16 -0600
 
 cloud-init (23.2-0ubuntu0~20.04.1) focal; urgency=medium
 
