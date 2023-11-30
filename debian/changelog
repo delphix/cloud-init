@@ -1,3 +1,21 @@
+cloud-init (23.3.3-0ubuntu0~20.04.1) focal; urgency=medium
+
+  * Upstream snapshot based on 23.3.3. (LP: #2040291).
+    List of changes from upstream can be found at
+    https://raw.githubusercontent.com/canonical/cloud-init/23.3.3/ChangeLog
+
+ -- James Falcon <james.falcon@canonical.com>  Tue, 24 Oct 2023 10:59:56 -0500
+
+cloud-init (23.3.2-0ubuntu0~20.04.1) focal; urgency=medium
+
+  * d/p/do-not-block-user-login.patch:
+    - Revert behavior, allow user login after cloud-init stage (LP: #2039505)
+  * Upstream snapshot based on 23.3.2. (LP: #2039453).
+    List of changes from upstream can be found at
+    https://raw.githubusercontent.com/canonical/cloud-init/23.3.2/ChangeLog
+
+ -- Brett Holman <brett.holman@canonical.com>  Mon, 17 Oct 2023 15:51:22 -0600
+
 cloud-init (23.3.1-0ubuntu1~20.04.1) focal; urgency=medium
 
   * Upstream snapshot based on upstream/main at ee9078a7.
