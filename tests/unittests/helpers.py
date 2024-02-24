@@ -21,7 +21,7 @@ from urllib.parse import urlsplit, urlunsplit
 import responses
 
 import cloudinit
-from cloudinit import cloud, distros
+from cloudinit import atomic_helper, cloud, distros
 from cloudinit import helpers as ch
 from cloudinit import subp, util
 from cloudinit.config.schema import (
@@ -37,6 +37,14 @@ _real_subp = subp.subp
 # Used for skipping tests
 SkipTest = unittest.SkipTest
 skipIf = unittest.skipIf
+
+
+try:
+    import apt_pkg  # type: ignore # noqa: F401
+
+    HAS_APT_PKG = True
+except ImportError:
+    HAS_APT_PKG = False
 
 
 # Makes the old path start
@@ -268,8 +276,8 @@ class FilesystemMockingTestCase(ResourceUsingTestCase):
             make_path = rebase_path(real_path[len(real_root) :], target_root)
             util.ensure_dir(make_path)
             for f in filenames:
-                real_path = util.abs_join(real_path, f)
-                make_path = util.abs_join(make_path, f)
+                real_path = os.path.abspath(os.path.join(real_path, f))
+                make_path = os.path.abspath(os.path.join(make_path, f))
                 shutil.copy(real_path, make_path)
 
     def patchUtils(self, new_root):
@@ -284,6 +292,9 @@ class FilesystemMockingTestCase(ResourceUsingTestCase):
                 ("del_file", 1),
                 ("sym_link", -1),
                 ("copy", -1),
+            ],
+            atomic_helper: [
+                ("write_json", 1),
             ],
         }
         for (mod, funcs) in patch_funcs.items():
@@ -519,6 +530,13 @@ def readResource(name, mode="r"):
         return fh.read()
 
 
+def skipIfAptPkg():
+    return skipIf(
+        HAS_APT_PKG,
+        "No python-apt dependency present.",
+    )
+
+
 try:
     import jsonschema
 
@@ -619,6 +637,3 @@ def does_not_raise():
 
     """
     yield
-
-
-# vi: ts=4 expandtab

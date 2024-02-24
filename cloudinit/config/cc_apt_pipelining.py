@@ -42,16 +42,14 @@ meta: MetaSchema = {
 
         Value configuration options for this module are:
 
-        * ``false`` (Default): disable pipelining altogether
-        * ``none``, ``unchanged``, or ``os``: use distro default
+        * ``os``: (Default) use distro default
+        * ``false`` disable pipelining altogether
         * ``<number>``: Manually specify pipeline depth. This is not recommended."""  # noqa: E501
     ),
     "distros": distros,
     "frequency": frequency,
     "examples": [
         "apt_pipelining: false",
-        "apt_pipelining: none",
-        "apt_pipelining: unchanged",
         "apt_pipelining: os",
         "apt_pipelining: 3",
     ],
@@ -81,6 +79,3 @@ def write_apt_snippet(setting, log, f_name):
     file_contents = APT_PIPE_TPL % (setting)
     util.write_file(f_name, file_contents)
     log.debug("Wrote %s with apt pipeline depth setting %s", f_name, setting)
-
-
-# vi: ts=4 expandtab

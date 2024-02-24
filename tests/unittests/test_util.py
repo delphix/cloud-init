@@ -1457,6 +1457,19 @@ class TestReadCcFromCmdline:
                 "cc:runcmd%3A%20%5B%20%5B%20ls%2C%20-l%20%5D%20%5D end_cc",
                 {"ssh_import_id": ["smoser"], "runcmd": [["ls", "-l"]]},
             ),
+            # Parse cmdlines that contain an IPv6 with cc: in different
+            # positions
+            ("BOOTIF=aa:bb:cc:dd bar", None),
+            ("BOOTIF=aa:bb:cc:dd cc: end_cc bar", None),
+            ("BOOTIF=aa:bb:cc:dd cc: ssh_pwauth: true", {"ssh_pwauth": True}),
+            (
+                "BOOTIF=aa:bb:cc:dd cc: ssh_pwauth: true end_cc",
+                {"ssh_pwauth": True},
+            ),
+            (
+                "cc: ssh_pwauth: true end_cc BOOTIF=aa:bb:cc:dd",
+                {"ssh_pwauth": True},
+            ),
         ],
     )
     def test_read_conf_from_cmdline_config(self, expected_cfg, cmdline):
@@ -3135,30 +3148,6 @@ class TestHashBuffer:
                 util.hash_buffer(f)
                 == b"\x99\x80\x0b\x85\xd38>:/\xb4^\xb7\xd0\x06jHy\xa9\xda\xd0"
             )
-
-
-class TestComparePermissions:
-    @pytest.mark.parametrize(
-        "perm1,perm2,expected",
-        [
-            (0o777, 0o777, 0),
-            (0o000, 0o000, 0),
-            (0o421, 0o421, 0),
-            (0o1640, 0o1640, 0),
-            (0o1407, 0o1600, 1),
-            (0o1600, 0o1407, -1),
-            (0o407, 0o600, 1),
-            (0o600, 0o407, -1),
-            (0o007, 0o700, 1),
-            (0o700, 0o007, -1),
-            (0o077, 0o100, 1),
-            (0o644, 0o640, 1),
-            (0o640, 0o600, 1),
-            (0o600, 0o400, 1),
-        ],
-    )
-    def test_compare_permissions(self, perm1, perm2, expected):
-        assert util.compare_permission(perm1, perm2) == expected
 
 
 class TestMaybeB64Decode:
