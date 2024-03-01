@@ -78,7 +78,7 @@ snap:
 ssh_import_id:
   - lp:smoser
 
-timezone: US/Aleutian
+timezone: Europe/Madrid
 """
 
 
@@ -207,7 +207,7 @@ class TestCombined:
         timezone_output = client.execute(
             'date "+%Z" --date="Thu, 03 Nov 2016 00:47:00 -0400"'
         )
-        assert timezone_output.strip() == "HDT"
+        assert timezone_output.strip() == "CET"
 
     def test_no_problems(self, class_client: IntegrationInstance):
         """Test no errors, warnings, deprecations, tracebacks or
@@ -264,6 +264,7 @@ class TestCombined:
                 "gce": "DataSourceGCELocal",
                 "oci": "DataSourceOracle",
                 "openstack": "DataSourceOpenStackLocal [net,ver=2]",
+                "qemu": "DataSourceNoCloud [seed=/dev/vda][dsmode=net]",
             }
             assert (
                 platform_datasources[client.settings.PLATFORM]
@@ -307,7 +308,6 @@ class TestCombined:
         assert data["sys_info"]["dist"][0] == CURRENT_RELEASE.os
 
         v1_data = data["v1"]
-        assert re.match(r"\d\.\d+\.\d+-\d+", v1_data["kernel_release"])
         assert v1_data["variant"] == CURRENT_RELEASE.os
         assert v1_data["distro"] == CURRENT_RELEASE.os
         assert v1_data["distro_release"] == CURRENT_RELEASE.series
@@ -325,6 +325,27 @@ class TestCombined:
         data = json.loads(combined_json)
         assert data["features"] == get_features()
         assert data["system_info"]["default_user"]["name"] == "ubuntu"
+
+    @pytest.mark.skipif(
+        PLATFORM not in ("lxd_vm", "lxd_container"),
+        reason="Test is LXD specific",
+    )
+    def test_network_config_json(self, class_client: IntegrationInstance):
+        client = class_client
+        network_json = client.read_from_file(
+            "/run/cloud-init/network-config.json"
+        )
+        devname = "eth0" if PLATFORM == "lxd_container" else "enp5s0"
+        assert {
+            "config": [
+                {
+                    "name": devname,
+                    "subnets": [{"control": "auto", "type": "dhcp"}],
+                    "type": "physical",
+                }
+            ],
+            "version": 1,
+        } == json.loads(network_json)
 
     @pytest.mark.skipif(
         PLATFORM != "lxd_container",

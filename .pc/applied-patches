@@ -4,3 +4,6 @@ retain-netplan-world-readable.patch
 netplan99-cannot-use-default.patch
 retain-old-groups.patch
 do-not-block-user-login.patch
+status-do-not-remove-duplicated-data.patch
+retain-apt-pre-deb822.patch
+status-retain-recoverable-error-exit-code.patch

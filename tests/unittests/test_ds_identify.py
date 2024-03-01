@@ -6,6 +6,8 @@ from collections import namedtuple
 from textwrap import dedent
 from uuid import uuid4
 
+import pytest
+
 from cloudinit import atomic_helper, safeyaml, subp, util
 from cloudinit.sources import DataSourceIBMCloud as ds_ibm
 from cloudinit.sources import DataSourceOracle as ds_oracle
@@ -186,6 +188,10 @@ class DsIdentifyBase(CiTestCase):
                 "err": "No dmidecode program. ERROR.",
             },
             {
+                "name": "is_disabled",
+                "ret": 1,
+            },
+            {
                 "name": "get_kenv_field",
                 "ret": 1,
                 "err": "No kenv program. ERROR.",
@@ -300,6 +306,65 @@ class TestDsIdentify(DsIdentifyBase):
         ]
         for var in expected_vars:
             self.assertIn("{0}=".format(var), err)
+
+    @pytest.mark.xfail(reason="GH-4796")
+    def test_maas_not_detected_1(self):
+        """Don't incorrectly identify maas
+
+        In ds-identify the function check_config() attempts to parse yaml keys
+        in bash, but it sometimes introduces false positives. The maas
+        datasource uses check_config() and the existence of a "MAAS" key to
+        identify itself (which is a very poor identifier - clouds should have
+        stricter identifiers). Since the MAAS datasource is at the begining of
+        the list, this is particularly troublesome and more concerning than
+        NoCloud false positives, for example.
+        config = "LXD-kvm-not-MAAS-1"
+        self._test_ds_found(config)
+        """
+
+    def test_maas_not_detected_2(self):
+        """Don't incorrectly identify maas
+
+        The bug reported in 4794 combined with the previously existing bug
+        reported in 4796 made for very loose MAAS false-positives.
+
+        In ds-identify the function check_config() attempts to parse yaml keys
+        in bash, but it sometimes introduces false positives. The maas
+        datasource uses check_config() and the existence of a "MAAS" key to
+        identify itself (which is a very poor identifier - clouds should have
+        stricter identifiers). Since the MAAS datasource is at the begining of
+        the list, this is particularly troublesome and more concerning than
+        NoCloud false positives, for example.
+        """
+        config = "LXD-kvm-not-MAAS-2"
+        self._test_ds_found(config)
+
+    def test_maas_not_detected_3(self):
+        """Don't incorrectly identify maas
+
+        The bug reported in 4794 combined with the previously existing bug
+        reported in 4796 made for very loose MAAS false-positives.
+
+        In ds-identify the function check_config() attempts to parse yaml keys
+        in bash, but it sometimes introduces false positives. The maas
+        datasource uses check_config() and the existence of a "MAAS" key to
+        identify itself (which is a very poor identifier - clouds should have
+        stricter identifiers). Since the MAAS datasource is at the begining of
+        the list, this is particularly troublesome and more concerning than
+        NoCloud false positives, for example.
+        """
+        config = "LXD-kvm-not-MAAS-3"
+        self._test_ds_found(config)
+
+    def test_azure_invalid_configuration(self):
+        """Don't detect incorrect config when invalid datasource_list provided
+
+        If unparsable list is provided we just ignore it. Some users
+        might assume that since the rest of the configuration is yaml that
+        multi-line yaml lists are valid (they aren't). When this happens, just
+        run ds-identify and figure it out for ourselves which platform to run.
+        """
+        self._test_ds_found("Azure-parse-invalid")
 
     def test_azure_dmi_detection_from_chassis_asset_tag(self):
         """Azure datasource is detected from DMI chassis-asset-tag"""
@@ -869,7 +934,8 @@ class TestDsIdentify(DsIdentifyBase):
 
     def test_vmware_guestinfo_no_data(self):
         """VMware: guestinfo transport no data"""
-        self._test_ds_not_found("VMware-GuestInfo-NoData")
+        self._test_ds_not_found("VMware-GuestInfo-NoData-Rpctool")
+        self._test_ds_not_found("VMware-GuestInfo-NoData-Vmtoolsd")
 
     def test_vmware_guestinfo_no_virt_id(self):
         """VMware: guestinfo transport fails if no virt id"""
@@ -1074,6 +1140,15 @@ VALID_CFG = {
             os.path.join(P_SEED_DIR, "azure", "ovf-env.xml"): "present\n",
         },
     },
+    "Azure-parse-invalid": {
+        "ds": "Azure",
+        "files": {
+            P_CHASSIS_ASSET_TAG: "7783-7084-3265-9085-8269-3286-77\n",
+            "etc/cloud/cloud.cfg.d/91-azure_datasource.cfg": (
+                "datasource_list:\n   - Azure"
+            ),
+        },
+    },
     "Ec2-hvm": {
         "ds": "Ec2",
         "mocks": [{"name": "detect_virt", "RET": "kvm", "ret": 0}],
@@ -1110,6 +1185,38 @@ VALID_CFG = {
     "LXD-kvm": {
         "ds": "LXD",
         "files": {P_BOARD_NAME: "LXD\n"},
+        # /dev/lxd/sock does not exist and KVM virt-type
+        "mocks": [{"name": "is_socket_file", "ret": 1}, MOCK_VIRT_IS_KVM],
+        "no_mocks": ["dscheck_LXD"],  # Don't default mock dscheck_LXD
+    },
+    "LXD-kvm-not-MAAS-1": {
+        "ds": "LXD",
+        "files": {
+            P_BOARD_NAME: "LXD\n",
+            "etc/cloud/cloud.cfg.d/92-broken-maas.cfg": (
+                "datasource:\n MAAS:\n metadata_urls: [ 'blah.com' ]"
+            ),
+        },
+        # /dev/lxd/sock does not exist and KVM virt-type
+        "mocks": [{"name": "is_socket_file", "ret": 1}, MOCK_VIRT_IS_KVM],
+        "no_mocks": ["dscheck_LXD"],  # Don't default mock dscheck_LXD
+    },
+    "LXD-kvm-not-MAAS-2": {
+        "ds": "LXD",
+        "files": {
+            P_BOARD_NAME: "LXD\n",
+            "etc/cloud/cloud.cfg.d/92-broken-maas.cfg": ("#MAAS: None"),
+        },
+        # /dev/lxd/sock does not exist and KVM virt-type
+        "mocks": [{"name": "is_socket_file", "ret": 1}, MOCK_VIRT_IS_KVM],
+        "no_mocks": ["dscheck_LXD"],  # Don't default mock dscheck_LXD
+    },
+    "LXD-kvm-not-MAAS-3": {
+        "ds": "LXD",
+        "files": {
+            P_BOARD_NAME: "LXD\n",
+            "etc/cloud/cloud.cfg.d/92-broken-maas.cfg": ("MAAS: None"),
+        },
         # /dev/lxd/sock does not exist and KVM virt-type
         "mocks": [{"name": "is_socket_file", "ret": 1}, MOCK_VIRT_IS_KVM],
         "no_mocks": ["dscheck_LXD"],  # Don't default mock dscheck_LXD
@@ -1653,6 +1760,11 @@ VALID_CFG = {
                 "ret": 0,
                 "out": "/usr/bin/vmware-rpctool",
             },
+            {
+                "name": "vmware_has_vmtoolsd",
+                "ret": 1,
+                "out": "/usr/bin/vmtoolsd",
+            },
         ],
         "files": {
             # Setup vmware customization enabled
@@ -1769,7 +1881,7 @@ VALID_CFG = {
             MOCK_VIRT_IS_VMWARE,
         ],
     },
-    "VMware-GuestInfo-NoData": {
+    "VMware-GuestInfo-NoData-Rpctool": {
         "ds": "VMware",
         "mocks": [
             {
@@ -1778,15 +1890,49 @@ VALID_CFG = {
                 "out": "/usr/bin/vmware-rpctool",
             },
             {
-                "name": "vmware_rpctool_guestinfo_metadata",
+                "name": "vmware_has_vmtoolsd",
+                "ret": 1,
+                "out": "/usr/bin/vmtoolsd",
+            },
+            {
+                "name": "vmware_guestinfo_metadata",
                 "ret": 1,
             },
             {
-                "name": "vmware_rpctool_guestinfo_userdata",
+                "name": "vmware_guestinfo_userdata",
                 "ret": 1,
             },
             {
-                "name": "vmware_rpctool_guestinfo_vendordata",
+                "name": "vmware_guestinfo_vendordata",
+                "ret": 1,
+            },
+            MOCK_VIRT_IS_VMWARE,
+        ],
+    },
+    "VMware-GuestInfo-NoData-Vmtoolsd": {
+        "ds": "VMware",
+        "policy_dmi": POLICY_FOUND_ONLY,
+        "mocks": [
+            {
+                "name": "vmware_has_rpctool",
+                "ret": 1,
+                "out": "/usr/bin/vmware-rpctool",
+            },
+            {
+                "name": "vmware_has_vmtoolsd",
+                "ret": 0,
+                "out": "/usr/bin/vmtoolsd",
+            },
+            {
+                "name": "vmware_guestinfo_metadata",
+                "ret": 1,
+            },
+            {
+                "name": "vmware_guestinfo_userdata",
+                "ret": 1,
+            },
+            {
+                "name": "vmware_guestinfo_vendordata",
                 "ret": 1,
             },
             MOCK_VIRT_IS_VMWARE,
@@ -1801,16 +1947,16 @@ VALID_CFG = {
                 "out": "/usr/bin/vmware-rpctool",
             },
             {
-                "name": "vmware_rpctool_guestinfo_metadata",
+                "name": "vmware_guestinfo_metadata",
                 "ret": 0,
                 "out": "---",
             },
             {
-                "name": "vmware_rpctool_guestinfo_userdata",
+                "name": "vmware_guestinfo_userdata",
                 "ret": 1,
             },
             {
-                "name": "vmware_rpctool_guestinfo_vendordata",
+                "name": "vmware_guestinfo_vendordata",
                 "ret": 1,
             },
         ],
@@ -1820,20 +1966,25 @@ VALID_CFG = {
         "mocks": [
             {
                 "name": "vmware_has_rpctool",
-                "ret": 0,
+                "ret": 1,
                 "out": "/usr/bin/vmware-rpctool",
             },
             {
-                "name": "vmware_rpctool_guestinfo_metadata",
+                "name": "vmware_has_vmtoolsd",
+                "ret": 0,
+                "out": "/usr/bin/vmtoolsd",
+            },
+            {
+                "name": "vmware_guestinfo_metadata",
                 "ret": 0,
                 "out": "---",
             },
             {
-                "name": "vmware_rpctool_guestinfo_userdata",
+                "name": "vmware_guestinfo_userdata",
                 "ret": 1,
             },
             {
-                "name": "vmware_rpctool_guestinfo_vendordata",
+                "name": "vmware_guestinfo_vendordata",
                 "ret": 1,
             },
             MOCK_VIRT_IS_VMWARE,
@@ -1848,16 +1999,21 @@ VALID_CFG = {
                 "out": "/usr/bin/vmware-rpctool",
             },
             {
-                "name": "vmware_rpctool_guestinfo_metadata",
+                "name": "vmware_has_vmtoolsd",
+                "ret": 1,
+                "out": "/usr/bin/vmtoolsd",
+            },
+            {
+                "name": "vmware_guestinfo_metadata",
                 "ret": 1,
             },
             {
-                "name": "vmware_rpctool_guestinfo_userdata",
+                "name": "vmware_guestinfo_userdata",
                 "ret": 0,
                 "out": "---",
             },
             {
-                "name": "vmware_rpctool_guestinfo_vendordata",
+                "name": "vmware_guestinfo_vendordata",
                 "ret": 1,
             },
             MOCK_VIRT_IS_VMWARE,
@@ -1868,19 +2024,24 @@ VALID_CFG = {
         "mocks": [
             {
                 "name": "vmware_has_rpctool",
-                "ret": 0,
+                "ret": 1,
                 "out": "/usr/bin/vmware-rpctool",
             },
             {
-                "name": "vmware_rpctool_guestinfo_metadata",
+                "name": "vmware_has_vmtoolsd",
+                "ret": 0,
+                "out": "/usr/bin/vmtoolsd",
+            },
+            {
+                "name": "vmware_guestinfo_metadata",
                 "ret": 1,
             },
             {
-                "name": "vmware_rpctool_guestinfo_userdata",
+                "name": "vmware_guestinfo_userdata",
                 "ret": 1,
             },
             {
-                "name": "vmware_rpctool_guestinfo_vendordata",
+                "name": "vmware_guestinfo_vendordata",
                 "ret": 0,
                 "out": "---",
             },
@@ -1909,5 +2070,3 @@ VALID_CFG = {
         },
     },
 }
-
-# vi: ts=4 expandtab

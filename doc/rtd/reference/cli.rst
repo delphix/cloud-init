@@ -66,9 +66,9 @@ Possible subcommands include:
 :command:`clean`
 ================
 
-Remove ``cloud-init`` artifacts from :file:`/var/lib/cloud` to simulate a clean
-instance. On reboot, ``cloud-init`` will re-run all stages as it did on
-first boot.
+Remove ``cloud-init`` artifacts from :file:`/var/lib/cloud` and config files
+(best effort) to simulate a clean instance. On reboot, ``cloud-init`` will
+re-run all stages as it did on first boot.
 
 * :command:`--logs`: Optionally remove all ``cloud-init`` log files in
   :file:`/var/log/`.
@@ -78,6 +78,10 @@ first boot.
   remove the file. Best practice when cloning a golden image, to ensure the
   next boot of that image auto-generates a unique machine ID.
   `More details on machine-id`_.
+* :command:`--configs [all | ssh_config | network ]`: Optionally remove all
+  ``cloud-init`` generated config files. Argument `ssh_config` cleans
+  config files for ssh daemon. Argument `network` removes all generated
+  config files for network. `all` removes config files of all types.
 
 .. _cli_collect_logs:
 
@@ -303,6 +307,9 @@ Validate cloud-config files using jsonschema.
 * :command:`-h, --help`: Show this help message and exit.
 * :command:`-c CONFIG_FILE, --config-file CONFIG_FILE`: Path of the
   cloud-config YAML file to validate.
+* :command:`-t SCHEMA_TYPE, --schema-type SCHEMA_TYPE`: The schema type to
+  validate --config-file against. One of: cloud-config, network-config.
+  Default: cloud-config.
 * :command:`--system`: Validate the system cloud-config user data.
 * :command:`-d DOCS [cc_module ...], --docs DOCS [cc_module ...]`:
   Print schema module

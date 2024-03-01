@@ -145,10 +145,8 @@ class TestBootCMDSchema:
                     ]
                 },
                 "Cloud config schema errors: bootcmd.1: 20 is not of type"
-                " 'array', bootcmd.1: 20 is not valid under any of the given"
-                " schemas, bootcmd.3: {'a': 'n'} is not of type 'array',"
-                " bootcmd.3: {'a': 'n'} is not valid under any of the given"
-                " schemas",
+                " 'array', bootcmd.1: 20 is not of type 'string', bootcmd.3:"
+                " {'a': 'n'} is not of type 'array'",
             ),
         ),
     )
@@ -159,6 +157,3 @@ class TestBootCMDSchema:
         schema = get_schema()
         with pytest.raises(SchemaValidationError, match=error_msg):
             validate_cloudconfig_schema(config, schema, strict=True)
-
-
-# vi: ts=4 expandtab
