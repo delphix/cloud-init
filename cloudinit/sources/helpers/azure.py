@@ -794,7 +794,7 @@ class WALinuxAgentShim:
         except Exception as e:
             report_diagnostic_event(
                 "Failed ejecting the provisioning iso: %s" % e,
-                logger_func=LOG.debug,
+                logger_func=LOG.error,
             )
 
     @azure_ds_telemetry_reporter
@@ -1246,6 +1246,3 @@ class OvfEnvXml:
                 "value": value,
             }
             self.public_keys.append(ssh_key)
-
-
-# vi: ts=4 expandtab

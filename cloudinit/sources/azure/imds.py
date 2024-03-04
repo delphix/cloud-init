@@ -2,12 +2,12 @@
 #
 # This file is part of cloud-init. See LICENSE file for license information.
 
+import logging
 from time import time
-from typing import Dict, Optional
+from typing import Dict, Optional, Type, Union
 
 import requests
 
-from cloudinit import log as logging
 from cloudinit import util
 from cloudinit.sources.helpers.azure import report_diagnostic_event
 from cloudinit.url_helper import UrlError, readurl
@@ -30,7 +30,7 @@ class ReadUrlRetryHandler:
         self,
         *,
         logging_backoff: float = 1.0,
-        max_connection_errors: int = 10,
+        max_connection_errors: Optional[int] = None,
         retry_codes=(
             404,  # not found (yet)
             410,  # gone / unavailable (yet)
@@ -45,6 +45,7 @@ class ReadUrlRetryHandler:
         self.retry_deadline = retry_deadline
         self._logging_threshold = 1.0
         self._request_count = 0
+        self._last_error: Union[None, Type, int] = None
 
     def exception_callback(self, req_args, exception) -> bool:
         self._request_count += 1
@@ -65,9 +66,11 @@ class ReadUrlRetryHandler:
         # Check for connection errors which may occur early boot, but
         # are otherwise indicative that we are not connecting with the
         # primary NIC.
-        if isinstance(exception.cause, requests.ConnectionError):
+        if self.max_connection_errors is not None and isinstance(
+            exception.cause, requests.ConnectionError
+        ):
             self.max_connection_errors -= 1
-            if self.max_connection_errors < 0:
+            if self.max_connection_errors <= 0:
                 retry = False
         elif (
             exception.code is not None
@@ -79,6 +82,23 @@ class ReadUrlRetryHandler:
             self._logging_threshold *= self.logging_backoff
         else:
             log = False
+
+        # Always log if error does not match previous.
+        if exception.code is not None:
+            # This is an HTTP response with failing code, log if different.
+            if self._last_error != exception.code:
+                log = True
+                self._last_error = exception.code
+        elif (
+            # No previous error to match against.
+            self._last_error is None
+            # Previous error is exception code (int).
+            or not isinstance(self._last_error, type)
+            # Previous error is different class.
+            or not isinstance(exception.cause, self._last_error)
+        ):
+            log = True
+            self._last_error = type(exception.cause)
 
         if log or not retry:
             report_diagnostic_event(
@@ -92,7 +112,7 @@ class ReadUrlRetryHandler:
 def _fetch_url(
     url: str,
     *,
-    retry_deadline: float,
+    retry_handler: ReadUrlRetryHandler,
     log_response: bool = True,
     timeout: int = 30,
 ) -> bytes:
@@ -105,12 +125,10 @@ def _fetch_url(
 
     :raises UrlError: on error fetching metadata.
     """
-    handler = ReadUrlRetryHandler(retry_deadline=retry_deadline)
-
     try:
         response = readurl(
             url,
-            exception_cb=handler.exception_callback,
+            exception_cb=retry_handler.exception_callback,
             headers={"Metadata": "true"},
             infinite=True,
             log_req_resp=log_response,
@@ -128,7 +146,8 @@ def _fetch_url(
 
 def _fetch_metadata(
     url: str,
-    retry_deadline: float,
+    *,
+    retry_handler: ReadUrlRetryHandler,
 ) -> Dict:
     """Fetch IMDS metadata.
 
@@ -138,7 +157,7 @@ def _fetch_metadata(
     :raises UrlError: on error fetching metadata.
     :raises ValueError: on error parsing metadata.
     """
-    metadata = _fetch_url(url, retry_deadline=retry_deadline)
+    metadata = _fetch_url(url, retry_handler=retry_handler)
 
     try:
         return util.load_json(metadata)
@@ -150,7 +169,9 @@ def _fetch_metadata(
         raise
 
 
-def fetch_metadata_with_api_fallback(retry_deadline: float) -> Dict:
+def fetch_metadata_with_api_fallback(
+    retry_deadline: float, max_connection_errors: Optional[int] = None
+) -> Dict:
     """Fetch extended metadata, falling back to non-extended as required.
 
     :param retry_deadline: time()-based deadline to retry until.
@@ -158,17 +179,25 @@ def fetch_metadata_with_api_fallback(retry_deadline: float) -> Dict:
     :raises UrlError: on error fetching metadata.
     :raises ValueError: on error parsing metadata.
     """
+    retry_handler = ReadUrlRetryHandler(
+        max_connection_errors=max_connection_errors,
+        retry_deadline=retry_deadline,
+    )
     try:
         url = IMDS_URL + "/instance?api-version=2021-08-01&extended=true"
-        return _fetch_metadata(url, retry_deadline=retry_deadline)
+        return _fetch_metadata(url, retry_handler=retry_handler)
     except UrlError as error:
         if error.code == 400:
             report_diagnostic_event(
                 "Falling back to IMDS api-version: 2019-06-01",
                 logger_func=LOG.warning,
             )
+            retry_handler = ReadUrlRetryHandler(
+                max_connection_errors=max_connection_errors,
+                retry_deadline=retry_deadline,
+            )
             url = IMDS_URL + "/instance?api-version=2019-06-01"
-            return _fetch_metadata(url, retry_deadline=retry_deadline)
+            return _fetch_metadata(url, retry_handler=retry_handler)
         raise
 
 
@@ -181,10 +210,11 @@ def fetch_reprovision_data() -> bytes:
 
     handler = ReadUrlRetryHandler(
         logging_backoff=2.0,
-        max_connection_errors=0,
+        max_connection_errors=1,
         retry_codes=(
             404,
             410,
+            429,
         ),
         retry_deadline=None,
     )

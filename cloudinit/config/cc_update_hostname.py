@@ -99,6 +99,13 @@ def handle(name: str, cfg: Config, cloud: Cloud, args: list) -> None:
     if hostname_fqdn is not None:
         cloud.distro.set_option("prefer_fqdn_over_hostname", hostname_fqdn)
 
+    # Set create_hostname_file in distro
+    create_hostname_file = util.get_cfg_option_bool(
+        cfg, "create_hostname_file", None
+    )
+    if create_hostname_file is not None:
+        cloud.distro.set_option("create_hostname_file", create_hostname_file)
+
     (hostname, fqdn, is_default) = util.get_hostname_fqdn(cfg, cloud)
     if fqdn[-1] == '.':
         fqdn = fqdn[:-1]
@@ -116,6 +123,3 @@ def handle(name: str, cfg: Config, cloud: Cloud, args: list) -> None:
             LOG, "Failed to update the hostname to %s (%s)", fqdn, hostname
         )
         raise
-
-
-# vi: ts=4 expandtab

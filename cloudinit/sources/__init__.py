@@ -11,6 +11,7 @@
 import abc
 import copy
 import json
+import logging
 import os
 import pickle
 import re
@@ -18,9 +19,7 @@ from collections import namedtuple
 from enum import Enum, unique
 from typing import Any, Dict, List, Optional, Tuple
 
-from cloudinit import atomic_helper, dmi, importer
-from cloudinit import log as logging
-from cloudinit import net, type_utils
+from cloudinit import atomic_helper, dmi, importer, net, type_utils
 from cloudinit import user_data as ud
 from cloudinit import util
 from cloudinit.atomic_helper import write_json
@@ -352,10 +351,7 @@ class DataSource(CloudInitPickleMixin, metaclass=abc.ABCMeta):
                 self,
             )
             return True
-        elif self.sys_cfg.get("datasource_list", []) in (
-            [self.dsname],
-            [self.dsname, "None"],
-        ):
+        elif self.sys_cfg.get("datasource_list", []) == [self.dsname]:
             LOG.debug(
                 "Machine is configured to run on single datasource %s.", self
             )
@@ -1188,10 +1184,13 @@ def parse_cmdline() -> str:
     """Check if command line argument for this datasource was passed
     Passing by command line overrides runtime datasource detection
     """
-    cmdline = util.get_cmdline()
-    ds_parse_0 = re.search(r"ds=([^\s;]+)", cmdline)
-    ds_parse_1 = re.search(r"ci\.ds=([^\s;]+)", cmdline)
-    ds_parse_2 = re.search(r"ci\.datasource=([^\s;]+)", cmdline)
+    return parse_cmdline_or_dmi(util.get_cmdline())
+
+
+def parse_cmdline_or_dmi(input: str) -> str:
+    ds_parse_0 = re.search(r"(?:^|\s)ds=([^\s;]+)", input)
+    ds_parse_1 = re.search(r"(?:^|\s)ci\.ds=([^\s;]+)", input)
+    ds_parse_2 = re.search(r"(?:^|\s)ci\.datasource=([^\s;]+)", input)
     ds = ds_parse_0 or ds_parse_1 or ds_parse_2
     deprecated = ds_parse_1 or ds_parse_2
     if deprecated:

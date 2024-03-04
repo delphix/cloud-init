@@ -1,6 +1,7 @@
 # This file is part of cloud-init. See LICENSE file for license information.
 
 """Tests related to cloudinit.stages module."""
+import json
 import os
 import stat
 
@@ -9,7 +10,7 @@ import pytest
 from cloudinit import sources, stages
 from cloudinit.event import EventScope, EventType
 from cloudinit.sources import NetworkConfigSource
-from cloudinit.util import write_file
+from cloudinit.util import sym_link, write_file
 from tests.unittests.helpers import mock
 from tests.unittests.util import TEST_INSTANCE_ID, FakeDataSource
 
@@ -27,6 +28,8 @@ class TestInit:
                 "paths": {"cloud_dir": self.tmpdir, "run_dir": self.tmpdir},
             }
         }
+        tmpdir.mkdir("instance-uuid")
+        sym_link(tmpdir.join("instance-uuid"), tmpdir.join("instance"))
         self.init.datasource = FakeDataSource(paths=self.init.paths)
         self._real_is_new_instance = self.init.is_new_instance
         self.init.is_new_instance = mock.Mock(return_value=True)
@@ -391,9 +394,12 @@ class TestInit:
         assert caplog.records[0].levelname == "INFO"
         assert f"network config is disabled by {disable_file}" in caplog.text
 
+    @pytest.mark.parametrize("instance_dir_present", (True, False))
     @mock.patch("cloudinit.net.get_interfaces_by_mac")
     @mock.patch("cloudinit.distros.ubuntu.Distro")
-    def test_apply_network_on_new_instance(self, m_ubuntu, m_macs):
+    def test_apply_network_on_new_instance(
+        self, m_ubuntu, m_macs, instance_dir_present
+    ):
         """Call distro apply_network_config methods on is_new_instance."""
         net_cfg = {
             "version": 1,
@@ -413,13 +419,26 @@ class TestInit:
         m_macs.return_value = {"42:42:42:42:42:42": "eth9"}
 
         self.init._find_networking_config = fake_network_config
-
+        if not instance_dir_present:
+            self.tmpdir.join("instance").remove()
+            self.tmpdir.join("instance-uuid").remove()
         self.init.apply_network_config(True)
         networking = self.init.distro.networking
         networking.apply_network_config_names.assert_called_with(net_cfg)
         self.init.distro.apply_network_config.assert_called_with(
             net_cfg, bring_up=True
         )
+        if instance_dir_present:
+            assert net_cfg == json.loads(
+                self.tmpdir.join("network-config.json").read()
+            )
+            assert os.path.islink(self.tmpdir.join("network-config.json"))
+        else:
+            for path in (
+                "instance/network-config.json",
+                "network-config.json",
+            ):
+                assert not self.tmpdir.join(path).exists()
 
     @mock.patch("cloudinit.distros.ubuntu.Distro")
     def test_apply_network_on_same_instance_id(self, m_ubuntu, caplog):
@@ -611,31 +630,43 @@ class TestInit_InitializeFilesystem:
         assert 0o640 == stat.S_IMODE(log_file.stat().mode)
 
     @pytest.mark.parametrize(
-        "set_perms,expected_perms",
+        "input, expected",
         [
+            (0o777, 0o640),
             (0o640, 0o640),
-            (0o606, 0o640),
-            (0o600, 0o600),
+            (0o606, 0o600),
+            (0o501, 0o400),
         ],
     )
-    def test_existing_file_permissions(
-        self, init, tmpdir, set_perms, expected_perms
-    ):
+    def test_existing_file_permissions(self, init, tmpdir, input, expected):
         """Test file permissions are set as expected.
 
-        CIS Hardening requires 640 permissions. If the file has looser
-        permissions, then hard code 640. If the file has tighter
-        permissions, then leave them as they are
+        CIS Hardening requires file mode 0o640 or stricter. Set the
+        permissions to the subset of 0o640 and the current
+        mode.
 
         See https://bugs.launchpad.net/cloud-init/+bug/1900837.
         """
         log_file = tmpdir.join("cloud-init.log")
         log_file.ensure()
-        # Use a mode that will never be made the default so this test will
-        # always be valid
-        log_file.chmod(set_perms)
+        log_file.chmod(input)
         init._cfg = {"def_log_file": str(log_file)}
+        with mock.patch.object(stages.util, "ensure_file") as ensure:
+            init._initialize_filesystem()
+            assert expected == ensure.call_args[0][1]
 
-        init._initialize_filesystem()
 
-        assert expected_perms == stat.S_IMODE(log_file.stat().mode)
+@pytest.mark.parametrize(
+    "mode_1, mode_2, expected",
+    [
+        (0o777, 0o640, 0o640),
+        (0o640, 0o777, 0o640),
+        (0o640, 0o541, 0o440),
+        (0o111, 0o050, 0o010),
+        (0o631, 0o640, 0o600),
+        (0o661, 0o640, 0o640),
+        (0o453, 0o611, 0o411),
+    ],
+)
+def test_strictest_permissions(mode_1, mode_2, expected):
+    assert expected == stages.Init._get_strictest_mode(mode_1, mode_2)

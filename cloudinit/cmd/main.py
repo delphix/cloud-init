@@ -12,24 +12,15 @@
 #
 # This file is part of cloud-init. See LICENSE file for license information.
 
-# Skip isort on this file because of the patch that comes between imports
-# isort: skip_file
-
 import argparse
 import json
 import os
 import sys
 import time
 import traceback
+import logging
 from typing import Tuple
 
-from cloudinit import patcher
-from cloudinit.config.modules import Modules
-
-patcher.patch_logging()
-
-from cloudinit.config.schema import validate_cloudconfig_schema
-from cloudinit import log as logging
 from cloudinit import netinfo
 from cloudinit import signal_handler
 from cloudinit import sources
@@ -38,17 +29,23 @@ from cloudinit import url_helper
 from cloudinit import util
 from cloudinit import version
 from cloudinit import warnings
-
 from cloudinit import reporting
-from cloudinit.reporting import events
-
-from cloudinit.settings import PER_INSTANCE, PER_ALWAYS, PER_ONCE, CLOUD_CONFIG
-
 from cloudinit import atomic_helper
-
-from cloudinit.config import cc_set_hostname
 from cloudinit.cmd.devel import read_cfg_paths
-
+from cloudinit.config import cc_set_hostname
+from cloudinit.config.modules import Modules
+from cloudinit.config.schema import validate_cloudconfig_schema
+from cloudinit.log import (
+    LogExporter,
+    setup_basic_logging,
+    setup_logging,
+    reset_logging,
+    configure_root_logger,
+    DEPRECATED,
+)
+from cloudinit.reporting import events
+from cloudinit.safeyaml import load
+from cloudinit.settings import PER_INSTANCE, PER_ALWAYS, PER_ONCE, CLOUD_CONFIG
 
 # Welcome message template
 WELCOME_MSG_TPL = (
@@ -82,10 +79,17 @@ def print_exc(msg=""):
     sys.stderr.write("\n")
 
 
+def log_ppid():
+    if util.is_Linux():
+        ppid = os.getppid()
+        LOG.info("PID [%s] started cloud-init.", ppid)
+
+
 def welcome(action, msg=None):
     if not msg:
         msg = welcome_format(action)
     util.multi_log("%s\n" % (msg), console=False, stderr=True, log=LOG)
+    log_ppid()
     return msg
 
 
@@ -218,11 +222,17 @@ def attempt_cmdline_url(path, network=True, cmdline=None) -> Tuple[int, str]:
                 is_cloud_cfg = False
             if is_cloud_cfg:
                 if cmdline_name == "url":
-                    util.deprecate(
-                        deprecated="The kernel command line key `url`",
-                        deprecated_version="22.3",
-                        extra_message=" Please use `cloud-config-url` "
-                        "kernel command line parameter instead",
+                    return (
+                        DEPRECATED,
+                        str(
+                            util.deprecate(
+                                deprecated="The kernel command line key `url`",
+                                deprecated_version="22.3",
+                                extra_message=" Please use `cloud-config-url` "
+                                "kernel command line parameter instead",
+                                return_log=True,
+                            ),
+                        ),
                     )
             else:
                 if cmdline_name == "cloud-config-url":
@@ -338,11 +348,11 @@ def main_init(name, args):
         LOG.debug(
             "Logging being reset, this logger may no longer be active shortly"
         )
-        logging.resetLogging()
-    logging.setupLogging(init.cfg)
+        reset_logging()
+    setup_logging(init.cfg)
     apply_reporting_cfg(init.cfg)
 
-    # Any log usage prior to setupLogging above did not have local user log
+    # Any log usage prior to setup_logging above did not have local user log
     # config applied.  We send the welcome message now, as stderr/out have
     # been redirected and log now configured.
     welcome(name, msg=w_msg)
@@ -475,9 +485,10 @@ def main_init(name, args):
         return (init.datasource, ["Consuming user data failed!"])
 
     # Validate user-data adheres to schema definition
-    if os.path.exists(init.paths.get_ipath_cur("userdata_raw")):
+    cloud_cfg_path = init.paths.get_ipath_cur("cloud_config")
+    if os.path.exists(cloud_cfg_path) and os.stat(cloud_cfg_path).st_size != 0:
         validate_cloudconfig_schema(
-            config=init.cfg,
+            config=load(util.load_file(cloud_cfg_path)),
             strict=False,
             log_details=False,
             log_deprecations=True,
@@ -499,7 +510,7 @@ def main_init(name, args):
             (outfmt, errfmt) = util.fixup_output(mods.cfg, name)
     except Exception:
         util.logexc(LOG, "Failed to re-adjust output redirection!")
-    logging.setupLogging(mods.cfg)
+    setup_logging(mods.cfg)
 
     # give the activated datasource a chance to adjust
     init.activate_datasource()
@@ -604,8 +615,8 @@ def main_modules(action_name, args):
         LOG.debug(
             "Logging being reset, this logger may no longer be active shortly"
         )
-        logging.resetLogging()
-    logging.setupLogging(mods.cfg)
+        reset_logging()
+    setup_logging(mods.cfg)
     apply_reporting_cfg(init.cfg)
 
     # now that logging is setup and stdout redirected, send welcome
@@ -666,8 +677,8 @@ def main_single(name, args):
         LOG.debug(
             "Logging being reset, this logger may no longer be active shortly"
         )
-        logging.resetLogging()
-    logging.setupLogging(mods.cfg)
+        reset_logging()
+    setup_logging(mods.cfg)
     apply_reporting_cfg(init.cfg)
 
     # now that logging is setup and stdout redirected, send welcome
@@ -697,6 +708,7 @@ def status_wrapper(name, args, data_d=None, link_d=None):
     status_link = os.path.join(link_d, "status.json")
     result_path = os.path.join(data_d, "result.json")
     result_link = os.path.join(link_d, "result.json")
+    root_logger = logging.getLogger()
 
     util.ensure_dirs(
         (
@@ -720,7 +732,6 @@ def status_wrapper(name, args, data_d=None, link_d=None):
     modes = (
         "init",
         "init-local",
-        "modules-init",
         "modules-config",
         "modules-final",
     )
@@ -756,7 +767,11 @@ def status_wrapper(name, args, data_d=None, link_d=None):
     v1 = status["v1"]
     v1["stage"] = mode
     v1[mode]["start"] = time.time()
+    v1[mode]["recoverable_errors"] = next(
+        filter(lambda h: isinstance(h, LogExporter), root_logger.handlers)
+    ).export_logs()
 
+    # Write status.json prior to running init / module code
     atomic_helper.write_json(status_path, status)
     util.sym_link(
         os.path.relpath(status_path, link_d), status_link, force=True
@@ -781,6 +796,10 @@ def status_wrapper(name, args, data_d=None, link_d=None):
     v1[mode]["finished"] = time.time()
     v1["stage"] = None
 
+    # Write status.json after running init / module code
+    v1[mode]["recoverable_errors"] = next(
+        filter(lambda h: isinstance(h, LogExporter), root_logger.handlers)
+    ).export_logs()
     atomic_helper.write_json(status_path, status)
 
     if mode == "modules-final":
@@ -837,6 +856,7 @@ def main_features(name, args):
 
 
 def main(sysv_args=None):
+    configure_root_logger()
     if not sysv_args:
         sysv_args = sys.argv
     parser = argparse.ArgumentParser(prog=sysv_args.pop(0))
@@ -978,7 +998,7 @@ def main(sysv_args=None):
         # Only load subparsers if subcommand is specified to avoid load cost
         subcommand = sysv_args[0]
         if subcommand == "analyze":
-            from cloudinit.analyze.__main__ import get_parser as analyze_parser
+            from cloudinit.analyze import get_parser as analyze_parser
 
             # Construct analyze subcommand parser
             analyze_parser(parser_analyze)
@@ -1035,15 +1055,23 @@ def main(sysv_args=None):
     # Subparsers.required = True and each subparser sets action=(name, functor)
     (name, functor) = args.action
 
-    # Setup basic logging to start (until reinitialized)
-    # iff in debug mode.
-    if args.debug:
-        logging.setupBasicLogging()
+    # Setup basic logging for cloud-init:
+    # - for cloud-init stages if --debug
+    # - for all other subcommands:
+    #   - if --debug is passed, logging.DEBUG
+    #   - if --debug is not passed, logging.WARNING
+    if name not in ("init", "modules"):
+        setup_basic_logging(logging.DEBUG if args.debug else logging.WARNING)
+    elif args.debug:
+        setup_basic_logging()
 
     # Setup signal handlers before running
     signal_handler.attach_handlers()
 
-    if name in ("modules", "init"):
+    # Write boot stage data to write status.json and result.json
+    # Exclude modules --mode=init, since it is not a real boot stage and
+    # should not be written into status.json
+    if "init" == name or ("modules" == name and "init" != args.mode):
         functor = status_wrapper
 
     rname = None
