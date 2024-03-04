@@ -1,8 +1,8 @@
 # cloud-init
 
-![Unit Tests](https://github.com/canonical/cloud-init/actions/workflows/unit.yml/badge.svg)
-![Integration Tests](https://github.com/canonical/cloud-init/actions/workflows/integration.yml/badge.svg)
-![Documentation](https://github.com/canonical/cloud-init/actions/workflows/check_format.yml/badge.svg)
+![Unit Tests](https://github.com/canonical/cloud-init/actions/workflows/unit.yml/badge.svg?branch=main)
+![Integration Tests](https://github.com/canonical/cloud-init/actions/workflows/integration.yml/badge.svg?branch=main)
+![Documentation](https://github.com/canonical/cloud-init/actions/workflows/check_format.yml/badge.svg?branch=main)
 
 Cloud-init is the *industry standard* multi-distribution method for
 cross-platform cloud instance initialization. It is supported across all
@@ -43,7 +43,7 @@ supported, please get in contact with that distribution and send them our way!
 
 ## To start developing cloud-init
 
-Checkout the [contributing](https://cloudinit.readthedocs.io/en/latest/development/contributing.html)
+Checkout the [contributing](https://cloudinit.readthedocs.io/en/latest/development/index.html)
 document that outlines the steps necessary to develop, test, and submit code.
 
 ## Daily builds

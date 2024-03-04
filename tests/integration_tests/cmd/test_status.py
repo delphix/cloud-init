@@ -1,4 +1,6 @@
 """Tests for `cloud-init status`"""
+import json
+
 import pytest
 
 from tests.integration_tests.clouds import IntegrationCloud
@@ -47,3 +49,36 @@ def test_wait_when_no_datasource(session_cloud: IntegrationCloud, setup_image):
         status_out = wait_for_cloud_init(client).stdout.strip()
         assert "status: disabled" in status_out
         assert client.execute("cloud-init status --wait").ok
+
+
+USER_DATA = """\
+#cloud-config
+ca-certs:
+  remove_defaults: false
+  invalid_key: true
+"""
+
+
+@pytest.mark.user_data(USER_DATA)
+def test_status_json_errors(client):
+    """Ensure that deprecated logs end up in the recoverable errors and that
+    machine readable status contains recoverable errors
+    """
+    status_json = client.execute("cat /run/cloud-init/status.json").stdout
+    assert json.loads(status_json)["v1"]["init"]["recoverable_errors"].get(
+        "DEPRECATED"
+    )
+
+    status_json = client.execute("cloud-init status --format json").stdout
+    assert "Deprecated cloud-config provided:\nca-certs:" in json.loads(
+        status_json
+    )["init"]["recoverable_errors"].get("DEPRECATED").pop(0)
+    assert "Deprecated cloud-config provided:\nca-certs:" in json.loads(
+        status_json
+    )["recoverable_errors"].get("DEPRECATED").pop(0)
+    assert "Invalid cloud-config provided" in json.loads(status_json)["init"][
+        "recoverable_errors"
+    ].get("WARNING").pop(0)
+    assert "Invalid cloud-config provided" in json.loads(status_json)[
+        "recoverable_errors"
+    ].get("WARNING").pop(0)

@@ -8,11 +8,10 @@
 #
 # This file is part of cloud-init. See LICENSE file for license information.
 
+import logging
 import os
 
-from cloudinit import handlers
-from cloudinit import log as logging
-from cloudinit import subp, util
+from cloudinit import handlers, subp, util
 from cloudinit.settings import PER_ALWAYS
 
 LOG = logging.getLogger(__name__)
@@ -48,13 +47,11 @@ class BootHookPartHandler(handlers.Handler):
             env = os.environ.copy()
             if self.instance_id is not None:
                 env["INSTANCE_ID"] = str(self.instance_id)
-            subp.subp([filepath], env=env)
+            LOG.debug("Executing boothook")
+            subp.subp([filepath], env=env, capture=False)
         except subp.ProcessExecutionError:
             util.logexc(LOG, "Boothooks script %s execution error", filepath)
         except Exception:
             util.logexc(
                 LOG, "Boothooks unknown error when running %s", filepath
             )
-
-
-# vi: ts=4 expandtab

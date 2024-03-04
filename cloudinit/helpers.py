@@ -9,12 +9,12 @@
 # This file is part of cloud-init. See LICENSE file for license information.
 
 import contextlib
+import logging
 import os
 from configparser import NoOptionError, NoSectionError, RawConfigParser
 from io import StringIO
 from time import time
 
-from cloudinit import log as logging
 from cloudinit import persistence, type_utils, util
 from cloudinit.settings import CFG_ENV_NAME, PER_ALWAYS, PER_INSTANCE, PER_ONCE
 
@@ -347,6 +347,7 @@ class Paths(persistence.CloudInitPickleMixin):
             # file
             "instance_data_sensitive": "instance-data-sensitive.json",
             "combined_cloud_config": "combined-cloud-config.json",
+            "network_config": "network-config.json",
             "instance_id": ".instance-id",
             "manual_clean_marker": "manual-clean",
             "obj_pkl": "obj.pkl",
@@ -494,6 +495,3 @@ class DefaultingConfigParser(RawConfigParser):
         if header:
             contents = "\n".join([header, contents, ""])
         return contents
-
-
-# vi: ts=4 expandtab

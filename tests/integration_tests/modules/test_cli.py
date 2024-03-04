@@ -6,6 +6,7 @@ These would be for behavior manually invoked by user from the command line
 import pytest
 
 from tests.integration_tests.instances import IntegrationInstance
+from tests.integration_tests.integration_settings import PLATFORM
 
 VALID_USER_DATA = """\
 #cloud-config
@@ -41,7 +42,7 @@ def test_valid_userdata(client: IntegrationInstance):
     """
     result = client.execute("cloud-init schema --system")
     assert result.ok
-    assert "Valid cloud-config: user-data" in result.stdout.strip()
+    assert "Valid schema user-data" in result.stdout.strip()
     result = client.execute("cloud-init status --long")
     if not result.ok:
         raise AssertionError(
@@ -49,6 +50,9 @@ def test_valid_userdata(client: IntegrationInstance):
         )
 
 
+@pytest.mark.skipif(
+    PLATFORM == "qemu", reason="QEMU only supports #cloud-config userdata"
+)
 @pytest.mark.user_data(INVALID_USER_DATA_HEADER)
 def test_invalid_userdata(client: IntegrationInstance):
     """Test `cloud-init schema` with invalid userdata.
@@ -63,10 +67,9 @@ def test_invalid_userdata(client: IntegrationInstance):
         " #cloud-boothook, #cloud-config" in result.stderr
     )
     result = client.execute("cloud-init status --long")
-    if not result.ok:
-        raise AssertionError(
-            f"Unexpected error from cloud-init status: {result}"
-        )
+    assert (
+        2 == result.return_code
+    ), f"Unexpected exit code {result.return_code}"
 
 
 @pytest.mark.user_data(INVALID_USER_DATA_SCHEMA)
@@ -76,7 +79,9 @@ def test_invalid_userdata_schema(client: IntegrationInstance):
     PR #1175
     """
     result = client.execute("cloud-init status --long")
-    assert result.ok
+    assert (
+        2 == result.return_code
+    ), f"Unexpected exit code {result.return_code}"
     log = client.read_from_file("/var/log/cloud-init.log")
     warning = (
         "[WARNING]: Invalid cloud-config provided: Please run "
@@ -84,9 +89,3 @@ def test_invalid_userdata_schema(client: IntegrationInstance):
     )
     assert warning in log
     assert "asdfasdf" not in log
-
-    result = client.execute("cloud-init status --long")
-    if not result.ok:
-        raise AssertionError(
-            f"Unexpected error from cloud-init status: {result}"
-        )

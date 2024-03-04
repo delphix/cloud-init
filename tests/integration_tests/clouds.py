@@ -19,6 +19,7 @@ from pycloudlib import (
     LXDContainer,
     LXDVirtualMachine,
     Openstack,
+    Qemu,
 )
 from pycloudlib.cloud import BaseCloud, ImageType
 from pycloudlib.ec2.instance import EC2Instance
@@ -169,7 +170,13 @@ class IntegrationCloud(ABC):
         return IntegrationInstance(self, cloud_instance, settings)
 
     def destroy(self):
-        self.cloud_instance.clean()
+        if self.settings.KEEP_IMAGE or self.settings.KEEP_INSTANCE:
+            log.info(
+                "NOT cleaning cloud instance because KEEP_IMAGE or "
+                "KEEP_INSTANCE is True"
+            )
+        else:
+            self.cloud_instance.clean()
 
     def snapshot(self, instance):
         return self.cloud_instance.snapshot(instance, clean=True)
@@ -395,3 +402,11 @@ class IbmCloud(IntegrationCloud):
         return IBM(
             tag="integration-test-ibm",
         )
+
+
+class QemuCloud(IntegrationCloud):
+    datasource = "qemu"
+    cloud_instance = Qemu
+
+    def _get_cloud_instance(self):
+        return Qemu(tag="qemu-integration-test")
