@@ -479,6 +479,7 @@ def setup_user_keys(keys, username, options=None):
 
     # Extract the old and make the new
     (auth_key_fn, auth_key_entries) = extract_authorized_keys(username)
+    print(f"PG - ssh_util auth_key_entries {auth_key_entries}")
     ssh_dir = os.path.dirname(auth_key_fn)
     with util.SeLinuxGuard(ssh_dir, recursive=True):
         content = update_authorized_keys(auth_key_entries, key_entries)

@@ -344,6 +344,7 @@ class DataSource(CloudInitPickleMixin, metaclass=abc.ABCMeta):
         does not run, _something_ needs to detect the kernel command line
         definition.
         """
+        LOG.debug(f"PGANDHI: {self.dsname}")
         if self.dsname.lower() == parse_cmdline().lower():
             LOG.debug(
                 "Machine is configured by the kernel commandline to run on "
@@ -352,6 +353,7 @@ class DataSource(CloudInitPickleMixin, metaclass=abc.ABCMeta):
             )
             return True
         elif self.sys_cfg.get("datasource_list", []) == [self.dsname]:
+            LOG.debug(f"PGANDHI: {self.sys_cfg.get('datasource_list', [])}")
             LOG.debug(
                 "Machine is configured to run on single datasource %s.", self
             )
