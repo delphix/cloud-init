@@ -187,6 +187,7 @@ class DataSourceOracle(sources.DataSource):
             self.metadata["public_keys"] = data["metadata"].get(
                 "ssh_authorized_keys"
             )
+            print(f"PG - metadata {self.metadata}")
 
         return True
 
