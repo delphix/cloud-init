@@ -12,12 +12,14 @@ import copy
 import logging
 import os
 import time
-from typing import List
+from typing import Dict, List
 
 from cloudinit import dmi, net, sources
 from cloudinit import url_helper as uhelp
 from cloudinit import util, warnings
+from cloudinit.distros import Distro
 from cloudinit.event import EventScope, EventType
+from cloudinit.net import activators
 from cloudinit.net.dhcp import NoDHCPLeaseError
 from cloudinit.net.ephemeral import EphemeralIPNetwork
 from cloudinit.sources.helpers import ec2
@@ -53,9 +55,15 @@ def skip_404_tag_errors(exception):
 # Cloud platforms that support IMDSv2 style metadata server
 IDMSV2_SUPPORTED_CLOUD_PLATFORMS = [CloudNames.AWS, CloudNames.ALIYUN]
 
+# Only trigger hook-hotplug on NICs with Ec2 drivers. Avoid triggering
+# it on docker virtual NICs and the like. LP: #1946003
+_EXTRA_HOTPLUG_UDEV_RULES = """
+ENV{ID_NET_DRIVER}=="vif|ena|ixgbevf", GOTO="cloudinit_hook"
+GOTO="cloudinit_end"
+"""
+
 
 class DataSourceEc2(sources.DataSource):
-
     dsname = "Ec2"
     # Default metadata urls that will be used if none are provided
     # They will be checked for 'resolveability' and some of the
@@ -97,9 +105,15 @@ class DataSourceEc2(sources.DataSource):
         }
     }
 
+    extra_hotplug_udev_rules = _EXTRA_HOTPLUG_UDEV_RULES
+
     def __init__(self, sys_cfg, distro, paths):
         super(DataSourceEc2, self).__init__(sys_cfg, distro, paths)
         self.metadata_address = None
+
+    def _unpickle(self, ci_pkl_version: int) -> None:
+        super()._unpickle(ci_pkl_version)
+        self.extra_hotplug_udev_rules = _EXTRA_HOTPLUG_UDEV_RULES
 
     def _get_cloud_name(self):
         """Return the cloud name as identified during _get_data."""
@@ -131,7 +145,7 @@ class DataSourceEc2(sources.DataSource):
             try:
                 with EphemeralIPNetwork(
                     self.distro,
-                    self.fallback_interface,
+                    self.distro.fallback_interface,
                     ipv4=True,
                     ipv6=True,
                 ) as netw:
@@ -299,7 +313,7 @@ class DataSourceEc2(sources.DataSource):
                 connect_synchronously=False,
             )
         except uhelp.UrlError:
-            # We use the raised exception to interupt the retry loop.
+            # We use the raised exception to interrupt the retry loop.
             # Nothing else to do here.
             pass
 
@@ -402,7 +416,7 @@ class DataSourceEc2(sources.DataSource):
             LOG.debug("block-device-mapping not a dictionary: '%s'", bdm)
             return None
 
-        for (entname, device) in bdm.items():
+        for entname, device in bdm.items():
             if entname == name:
                 found = device
                 break
@@ -500,7 +514,7 @@ class DataSourceEc2(sources.DataSource):
                 func=self.get_data,
             )
 
-        iface = self.fallback_interface
+        iface = self.distro.fallback_interface
         net_md = self.metadata.get("network")
         if isinstance(net_md, dict):
             # SRU_BLOCKER: xenial, bionic and eoan should default
@@ -508,6 +522,7 @@ class DataSourceEc2(sources.DataSource):
             # behavior on those releases.
             result = convert_ec2_metadata_network_config(
                 net_md,
+                self.distro,
                 fallback_nic=iface,
                 full_network_config=util.get_cfg_option_bool(
                     self.ds_cfg, "apply_full_imds_network_config", True
@@ -531,19 +546,6 @@ class DataSourceEc2(sources.DataSource):
         self._network_config = result
 
         return self._network_config
-
-    @property
-    def fallback_interface(self):
-        if self._fallback_interface is None:
-            # fallback_nic was used at one point, so restored objects may
-            # have an attribute there. respect that if found.
-            _legacy_fbnic = getattr(self, "fallback_nic", None)
-            if _legacy_fbnic:
-                self._fallback_interface = _legacy_fbnic
-                self.fallback_nic = None
-            else:
-                return super(DataSourceEc2, self).fallback_interface
-        return self._fallback_interface
 
     def crawl_metadata(self):
         """Crawl metadata service when available.
@@ -853,7 +855,7 @@ def _collect_platform_data():
     """
     data = {}
     try:
-        uuid = util.load_file("/sys/hypervisor/uuid").strip()
+        uuid = util.load_text_file("/sys/hypervisor/uuid").strip()
         data["uuid_source"] = "hypervisor"
     except Exception:
         uuid = dmi.read_dmi_data("system-uuid")
@@ -884,8 +886,145 @@ def _collect_platform_data():
     return data
 
 
+def _build_nic_order(
+    macs_metadata: Dict[str, Dict], macs: List[str]
+) -> Dict[str, int]:
+    """
+    Builds a dictionary containing macs as keys nad nic orders as values,
+    taking into account `network-card` and `device-number` if present.
+
+    Note that the first NIC will be the primary NIC as it will be the one with
+    [network-card] == 0 and device-number == 0 if present.
+
+    @param macs_metadata: dictionary with mac address as key and contents like:
+    {"device-number": "0", "interface-id": "...", "local-ipv4s": ...}
+    @macs: list of macs to consider
+
+    @return: Dictionary with macs as keys and nic orders as values.
+    """
+    nic_order: Dict[str, int] = {}
+    if len(macs) == 0 or len(macs_metadata) == 0:
+        return nic_order
+
+    valid_macs_metadata = filter(
+        # filter out nics without metadata (not a physical nic)
+        lambda mmd: mmd[1] is not None,
+        # filter by macs
+        map(lambda mac: (mac, macs_metadata.get(mac)), macs),
+    )
+
+    def _get_key_as_int_or(dikt, key, alt_value):
+        value = dikt.get(key, None)
+        if value is not None:
+            return int(value)
+        return alt_value
+
+    # Sort by (network_card, device_index) as some instances could have
+    # multiple network cards with repeated device indexes.
+    #
+    # On platforms where network-card and device-number are not present,
+    # as AliYun, the order will be by mac, as before the introduction of this
+    # function.
+    return {
+        mac: i
+        for i, (mac, _mac_metadata) in enumerate(
+            sorted(
+                valid_macs_metadata,
+                key=lambda mmd: (
+                    _get_key_as_int_or(
+                        mmd[1], "network-card", float("infinity")
+                    ),
+                    _get_key_as_int_or(
+                        mmd[1], "device-number", float("infinity")
+                    ),
+                ),
+            )
+        )
+    }
+
+
+def _configure_policy_routing(
+    dev_config: dict,
+    *,
+    nic_name: str,
+    nic_metadata: dict,
+    distro: Distro,
+    is_ipv4: bool,
+    table: int,
+) -> None:
+    """
+    Configure policy-based routing on secondary NICs / secondary IPs to
+    ensure outgoing packets are routed via the correct interface.
+
+    @param: dev_config: network cfg v2 to be updated inplace.
+    @param: nic_name: nic name. Only used if ipv4.
+    @param: nic_metadata: nic metadata from IMDS.
+    @param: distro: Instance of Distro. Only used if ipv4.
+    @param: is_ipv4: Boolean indicating if we are acting over ipv4 or not.
+    @param: table: Routing table id.
+    """
+    if not dev_config.get("routes"):
+        dev_config["routes"] = []
+    if is_ipv4:
+        subnet_prefix_routes = nic_metadata["subnet-ipv4-cidr-block"]
+        ips = nic_metadata["local-ipv4s"]
+        try:
+            lease = distro.dhcp_client.dhcp_discovery(nic_name, distro=distro)
+            gateway = lease["routers"]
+        except NoDHCPLeaseError as e:
+            LOG.warning(
+                "Could not perform dhcp discovery on %s to find its "
+                "gateway. Not adding default route via the gateway. "
+                "Error: %s",
+                nic_name,
+                e,
+            )
+        else:
+            # Add default route via the NIC's gateway
+            dev_config["routes"].append(
+                {
+                    "to": "0.0.0.0/0",
+                    "via": gateway,
+                    "table": table,
+                },
+            )
+    else:
+        subnet_prefix_routes = nic_metadata["subnet-ipv6-cidr-blocks"]
+        ips = nic_metadata["ipv6s"]
+
+    subnet_prefix_routes = (
+        [subnet_prefix_routes]
+        if isinstance(subnet_prefix_routes, str)
+        else subnet_prefix_routes
+    )
+    for prefix_route in subnet_prefix_routes:
+        dev_config["routes"].append(
+            {
+                "to": prefix_route,
+                "table": table,
+            },
+        )
+
+    if not dev_config.get("routing-policy"):
+        dev_config["routing-policy"] = []
+    # Packets coming from any IP associated with the current NIC
+    # will be routed using `table` routing table
+    ips = [ips] if isinstance(ips, str) else ips
+    for ip in ips:
+        dev_config["routing-policy"].append(
+            {
+                "from": ip,
+                "table": table,
+            },
+        )
+
+
 def convert_ec2_metadata_network_config(
-    network_md, macs_to_nics=None, fallback_nic=None, full_network_config=True
+    network_md,
+    distro,
+    macs_to_nics=None,
+    fallback_nic=None,
+    full_network_config=True,
 ):
     """Convert ec2 metadata to network config version 2 data dict.
 
@@ -893,6 +1032,7 @@ def convert_ec2_metadata_network_config(
        generally formed as {"interfaces": {"macs": {}} where
        'macs' is a dictionary with mac address as key and contents like:
        {"device-number": "0", "interface-id": "...", "local-ipv4s": ...}
+    @param: distro: instance of Distro.
     @param: macs_to_nics: Optional dict of mac addresses and nic names. If
        not provided, get_interfaces_by_mac is called to get it from the OS.
     @param: fallback_nic: Optionally provide the primary nic interface name.
@@ -926,15 +1066,18 @@ def convert_ec2_metadata_network_config(
         netcfg["ethernets"][nic_name] = dev_config
         return netcfg
     # Apply network config for all nics and any secondary IPv4/v6 addresses
-    nic_idx = 0
-    for mac, nic_name in sorted(macs_to_nics.items()):
+    is_netplan = distro.network_activator == activators.NetplanActivator
+    macs = sorted(macs_to_nics.keys())
+    nic_order = _build_nic_order(macs_metadata, macs)
+    for mac in macs:
+        nic_name = macs_to_nics[mac]
         nic_metadata = macs_metadata.get(mac)
         if not nic_metadata:
             continue  # Not a physical nic represented in metadata
-        # device-number is zero-indexed, we want it 1-indexed for the
-        # multiplication on the following line
-        nic_idx = int(nic_metadata.get("device-number", nic_idx)) + 1
-        dhcp_override = {"route-metric": nic_idx * 100}
+        nic_idx = nic_order[mac]
+        is_primary_nic = nic_idx == 0
+        # nic_idx + 1 to start route_metric at 100 (nic_idx is 0-indexed)
+        dhcp_override = {"route-metric": (nic_idx + 1) * 100}
         dev_config = {
             "dhcp4": True,
             "dhcp4-overrides": dhcp_override,
@@ -942,18 +1085,58 @@ def convert_ec2_metadata_network_config(
             "match": {"macaddress": mac.lower()},
             "set-name": nic_name,
         }
+        # This config only works on systems using Netplan because Networking
+        # config V2 does not support `routing-policy`, but this config is
+        # passed through on systems using Netplan.
+        # See: https://github.com/canonical/cloud-init/issues/4862
+        #
+        # If device-number is not present (AliYun or other ec2-like platforms),
+        # do not configure source-routing as we cannot determine which is the
+        # primary NIC.
+        table = 100 + nic_idx
+        if (
+            is_netplan
+            and nic_metadata.get("device-number")
+            and not is_primary_nic
+        ):
+            dhcp_override["use-routes"] = True
+            _configure_policy_routing(
+                dev_config,
+                distro=distro,
+                nic_name=nic_name,
+                nic_metadata=nic_metadata,
+                is_ipv4=True,
+                table=table,
+            )
         if nic_metadata.get("ipv6s"):  # Any IPv6 addresses configured
             dev_config["dhcp6"] = True
             dev_config["dhcp6-overrides"] = dhcp_override
+            if (
+                is_netplan
+                and nic_metadata.get("device-number")
+                and not is_primary_nic
+            ):
+                _configure_policy_routing(
+                    dev_config,
+                    distro=distro,
+                    nic_name=nic_name,
+                    nic_metadata=nic_metadata,
+                    is_ipv4=False,
+                    table=table,
+                )
         dev_config["addresses"] = get_secondary_addresses(nic_metadata, mac)
         if not dev_config["addresses"]:
             dev_config.pop("addresses")  # Since we found none configured
+
         netcfg["ethernets"][nic_name] = dev_config
-    # Remove route-metric dhcp overrides if only one nic configured
+    # Remove route-metric dhcp overrides and routes / routing-policy if only
+    # one nic configured
     if len(netcfg["ethernets"]) == 1:
         for nic_name in netcfg["ethernets"].keys():
             netcfg["ethernets"][nic_name].pop("dhcp4-overrides")
             netcfg["ethernets"][nic_name].pop("dhcp6-overrides", None)
+            netcfg["ethernets"][nic_name].pop("routes", None)
+            netcfg["ethernets"][nic_name].pop("routing-policy", None)
     return netcfg
 
 

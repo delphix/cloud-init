@@ -27,6 +27,18 @@ LOG = logging.getLogger(__name__)
 # name in the lookup path...
 MOD_PREFIX = "cc_"
 
+# List of modules that have removed upstream. This prevents every downstream
+# from having to create upgrade scripts to avoid warnings about missing
+# modules.
+REMOVED_MODULES = [
+    "cc_migrator",  # Removed in 24.1
+    "cc_rightscale_userdata",  # Removed in 24.1
+]
+
+RENAMED_MODULES = {
+    "cc_ubuntu_advantage": "cc_ubuntu_pro",  # Renamed 24.1
+}
+
 
 class ModuleDetails(NamedTuple):
     module: ModuleType
@@ -182,23 +194,42 @@ class Modules:
             if not mod_name:
                 continue
             if freq and freq not in FREQUENCIES:
-                LOG.warning(
-                    "Config specified module %s has an unknown frequency %s",
-                    raw_name,
-                    freq,
+                util.deprecate(
+                    deprecated=(
+                        f"Config specified module {raw_name} has an unknown"
+                        f" frequency {freq}"
+                    ),
+                    deprecated_version="22.1",
                 )
                 # Misconfigured in /etc/cloud/cloud.cfg. Reset so cc_* module
                 # default meta attribute "frequency" value is used.
                 freq = None
+            if mod_name in RENAMED_MODULES:
+                util.deprecate(
+                    deprecated=(
+                        f"Module has been renamed from {mod_name} to "
+                        f"{RENAMED_MODULES[mod_name][1]}. Update any"
+                        " references in /etc/cloud/cloud.cfg"
+                    ),
+                    deprecated_version="24.1",
+                )
+                mod_name = RENAMED_MODULES[mod_name]
             mod_locs, looked_locs = importer.find_module(
                 mod_name, ["", type_utils.obj_name(config)], ["handle"]
             )
             if not mod_locs:
-                LOG.warning(
-                    "Could not find module named %s (searched %s)",
-                    mod_name,
-                    looked_locs,
-                )
+                if mod_name in REMOVED_MODULES:
+                    LOG.info(
+                        "Module `%s` has been removed from cloud-init. "
+                        "It may be removed from `/etc/cloud/cloud.cfg`.",
+                        mod_name[3:],  # [3:] to remove 'cc_'
+                    )
+                else:
+                    LOG.warning(
+                        "Could not find module named %s (searched %s)",
+                        mod_name,
+                        looked_locs,
+                    )
                 continue
             mod = importer.import_module(mod_locs[0])
             validate_module(mod, raw_name)
