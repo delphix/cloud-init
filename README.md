@@ -4,6 +4,7 @@
 ![Integration Tests](https://github.com/canonical/cloud-init/actions/workflows/integration.yml/badge.svg?branch=main)
 ![Documentation](https://github.com/canonical/cloud-init/actions/workflows/check_format.yml/badge.svg?branch=main)
 
+
 Cloud-init is the *industry standard* multi-distribution method for
 cross-platform cloud instance initialization. It is supported across all
 major public cloud providers, provisioning systems for private cloud
