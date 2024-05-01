@@ -73,7 +73,7 @@ def read_sys_net(
 ):
     dev_path = sys_dev_path(devname, path)
     try:
-        contents = util.load_file(dev_path)
+        contents = util.load_text_file(dev_path)
     except (OSError, IOError) as e:
         e_errno = getattr(e, "errno", None)
         if e_errno in (errno.ENOENT, errno.ENOTDIR):
@@ -1282,6 +1282,8 @@ def subnet_is_ipv6(subnet) -> bool:
     """Common helper for checking network_state subnets for ipv6."""
     # 'static6', 'dhcp6', 'ipv6_dhcpv6-stateful', 'ipv6_dhcpv6-stateless' or
     # 'ipv6_slaac'
+    # This function is inappropriate for v2-based routes as routes defined
+    # under v2 subnets can contain ipv4 and ipv6 simultaneously
     if subnet["type"].endswith("6") or subnet["type"] in IPV6_DYNAMIC_TYPES:
         # This is a request either static6 type or DHCPv6.
         return True
