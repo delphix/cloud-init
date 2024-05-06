@@ -146,7 +146,7 @@ def reset_logging():
 
 def setup_backup_logging():
     """In the event that internal logging exception occurs and logging is not
-    possible for some reason, make a desparate final attempt to log to stderr
+    possible for some reason, make a desperate final attempt to log to stderr
     which may ease debugging.
     """
     fallback_handler = logging.StreamHandler(sys.stderr)
@@ -166,6 +166,18 @@ def setup_backup_logging():
     logging.Handler.handleError = handleError
 
 
+class CloudInitLogRecord(logging.LogRecord):
+    """reporting the filename as __init__.py isn't very useful in logs
+
+    if the filename is __init__.py, use the parent directory as the filename
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if "__init__.py" == self.filename:
+            self.filename = os.path.basename(os.path.dirname(self.pathname))
+
+
 def configure_root_logger():
     """Customize the root logger for cloud-init"""
 
@@ -179,3 +191,6 @@ def configure_root_logger():
     handler = LogExporter()
     handler.setLevel(logging.WARN)
     logging.getLogger().addHandler(handler)
+
+    # LogRecord allows us to report more useful information than __init__.py
+    logging.setLogRecordFactory(CloudInitLogRecord)

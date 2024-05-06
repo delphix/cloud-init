@@ -7,6 +7,8 @@ import pytest
 from cloudinit import subp
 from cloudinit.distros.package_management.apt import APT_GET_COMMAND, Apt
 
+M_PATH = "cloudinit.distros.package_management.apt.Apt."
+
 
 @mock.patch.dict("os.environ", {}, clear=True)
 @mock.patch("cloudinit.distros.debian.subp.which", return_value=True)
@@ -22,7 +24,7 @@ class TestPackageCommand:
         expected_call = {
             "args": ["eatmydata"] + list(APT_GET_COMMAND) + ["update"],
             "capture": False,
-            "env": {"DEBIAN_FRONTEND": "noninteractive"},
+            "update_env": {"DEBIAN_FRONTEND": "noninteractive"},
         }
         assert m_subp.call_args == mock.call(**expected_call)
 
@@ -86,3 +88,27 @@ class TestPackageCommand:
         )
         with pytest.raises(TimeoutError):
             apt._wait_for_apt_command("stub", {"args": "stub2"}, timeout=5)
+
+    def test_search_stem(self, m_subp, m_which, mocker):
+        """Test that containing `-`, `^`, `/`, or `=` is handled correctly."""
+        mocker.patch(f"{M_PATH}update_package_sources")
+        mocker.patch(
+            f"{M_PATH}get_all_packages",
+            return_value=["cloud-init", "pkg2", "pkg3", "pkg4", "pkg5"],
+        )
+        m_install = mocker.patch(f"{M_PATH}run_package_command")
+
+        apt = Apt(runner=mock.Mock())
+        apt.install_packages(
+            ["cloud-init", "pkg2-", "pkg3/jammy-updates", "pkg4=1.2", "pkg5^"]
+        )
+        m_install.assert_called_with(
+            "install",
+            pkgs=[
+                "cloud-init",
+                "pkg2-",
+                "pkg3/jammy-updates",
+                "pkg4=1.2",
+                "pkg5^",
+            ],
+        )

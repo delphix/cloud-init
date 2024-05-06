@@ -104,23 +104,7 @@ class FileSemaphores:
         sem_file = self._get_path(cname, freq)
         # This isn't really a good atomic check
         # but it suffices for where and when cloudinit runs
-        if os.path.exists(sem_file):
-            return True
-
-        # this case could happen if the migrator module hadn't run yet
-        # but the item had run before we did canon_sem_name.
-        if cname != name and os.path.exists(self._get_path(name, freq)):
-            LOG.warning(
-                "%s has run without canonicalized name [%s].\n"
-                "likely the migrator has not yet run. "
-                "It will run next boot.\n"
-                "run manually with: cloud-init single --name=migrator",
-                name,
-                cname,
-            )
-            return True
-
-        return False
+        return os.path.exists(sem_file)
 
     def _get_path(self, name, freq):
         sem_path = self.sem_path
@@ -363,6 +347,7 @@ class Paths(persistence.CloudInitPickleMixin):
             "vendor_cloud_config": "vendor-cloud-config.txt",
             "vendor_scripts": "scripts/vendor",
             "warnings": "warnings",
+            "hotplug.enabled": "hotplug.enabled",
         }
         # Set when a datasource becomes active
         self.datasource = ds
@@ -388,6 +373,8 @@ class Paths(persistence.CloudInitPickleMixin):
             self.lookups[
                 "combined_cloud_config"
             ] = "combined-cloud-config.json"
+        if "hotplug.enabled" not in self.lookups:
+            self.lookups["hotplug.enabled"] = "hotplug.enabled"
 
     # get_ipath_cur: get the current instance path for an item
     def get_ipath_cur(self, name=None):

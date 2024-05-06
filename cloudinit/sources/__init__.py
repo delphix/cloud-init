@@ -195,9 +195,6 @@ class DataSource(CloudInitPickleMixin, metaclass=abc.ABCMeta):
     #  - seed-dir (<dirname>)
     _subplatform = None
 
-    # Track the discovered fallback nic for use in configuration generation.
-    _fallback_interface = None
-
     # The network configuration sources that should be considered for this data
     # source.  (The first source in this list that provides network
     # configuration will be used without considering any that follow.)  This
@@ -223,10 +220,28 @@ class DataSource(CloudInitPickleMixin, metaclass=abc.ABCMeta):
     # The datasource also defines a set of default EventTypes that the
     # datasource can react to. These are the event types that will be used
     # if not overridden by the user.
+    #
     # A datasource requiring to write network config on each system boot
-    # would call default_update_events['network'].add(EventType.BOOT).
+    # would either:
+    #
+    # 1) Overwrite the class attribute `default_update_events` like:
+    #
+    # >>> default_update_events = {
+    # ...     EventScope.NETWORK: {
+    # ...         EventType.BOOT_NEW_INSTANCE,
+    # ...         EventType.BOOT,
+    # ...     }
+    # ... }
+    #
+    # 2) Or, if writing network config on every boot has to be determined at
+    # runtime, then deepcopy to not overwrite the class attribute on other
+    # elements of this class hierarchy, like:
+    #
+    # >>> self.default_update_events = copy.deepcopy(
+    # ...    self.default_update_events
+    # ... )
+    # >>> self.default_update_events[EventScope.NETWORK].add(EventType.BOOT)
 
-    # Default: generate network config on new instance id (first boot).
     supported_update_events = {
         EventScope.NETWORK: {
             EventType.BOOT_NEW_INSTANCE,
@@ -235,6 +250,8 @@ class DataSource(CloudInitPickleMixin, metaclass=abc.ABCMeta):
             EventType.HOTPLUG,
         }
     }
+
+    # Default: generate network config on new instance id (first boot).
     default_update_events = {
         EventScope.NETWORK: {
             EventType.BOOT_NEW_INSTANCE,
@@ -278,6 +295,9 @@ class DataSource(CloudInitPickleMixin, metaclass=abc.ABCMeta):
     # True on datasources that may not see hotplugged devices reflected
     # in the updated metadata
     skip_hotplug_detect = False
+
+    # Extra udev rules for cc_install_hotplug
+    extra_hotplug_udev_rules: Optional[str] = None
 
     _ci_pkl_version = 1
 
@@ -327,6 +347,8 @@ class DataSource(CloudInitPickleMixin, metaclass=abc.ABCMeta):
                     e,
                 )
                 raise DatasourceUnpickleUserDataError() from e
+        if not hasattr(self, "extra_hotplug_udev_rules"):
+            self.extra_hotplug_udev_rules = None
 
     def __str__(self):
         return type_utils.obj_name(self)
@@ -507,7 +529,7 @@ class DataSource(CloudInitPickleMixin, metaclass=abc.ABCMeta):
         cloud_id = instance_data["v1"].get("cloud_id", "none")
         cloud_id_file = os.path.join(self.paths.run_dir, "cloud-id")
         util.write_file(f"{cloud_id_file}-{cloud_id}", f"{cloud_id}\n")
-        # cloud-id not found, then no previous cloud-id fle
+        # cloud-id not found, then no previous cloud-id file
         prev_cloud_id_file = None
         new_cloud_id_file = f"{cloud_id_file}-{cloud_id}"
         # cloud-id found, then the prev cloud-id file is source of symlink
@@ -608,17 +630,6 @@ class DataSource(CloudInitPickleMixin, metaclass=abc.ABCMeta):
         return self.vendordata2
 
     @property
-    def fallback_interface(self):
-        """Determine the network interface used during local network config."""
-        if self._fallback_interface is None:
-            self._fallback_interface = net.find_fallback_nic()
-            if self._fallback_interface is None:
-                LOG.warning(
-                    "Did not find a fallback interface on %s.", self.cloud_name
-                )
-        return self._fallback_interface
-
-    @property
     def platform_type(self):
         if not hasattr(self, "_platform_type"):
             # Handle upgrade path where pickled datasource has no _platform.
@@ -714,7 +725,7 @@ class DataSource(CloudInitPickleMixin, metaclass=abc.ABCMeta):
     def get_vendordata2_raw(self):
         return self.vendordata2_raw
 
-    # the data sources' config_obj is a cloud-config formated
+    # the data sources' config_obj is a cloud-config formatted
     # object that came to it from ways other than cloud-config
     # because cloud-config content would be handled elsewhere
     def get_config_obj(self):
@@ -1163,7 +1174,7 @@ def pkl_load(fname: str) -> Optional[DataSource]:
     """Use pickle to deserialize a instance Datasource from a cache file."""
     pickle_contents = None
     try:
-        pickle_contents = util.load_file(fname, decode=False)
+        pickle_contents = util.load_binary_file(fname)
     except Exception as e:
         if os.path.isfile(fname):
             LOG.warning("failed loading pickle in %s: %s", fname, e)
