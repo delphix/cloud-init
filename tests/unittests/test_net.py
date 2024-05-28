@@ -5216,7 +5216,6 @@ class TestRhelSysConfigRendering(CiTestCase):
 BOOTPROTO=dhcp
 DEVICE=eth1000
 DHCPV6C=yes
-HWADDR=07-1c-c6-75-a4-be
 IPV6INIT=yes
 NM_CONTROLLED=no
 ONBOOT=yes
