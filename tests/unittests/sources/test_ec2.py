@@ -1340,22 +1340,22 @@ class TestConvertEc2MetadataNetworkConfig(test_helpers.CiTestCase):
             "version": 2,
             "ethernets": {
                 "eth9": {
+                    "match": {"name": "eth9"},
+                    "set-name": "eth9",
                     "dhcp4": True,
                     "dhcp4-overrides": {"route-metric": 100},
                     "dhcp6": True,
-                    "match": {"macaddress": "06:17:04:d7:26:09"},
-                    "set-name": "eth9",
                     "dhcp6-overrides": {"route-metric": 100},
                 },
                 "eth10": {
+                    "match": {"name": "eth10"},
+                    "set-name": "eth10",
                     "dhcp4": True,
                     "dhcp4-overrides": {
                         "route-metric": 200,
                         "use-routes": True,
                     },
                     "dhcp6": True,
-                    "match": {"macaddress": "06:17:04:d7:26:08"},
-                    "set-name": "eth10",
                     "routes": [
                         # via DHCP gateway
                         {"to": "0.0.0.0/0", "via": "172.31.1.0", "table": 101},
