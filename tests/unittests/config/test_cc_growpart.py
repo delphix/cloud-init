@@ -20,6 +20,7 @@ from cloudinit.config.schema import (
     get_schema,
     validate_cloudconfig_schema,
 )
+from cloudinit.subp import SubpResult
 from tests.unittests.helpers import (
     TestCase,
     does_not_raise,
@@ -135,29 +136,30 @@ class TestConfig(TestCase):
     def tearDown(self):
         self.tmpfile.close()
         os.remove(self.tmppath)
+        super().tearDown()
 
     @mock.patch.object(os.path, "isfile", return_value=False)
-    @mock.patch.dict("os.environ", clear=True)
     def test_no_resizers_auto_is_fine(self, m_isfile):
         with mock.patch.object(
-            subp, "subp", return_value=(HELP_GROWPART_NO_RESIZE, "")
+            subp, "subp", return_value=SubpResult(HELP_GROWPART_NO_RESIZE, "")
         ) as mockobj:
             config = {"growpart": {"mode": "auto"}}
             self.handle(self.name, config, self.cloud, self.args)
 
             mockobj.assert_has_calls(
                 [
-                    mock.call(["growpart", "--help"], env={"LANG": "C"}),
                     mock.call(
-                        ["gpart", "help"], env={"LANG": "C"}, rcs=[0, 1]
+                        ["growpart", "--help"], update_env={"LANG": "C"}
+                    ),
+                    mock.call(
+                        ["gpart", "help"], update_env={"LANG": "C"}, rcs=[0, 1]
                     ),
                 ]
             )
 
-    @mock.patch.dict("os.environ", clear=True)
     def test_no_resizers_mode_growpart_is_exception(self):
         with mock.patch.object(
-            subp, "subp", return_value=(HELP_GROWPART_NO_RESIZE, "")
+            subp, "subp", return_value=SubpResult(HELP_GROWPART_NO_RESIZE, "")
         ) as mockobj:
             config = {"growpart": {"mode": "growpart"}}
             self.assertRaises(
@@ -170,13 +172,12 @@ class TestConfig(TestCase):
             )
 
             mockobj.assert_called_once_with(
-                ["growpart", "--help"], env={"LANG": "C"}
+                ["growpart", "--help"], update_env={"LANG": "C"}
             )
 
-    @mock.patch.dict("os.environ", clear=True)
     def test_mode_auto_prefers_growpart(self):
         with mock.patch.object(
-            subp, "subp", return_value=(HELP_GROWPART_RESIZE, "")
+            subp, "subp", return_value=SubpResult(HELP_GROWPART_RESIZE, "")
         ) as mockobj:
             ret = cc_growpart.resizer_factory(
                 mode="auto", distro=mock.Mock(), devices=["/"]
@@ -184,10 +185,9 @@ class TestConfig(TestCase):
             self.assertIsInstance(ret, cc_growpart.ResizeGrowPart)
 
             mockobj.assert_called_once_with(
-                ["growpart", "--help"], env={"LANG": "C"}
+                ["growpart", "--help"], update_env={"LANG": "C"}
             )
 
-    @mock.patch.dict("os.environ", {"LANG": "cs_CZ.UTF-8"}, clear=True)
     @mock.patch.object(temp_utils, "mkdtemp", return_value="/tmp/much-random")
     @mock.patch.object(stat, "S_ISDIR", return_value=False)
     @mock.patch.object(os.path, "samestat", return_value=True)
@@ -203,7 +203,7 @@ class TestConfig(TestCase):
     @mock.patch.object(os, "lstat", return_value="interesting metadata")
     def test_force_lang_check_tempfile(self, *args, **kwargs):
         with mock.patch.object(
-            subp, "subp", return_value=(HELP_GROWPART_RESIZE, "")
+            subp, "subp", return_value=SubpResult(HELP_GROWPART_RESIZE, "")
         ) as mockobj:
             ret = cc_growpart.resizer_factory(
                 mode="auto", distro=mock.Mock(), devices=["/"]
@@ -217,20 +217,19 @@ class TestConfig(TestCase):
             [
                 mock.call(
                     ["growpart", "--dry-run", diskdev, partnum],
-                    env={"LANG": "C", "TMPDIR": "/tmp"},
+                    update_env={"LANG": "C", "TMPDIR": "/tmp"},
                 ),
                 mock.call(
                     ["growpart", diskdev, partnum],
-                    env={"LANG": "C", "TMPDIR": "/tmp"},
+                    update_env={"LANG": "C", "TMPDIR": "/tmp"},
                 ),
             ]
         )
 
-    @mock.patch.dict("os.environ", clear=True)
     @mock.patch.object(os.path, "isfile", return_value=True)
     def test_mode_use_growfs_on_root(self, m_isfile):
         with mock.patch.object(
-            subp, "subp", return_value=("File not found", "")
+            subp, "subp", return_value=SubpResult("File not found", "")
         ) as mockobj:
             ret = cc_growpart.resizer_factory(
                 mode="auto", distro=mock.Mock(), devices=["/"]
@@ -239,14 +238,15 @@ class TestConfig(TestCase):
 
             mockobj.assert_has_calls(
                 [
-                    mock.call(["growpart", "--help"], env={"LANG": "C"}),
+                    mock.call(
+                        ["growpart", "--help"], update_env={"LANG": "C"}
+                    ),
                 ]
             )
 
-    @mock.patch.dict("os.environ", {"LANG": "cs_CZ.UTF-8"}, clear=True)
     def test_mode_auto_falls_back_to_gpart(self):
         with mock.patch.object(
-            subp, "subp", return_value=("", HELP_GPART)
+            subp, "subp", return_value=SubpResult("", HELP_GPART)
         ) as mockobj:
             ret = cc_growpart.resizer_factory(
                 mode="auto", distro=mock.Mock(), devices=["/", "/opt"]
@@ -255,18 +255,19 @@ class TestConfig(TestCase):
 
             mockobj.assert_has_calls(
                 [
-                    mock.call(["growpart", "--help"], env={"LANG": "C"}),
                     mock.call(
-                        ["gpart", "help"], env={"LANG": "C"}, rcs=[0, 1]
+                        ["growpart", "--help"], update_env={"LANG": "C"}
+                    ),
+                    mock.call(
+                        ["gpart", "help"], update_env={"LANG": "C"}, rcs=[0, 1]
                     ),
                 ]
             )
 
     @mock.patch.object(os.path, "isfile", return_value=True)
-    @mock.patch.dict("os.environ", {"LANG": "cs_CZ.UTF-8"}, clear=True)
     def test_mode_auto_falls_back_to_growfs(self, m_isfile):
         with mock.patch.object(
-            subp, "subp", return_value=("", HELP_GPART)
+            subp, "subp", return_value=SubpResult("", HELP_GPART)
         ) as mockobj:
             ret = cc_growpart.resizer_factory(
                 mode="auto", distro=mock.Mock(), devices=["/"]
@@ -275,7 +276,9 @@ class TestConfig(TestCase):
 
             mockobj.assert_has_calls(
                 [
-                    mock.call(["growpart", "--help"], env={"LANG": "C"}),
+                    mock.call(
+                        ["growpart", "--help"], update_env={"LANG": "C"}
+                    ),
                 ]
             )
 
@@ -313,13 +316,15 @@ class TestConfig(TestCase):
             factory.assert_called_once_with(
                 "auto", distro=self.distro, devices=["/"]
             )
-            rsdevs.assert_called_once_with(myresizer, ["/"])
+            rsdevs.assert_called_once_with(myresizer, ["/"], self.distro.name)
 
 
 class TestResize(unittest.TestCase):
     def setUp(self):
         super(TestResize, self).setUp()
         self.name = "growpart"
+        self.distro = mock.Mock()
+        self.distro.name = "ubuntu"
         self.log = logging.getLogger("TestResize")
 
     def test_simple_devices(self):
@@ -364,7 +369,9 @@ class TestResize(unittest.TestCase):
             cc_growpart.device_part_info = simple_device_part_info
             os.stat = mystat
 
-            resized = cc_growpart.resize_devices(myresizer(), devs + enoent)
+            resized = cc_growpart.resize_devices(
+                myresizer(), devs + enoent, self.distro.name
+            )
 
             def find(name, res):
                 for f in res:
@@ -387,6 +394,22 @@ class TestResize(unittest.TestCase):
         finally:
             cc_growpart.device_part_info = opinfo
             os.stat = real_stat
+
+
+class TestGetSize:
+    @pytest.mark.parametrize(
+        "file_exists, expected",
+        (
+            (False, None),
+            (True, 1),
+        ),
+    )
+    def test_get_size_behaves(self, file_exists, expected, tmp_path):
+        """Ensure that get_size() doesn't raise exception"""
+        tmp_file = tmp_path / "tmp.txt"
+        if file_exists:
+            tmp_file.write_bytes(b"0")
+        assert expected == cc_growpart.get_size(tmp_file)
 
 
 class TestEncrypted:
@@ -479,11 +502,16 @@ class TestEncrypted:
         mocker.patch("pathlib.Path.exists", return_value=True)
         self.m_unlink = mocker.patch("pathlib.Path.unlink", autospec=True)
 
+        self.distro = mock.Mock()
+        self.distro.name = "ubuntu"
+
         self.resizer = mock.Mock()
         self.resizer.resize = mock.Mock(return_value=(1024, 1024))
 
     def test_resize_when_encrypted(self, common_mocks, caplog):
-        info = cc_growpart.resize_devices(self.resizer, ["/fake_encrypted"])
+        info = cc_growpart.resize_devices(
+            self.resizer, ["/fake_encrypted"], self.distro.name
+        )
         assert len(info) == 2
         assert info[0][0] == "/dev/vdx1"
         assert info[0][2].startswith("no change necessary")
@@ -501,7 +529,9 @@ class TestEncrypted:
         self.assert_resize_and_cleanup()
 
     def test_resize_when_unencrypted(self, common_mocks):
-        info = cc_growpart.resize_devices(self.resizer, ["/"])
+        info = cc_growpart.resize_devices(
+            self.resizer, ["/"], self.distro.name
+        )
         assert len(info) == 1
         assert info[0][0] == "/"
         assert "encrypted" not in info[0][2]
@@ -514,7 +544,9 @@ class TestEncrypted:
             "cloudinit.config.cc_growpart.subp.which",
             return_value=None,
         )
-        info = cc_growpart.resize_devices(self.resizer, ["/fake_encrypted"])
+        info = cc_growpart.resize_devices(
+            self.resizer, ["/fake_encrypted"], self.distro.name
+        )
 
         assert len(info) == 1
         assert "skipped as it is not encrypted" in info[0][2]
@@ -530,7 +562,9 @@ class TestEncrypted:
             "cloudinit.config.cc_growpart.subp.subp",
             side_effect=_subp_side_effect,
         )
-        info = cc_growpart.resize_devices(self.resizer, ["/fake_encrypted"])
+        info = cc_growpart.resize_devices(
+            self.resizer, ["/fake_encrypted"], self.distro.name
+        )
         assert len(info) == 1
         assert info[0][0] == "/fake_encrypted"
         assert info[0][1] == "FAILED"
@@ -549,7 +583,9 @@ class TestEncrypted:
             "cloudinit.config.cc_growpart.subp.subp",
             side_effect=_subp_side_effect,
         )
-        info = cc_growpart.resize_devices(self.resizer, ["/fake_encrypted"])
+        info = cc_growpart.resize_devices(
+            self.resizer, ["/fake_encrypted"], self.distro.name
+        )
         assert len(info) == 1
         assert info[0][0] == "/fake_encrypted"
         assert info[0][1] == "FAILED"
@@ -562,7 +598,9 @@ class TestEncrypted:
         # Note that this will be standard behavior after first boot
         # on a system with an encrypted root partition
         mocker.patch("pathlib.Path.open", side_effect=FileNotFoundError())
-        info = cc_growpart.resize_devices(self.resizer, ["/fake_encrypted"])
+        info = cc_growpart.resize_devices(
+            self.resizer, ["/fake_encrypted"], self.distro.name
+        )
         assert len(info) == 2
         assert info[0][0] == "/dev/vdx1"
         assert info[0][2].startswith("no change necessary")
@@ -589,7 +627,9 @@ class TestEncrypted:
             side_effect=_subp_side_effect,
         )
 
-        info = cc_growpart.resize_devices(self.resizer, ["/fake_encrypted"])
+        info = cc_growpart.resize_devices(
+            self.resizer, ["/fake_encrypted"], self.distro.name
+        )
         assert len(info) == 2
         assert info[0][0] == "/dev/vdx1"
         assert info[0][2].startswith("no change necessary")
@@ -607,7 +647,9 @@ class TestEncrypted:
 
     def test_resize_skipped(self, common_mocks, mocker, caplog):
         mocker.patch("pathlib.Path.exists", return_value=False)
-        info = cc_growpart.resize_devices(self.resizer, ["/fake_encrypted"])
+        info = cc_growpart.resize_devices(
+            self.resizer, ["/fake_encrypted"], self.distro.name
+        )
         assert len(info) == 2
         assert info[1] == (
             "/fake_encrypted",
@@ -649,7 +691,7 @@ class TestDevicePartInfo:
         ),
     )
     @mock.patch("cloudinit.util.is_BSD")
-    def test_device_part_into(
+    def test_device_part_info(
         self, m_is_BSD, is_BSD, devpath, expected, raised_exception
     ):
         m_is_BSD.return_value = is_BSD

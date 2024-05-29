@@ -8,6 +8,7 @@ import pytest
 from cloudinit import gpg
 from cloudinit.config import cc_apt_configure
 from cloudinit.util import is_true
+from tests.integration_tests.clouds import IntegrationCloud
 from tests.integration_tests.instances import IntegrationInstance
 from tests.integration_tests.integration_settings import PLATFORM
 from tests.integration_tests.releases import CURRENT_RELEASE, IS_UBUNTU
@@ -336,6 +337,23 @@ class TestDefaults:
             assert 3 == sources_list.count(sec_deb_line)
             assert 3 == sources_list.count(sec_src_deb_line)
 
+    def test_no_duplicate_apt_sources(self, class_client: IntegrationInstance):
+        r = class_client.execute("apt-get update", use_sudo=True)
+        assert not re.match(
+            r"^W: Target Packages .+ is configured multiple times in", r.stderr
+        )
+
+    def test_disabled_apt_sources(self, class_client: IntegrationInstance):
+        feature_deb822 = is_true(
+            get_feature_flag_value(class_client, "APT_DEB822_SOURCE_LIST_FILE")
+        )
+        if feature_deb822:
+
+            assert (
+                cc_apt_configure.UBUNTU_DEFAULT_APT_SOURCES_LIST.strip()
+                == class_client.read_from_file(ORIG_SOURCES_FILE)
+            )
+
 
 DEFAULT_DATA_WITH_URI = _DEFAULT_DATA.format(
     uri='uri: "http://something.random.invalid/ubuntu"'
@@ -418,8 +436,6 @@ def test_apt_proxy(client: IntegrationInstance):
 
 INSTALL_ANY_MISSING_RECOMMENDED_DEPENDENCIES = """\
 #cloud-config
-bootcmd:
-    - apt-get remove gpg -y
 apt:
   sources:
     test_keyserver:
@@ -438,10 +454,24 @@ RE_GPG_SW_PROPERTIES_INSTALLED = (
     r" (gnupg software-properties-common|software-properties-common gnupg)"
 )
 
+REMOVE_GPG_USERDATA = """
+#cloud-config
+runcmd:
+  - DEBIAN_FRONTEND=noninteractive apt-get remove gpg -y
+"""
+
 
 @pytest.mark.skipif(not IS_UBUNTU, reason="Apt usage")
-@pytest.mark.user_data(INSTALL_ANY_MISSING_RECOMMENDED_DEPENDENCIES)
-def test_install_missing_deps(client: IntegrationInstance):
-    log = client.read_from_file("/var/log/cloud-init.log")
-    verify_clean_log(log)
-    assert re.search(RE_GPG_SW_PROPERTIES_INSTALLED, log)
+def test_install_missing_deps(setup_image, session_cloud: IntegrationCloud):
+    # Two stage install: First stage:  remove gpg noninteractively from image
+    instance1 = session_cloud.launch(user_data=REMOVE_GPG_USERDATA)
+    snapshot_id = instance1.snapshot()
+    instance1.destroy()
+    # Second stage: provide active apt user-data which will install missing gpg
+    with session_cloud.launch(
+        user_data=INSTALL_ANY_MISSING_RECOMMENDED_DEPENDENCIES,
+        launch_kwargs={"image_id": snapshot_id},
+    ) as minimal_client:
+        log = minimal_client.read_from_file("/var/log/cloud-init.log")
+        verify_clean_log(log)
+        assert re.search(RE_GPG_SW_PROPERTIES_INSTALLED, log)

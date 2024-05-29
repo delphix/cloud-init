@@ -64,7 +64,7 @@ def update_event_enabled(
     datasource: sources.DataSource,
     cfg: dict,
     event_source_type: EventType,
-    scope: Optional[EventScope] = None,
+    scope: EventScope,
 ) -> bool:
     """Determine if a particular EventType is enabled.
 
@@ -91,13 +91,27 @@ def update_event_enabled(
             copy.deepcopy(default_events),
         ]
     )
+
+    # Add supplemental hotplug event if supported and present in
+    # hotplug.enabled file
+    if EventType.HOTPLUG in datasource.supported_update_events.get(
+        scope, set()
+    ):
+        hotplug_enabled_file = util.read_hotplug_enabled_file(datasource.paths)
+        if scope.value in hotplug_enabled_file["scopes"]:
+            LOG.debug(
+                "Adding event: scope=%s EventType=%s found in %s",
+                scope,
+                EventType.HOTPLUG,
+                datasource.paths.get_cpath("hotplug.enabled"),
+            )
+            if not allowed.get(scope):
+                allowed[scope] = set()
+            allowed[scope].add(EventType.HOTPLUG)
+
     LOG.debug("Allowed events: %s", allowed)
 
-    scopes: Iterable[EventScope]
-    if not scope:
-        scopes = allowed.keys()
-    else:
-        scopes = [scope]
+    scopes: Iterable[EventScope] = [scope]
     scope_values = [s.value for s in scopes]
 
     for evt_scope in scopes:
@@ -122,7 +136,7 @@ class Init:
         else:
             self.ds_deps = [sources.DEP_FILESYSTEM, sources.DEP_NETWORK]
         # Created on first use
-        self._cfg: Optional[dict] = None
+        self._cfg: Dict = {}
         self._paths: Optional[helpers.Paths] = None
         self._distro: Optional[distros.Distro] = None
         # Changed only when a fetch occurs
@@ -138,14 +152,11 @@ class Init:
             )
         self.reporter = reporter
 
-    def _reset(self, reset_ds=False):
+    def _reset(self):
         # Recreated on access
-        self._cfg = None
+        self._cfg = {}
         self._paths = None
         self._distro = None
-        if reset_ds:
-            self.datasource = None
-            self.ds_restored = False
 
     @property
     def distro(self):
@@ -179,8 +190,6 @@ class Init:
             ocfg = util.get_cfg_by_path(ocfg, ("system_info",), {})
         elif restriction == "paths":
             ocfg = util.get_cfg_by_path(ocfg, ("system_info", "paths"), {})
-        if not isinstance(ocfg, (dict)):
-            ocfg = {}
         return ocfg
 
     @property
@@ -262,10 +271,8 @@ class Init:
             )
 
     def read_cfg(self, extra_fns=None):
-        # None check so that we don't keep on re-loading if empty
-        if self._cfg is None:
+        if not self._cfg:
             self._cfg = self._read_cfg(extra_fns)
-            # LOG.debug("Loaded 'init' config %s", self._cfg)
 
     def _read_cfg(self, extra_fns):
         no_cfg_paths = helpers.Paths({}, self.datasource)
@@ -321,7 +328,7 @@ class Init:
 
         run_iid_fn = self.paths.get_runpath("instance_id")
         if os.path.exists(run_iid_fn):
-            run_iid = util.load_file(run_iid_fn).strip()
+            run_iid = util.load_text_file(run_iid_fn).strip()
         else:
             run_iid = None
 
@@ -346,7 +353,6 @@ class Init:
             description="attempting to read from cache [%s]" % existing,
             parent=self.reporter,
         ) as myrep:
-
             ds, desc = self._restore_from_checked_cache(existing)
             myrep.description = desc
             self.ds_restored = bool(ds)
@@ -403,7 +409,9 @@ class Init:
         network_link = self.paths.get_runpath("network_config")
         if os.path.exists(ncfg_instance_path):
             # Compare and only write on delta of current network-config
-            if netcfg != util.load_json(util.load_file(ncfg_instance_path)):
+            if netcfg != util.load_json(
+                util.load_text_file(ncfg_instance_path)
+            ):
                 atomic_helper.write_json(
                     ncfg_instance_path, netcfg, mode=0o600
                 )
@@ -434,7 +442,7 @@ class Init:
         previous_ds = None
         ds_fn = os.path.join(idir, "datasource")
         try:
-            previous_ds = util.load_file(ds_fn).strip()
+            previous_ds = util.load_text_file(ds_fn).strip()
         except Exception:
             pass
         if not previous_ds:
@@ -469,7 +477,7 @@ class Init:
         dp = self.paths.get_cpath("data")
         iid_fn = os.path.join(dp, "instance-id")
         try:
-            self._previous_iid = util.load_file(iid_fn).strip()
+            self._previous_iid = util.load_text_file(iid_fn).strip()
         except Exception:
             self._previous_iid = NO_PREVIOUS_INSTANCE_ID
 
@@ -636,7 +644,7 @@ class Init:
             if not path or not os.path.isdir(path):
                 return
             potential_handlers = util.get_modules_from_dir(path)
-            for (fname, mod_name) in potential_handlers.items():
+            for fname, mod_name in potential_handlers.items():
                 try:
                     mod_locs, looked_locs = importer.find_module(
                         mod_name, [""], ["list_types", "handle_part"]
@@ -684,7 +692,7 @@ class Init:
 
         def init_handlers():
             # Init the handlers first
-            for (_ctype, mod) in c_handlers.items():
+            for _ctype, mod in c_handlers.items():
                 if mod in c_handlers.initialized:
                     # Avoid initiating the same module twice (if said module
                     # is registered to more than one content-type).
@@ -696,7 +704,7 @@ class Init:
             # Walk the user data
             part_data = {
                 "handlers": c_handlers,
-                # Any new handlers that are encountered get writen here
+                # Any new handlers that are encountered get written here
                 "handlerdir": idir,
                 "data": data,
                 # The default frequency if handlers don't have one
@@ -711,7 +719,7 @@ class Init:
 
         def finalize_handlers():
             # Give callbacks opportunity to finalize
-            for (_ctype, mod) in c_handlers.items():
+            for _ctype, mod in c_handlers.items():
                 if mod not in c_handlers.initialized:
                     # Said module was never inited in the first place, so lets
                     # not attempt to finalize those that never got called.
@@ -781,7 +789,9 @@ class Init:
         )
         json_sensitive_file = self.paths.get_runpath("instance_data_sensitive")
         try:
-            instance_json = util.load_json(util.load_file(json_sensitive_file))
+            instance_json = util.load_json(
+                util.load_text_file(json_sensitive_file)
+            )
         except (OSError, IOError) as e:
             LOG.warning(
                 "Skipping write of system_info/features to %s."
@@ -980,7 +990,10 @@ class Init:
         Find the config, determine whether to apply it, apply it via
         the distro, and optionally bring it up
         """
-        from cloudinit.config.schema import validate_cloudconfig_schema
+        from cloudinit.config.schema import (
+            SchemaType,
+            validate_cloudconfig_schema,
+        )
 
         netcfg, src = self._find_networking_config()
         if netcfg is None:
@@ -1019,15 +1032,14 @@ class Init:
         netcfg, src = self._find_networking_config()
         self._write_network_config_json(netcfg)
 
-        if netcfg and netcfg.get("version") == 1:
+        if netcfg:
             validate_cloudconfig_schema(
                 config=netcfg,
-                schema_type="network-config",
-                strict=False,
-                log_details=True,
+                schema_type=SchemaType.NETWORK_CONFIG,
+                strict=False,  # Warnings not raising exceptions
+                log_details=False,  # May have wifi passwords in net cfg
                 log_deprecations=True,
             )
-
         # ensure all physical devices in config are present
         self.distro.networking.wait_for_physdevs(netcfg)
 

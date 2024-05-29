@@ -9,12 +9,48 @@ import pytest
 
 from cloudinit import sources, stages
 from cloudinit.event import EventScope, EventType
-from cloudinit.sources import NetworkConfigSource
+from cloudinit.helpers import Paths
+from cloudinit.sources import DataSource, NetworkConfigSource
 from cloudinit.util import sym_link, write_file
 from tests.unittests.helpers import mock
 from tests.unittests.util import TEST_INSTANCE_ID, FakeDataSource
 
 M_PATH = "cloudinit.stages."
+
+
+class TestUpdateEventEnabled:
+    @pytest.mark.parametrize(
+        "cfg",
+        [
+            {},
+            {"updates": {}},
+            {"updates": {"when": ["boot"]}},
+            {"updates": {"when": ["hotplug"]}},
+            {"updates": {"when": ["boot", "hotplug"]}},
+        ],
+    )
+    @pytest.mark.parametrize(
+        ["enabled_file_content", "enabled"],
+        [
+            ({"scopes": ["network"]}, True),
+            ({"scopes": []}, False),
+        ],
+    )
+    @mock.patch(M_PATH + "util.read_hotplug_enabled_file")
+    def test_hotplug_added_by_file(
+        self, m_read_hotplug_enabled_file, cfg, enabled_file_content, enabled
+    ):
+        m_datasource = mock.MagicMock(spec=DataSource)
+        m_datasource.paths = mock.MagicMock(spec=Paths)
+        m_datasource.default_update_events = {}
+        m_datasource.supported_update_events = {
+            EventScope.NETWORK: [EventType.HOTPLUG]
+        }
+        m_read_hotplug_enabled_file.return_value = enabled_file_content
+        cfg = {}
+        assert enabled is stages.update_event_enabled(
+            m_datasource, cfg, EventType.HOTPLUG, EventScope.NETWORK
+        )
 
 
 class TestInit:
@@ -441,6 +477,10 @@ class TestInit:
                 assert not self.tmpdir.join(path).exists()
 
     @mock.patch("cloudinit.distros.ubuntu.Distro")
+    @mock.patch.dict(
+        sources.DataSource.default_update_events,
+        {EventScope.NETWORK: {EventType.BOOT_NEW_INSTANCE}},
+    )
     def test_apply_network_on_same_instance_id(self, m_ubuntu, caplog):
         """Only call distro.networking.apply_network_config_names on same
         instance id."""
@@ -608,8 +648,9 @@ class TestInit_InitializeFilesystem:
             yield init
 
     @mock.patch(M_PATH + "util.ensure_file")
+    @mock.patch(f"{M_PATH}Init._read_cfg")
     def test_ensure_file_not_called_if_no_log_file_configured(
-        self, m_ensure_file, init
+        self, m_read_cfg, m_ensure_file, init
     ):
         """If no log file is configured, we should not ensure its existence."""
         init._cfg = {}
