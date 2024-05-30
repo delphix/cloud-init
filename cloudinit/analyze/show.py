@@ -7,6 +7,7 @@
 import datetime
 import json
 import os
+import sys
 import time
 
 from cloudinit import subp, util
@@ -297,7 +298,7 @@ def generate_records(
     boot_records = []
 
     unprocessed = []
-    for e in range(0, len(sorted_events)):
+    for e in range(len(sorted_events)):
         event = events[e]
         try:
             next_evt = events[e + 1]
@@ -370,6 +371,9 @@ def load_events_infile(infile):
     :return: json version of logfile, raw file
     """
     data = infile.read()
+    if not data.strip():
+        sys.stderr.write("Empty file %s\n" % infile.name)
+        sys.exit(1)
     try:
         return json.loads(data), data
     except ValueError:

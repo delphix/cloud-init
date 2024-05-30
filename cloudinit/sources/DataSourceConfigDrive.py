@@ -27,7 +27,7 @@ FS_TYPES = ("vfat", "iso9660")
 LABEL_TYPES = ("config-2", "CONFIG-2")
 POSSIBLE_MOUNTS = ("sr", "cd")
 OPTICAL_DEVICES = tuple(
-    ("/dev/%s%s" % (z, i) for z in POSSIBLE_MOUNTS for i in range(0, 2))
+    ("/dev/%s%s" % (z, i) for z in POSSIBLE_MOUNTS for i in range(2))
 )
 
 
@@ -157,7 +157,7 @@ class DataSourceConfigDrive(openstack.SourceMixin, sources.DataSource):
             LOG.warning("Invalid content in vendor-data2: %s", e)
             self.vendordata2_raw = None
 
-        # network_config is an /etc/network/interfaces formated file and is
+        # network_config is an /etc/network/interfaces formatted file and is
         # obsolete compared to networkdata (from network_data.json) but both
         # might be present.
         self.network_eni = results.get("network_config")
@@ -217,7 +217,7 @@ def get_previous_iid(paths):
     # hasn't declared itself found.
     fname = os.path.join(paths.get_cpath("data"), "instance-id")
     try:
-        return util.load_file(fname).rstrip("\n")
+        return util.load_text_file(fname).rstrip("\n")
     except IOError:
         return None
 

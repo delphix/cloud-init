@@ -59,7 +59,7 @@ meta: MetaSchema = {
 LOG = logging.getLogger(__name__)
 __doc__ = get_meta_doc(meta)
 
-# Jinja formated default message
+# Jinja formatted default message
 FINAL_MESSAGE_DEF = (
     "## template: jinja\n"
     "Cloud-init v. {{version}} finished at {{timestamp}}."
@@ -95,6 +95,10 @@ def handle(name: str, cfg: Config, cloud: Cloud, args: list) -> None:
             console=False,
             stderr=True,
             log=LOG,
+        )
+    except templater.JinjaSyntaxParsingException as e:
+        util.logexc(
+            LOG, "Failed to render templated final message: %s", str(e)
         )
     except Exception:
         util.logexc(LOG, "Failed to render final message template")

@@ -232,19 +232,24 @@ Automatically includes ``cloudinit.sources``.
 ``datasource_list``
 ^^^^^^^^^^^^^^^^^^^
 
-Prioritised list of datasources that ``cloud-init`` will attempt to find on
-boot. By default, this will be defined in :file:`/etc/cloud/cloud.cfg.d`. There
-are two primary use cases for modifying the ``datasource_list``:
+This key contains a prioritised list of datasources that ``cloud-init``
+attempts to discover on boot. By default, this is defined in
+:file:`/etc/cloud/cloud.cfg.d`.
 
-1. Remove known invalid datasources. This may avoid long timeouts when
-   attempting to detect datasources on any system without a systemd-generator
-   hook that invokes ``ds-identify``.
-2. Override default datasource ordering to discover a different datasource
-   type than would typically be prioritised.
+There are a few reasons to modify the ``datasource_list``:
 
-If ``datasource_list`` has only a single entry (or a single entry + ``None``),
-`cloud-init` will automatically assume and use this datasource without
-attempting detection.
+1. Override default datasource discovery priority order
+2. Force cloud-init to use a specific datasource: A single entry in
+   the list (or a single entry and ``None``) will override datasource
+   discovery, which will force the specified datasource to run.
+3. Remove known invalid datasources: this might improve boot speed on distros
+   that do not use ``ds-identify`` to detect and select the datasource,
+
+.. warning::
+
+   This key is unique in that it uses a subset of YAML syntax. It **requires**
+   that the key and its contents, a list, must share a single line - no
+   newlines.
 
 ``vendor_data``/``vendor_data2``
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -298,7 +303,6 @@ On an Ubuntu system, :file:`/etc/cloud/cloud.cfg` should look similar to:
 
     # The modules that run in the 'init' stage
     cloud_init_modules:
-    - migrator
     - seed_random
     - bootcmd
     - write_files
@@ -316,7 +320,9 @@ On an Ubuntu system, :file:`/etc/cloud/cloud.cfg` should look similar to:
 
     # The modules that run in the 'config' stage
     cloud_config_modules:
+    - wireguard
     - snap
+    - ubuntu_autoinstall
     - ssh_import_id
     - keyboard
     - locale
@@ -324,7 +330,7 @@ On an Ubuntu system, :file:`/etc/cloud/cloud.cfg` should look similar to:
     - grub_dpkg
     - apt_pipelining
     - apt_configure
-    - ubuntu_advantage
+    - ubuntu_pro
     - ntp
     - timezone
     - disable_ec2_metadata
@@ -341,10 +347,10 @@ On an Ubuntu system, :file:`/etc/cloud/cloud.cfg` should look similar to:
     - write_files_deferred
     - puppet
     - chef
+    - ansible
     - mcollective
     - salt_minion
     - reset_rmc
-    - rightscale_userdata
     - scripts_vendor
     - scripts_per_once
     - scripts_per_boot
@@ -373,7 +379,9 @@ On an Ubuntu system, :file:`/etc/cloud/cloud.cfg` should look similar to:
         sudo: ["ALL=(ALL) NOPASSWD:ALL"]
         shell: /bin/bash
       network:
+        dhcp_client_priority: [dhclient, dhcpcd, udhcpc]
         renderers: ['netplan', 'eni', 'sysconfig']
+        activators: ['netplan', 'eni', 'network-manager', 'networkd']
       # Automatically discover the best ntp_client
       ntp_client: auto
       # Other config here will be given to the distro class and/or path classes
