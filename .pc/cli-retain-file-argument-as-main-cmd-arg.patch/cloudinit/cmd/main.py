@@ -107,11 +107,6 @@ def extract_fns(args):
     # since it would of broke if it couldn't have
     # read that file already...
     fn_cfgs = []
-    if args.main_files:
-        # Append common --file argument to beginning of list when present.
-        # Avoid namespace collision with same --file arg defined in subcommands
-        for fh in args.main_files:
-            fn_cfgs.append(os.path.realpath(fh.name))
     if args.files:
         for fh in args.files:
             # The realpath is more useful in logging
@@ -880,17 +875,6 @@ def main(sysv_args=None):
         action="store_true",
         help="Show additional pre-action logging (default: %(default)s).",
         default=False,
-    )
-    parser.add_argument(
-        "--file",
-        "-f",
-        action="append",
-        dest="main_files",
-        help=(
-            "Use additional yaml configuration files for subcommands: init,"
-            " modules or single"
-        ),
-        type=argparse.FileType("rb"),
     )
     parser.add_argument(
         "--force",
