@@ -40,8 +40,7 @@ class Distro(debian.Distro):
 
     def package_command(self, command, args=None, pkgs=None):
         super().package_command(command, args, pkgs)
-        if self.snap.available():
-            self.snap.upgrade_packages()
+        self.snap.upgrade_packages()
 
     @property
     def preferred_ntp_clients(self):
