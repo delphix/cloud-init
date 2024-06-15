@@ -10,7 +10,7 @@ import requests
 import responses
 
 from cloudinit import helpers
-from cloudinit.net import netplan
+from cloudinit.net import activators
 from cloudinit.sources import DataSourceEc2 as ec2
 from tests.unittests import helpers as test_helpers
 from tests.unittests.util import MockDistro
@@ -1345,7 +1345,7 @@ class TestConvertEc2MetadataNetworkConfig(test_helpers.CiTestCase):
             },
         }
         distro = mock.Mock()
-        distro.network_renderer = netplan.Renderer()
+        distro.network_activator = activators.NetplanActivator
         distro.dhcp_client.dhcp_discovery.return_value = {
             "routers": "172.31.1.0"
         }
@@ -1422,7 +1422,7 @@ class TestConvertEc2MetadataNetworkConfig(test_helpers.CiTestCase):
             },
         }
         distro = mock.Mock()
-        distro.network_renderer = netplan.Renderer()
+        distro.network_activator = activators.NetplanActivator
         distro.dhcp_client.dhcp_discovery.return_value = {
             "routers": "172.31.1.0"
         }
@@ -1478,7 +1478,7 @@ class TestConvertEc2MetadataNetworkConfig(test_helpers.CiTestCase):
             },
         }
         distro = mock.Mock()
-        distro.network_renderer = netplan.Renderer()
+        distro.network_activator = activators.NetplanActivator
         assert expected == ec2.convert_ec2_metadata_network_config(
             network_metadata, distro, macs_to_nics
         )
