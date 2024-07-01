@@ -573,7 +573,6 @@ def generate_fallback_config(config_driver=None):
 
     cfg = {
         "dhcp4": True,
-        "dhcp6": True,
         "set-name": target_name,
         "match": match,
     }

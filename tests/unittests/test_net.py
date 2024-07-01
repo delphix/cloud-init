@@ -4826,7 +4826,6 @@ class TestGenerateFallbackConfig(CiTestCase):
             "ethernets": {
                 "eth0": {
                     "dhcp4": True,
-                    "dhcp6": True,
                     "set-name": "eth0",
                     "match": {
                         "name": "eth0",
@@ -4911,9 +4910,6 @@ iface lo inet loopback
 
 auto eth0
 iface eth0 inet dhcp
-
-# control-alias eth0
-iface eth0 inet6 dhcp
 """
         self.assertEqual(expected.lstrip(), contents.lstrip())
 
@@ -4996,9 +4992,6 @@ iface lo inet loopback
 
 auto eth1
 iface eth1 inet dhcp
-
-# control-alias eth1
-iface eth1 inet6 dhcp
 """
         self.assertEqual(expected.lstrip(), contents.lstrip())
 
@@ -5215,8 +5208,6 @@ class TestRhelSysConfigRendering(CiTestCase):
 #
 BOOTPROTO=dhcp
 DEVICE=eth1000
-DHCPV6C=yes
-IPV6INIT=yes
 NM_CONTROLLED=no
 ONBOOT=yes
 TYPE=Ethernet
@@ -6140,8 +6131,7 @@ class TestOpenSuseSysConfigRendering(CiTestCase):
             expected_content = """
 # Created by cloud-init automatically, do not edit.
 #
-BOOTPROTO=dhcp
-DHCLIENT6_MODE=managed
+BOOTPROTO=dhcp4
 STARTMODE=auto
 """.lstrip()
             self.assertEqual(expected_content, content)
@@ -6539,12 +6529,8 @@ class TestNetworkManagerRendering(CiTestCase):
 
                 [ipv4]
                 method=auto
-                may-fail=true
-
-                [ipv6]
-                method=auto
-                may-fail=true
-
+                may-fail=false
+                
                 """
                 ),
             },
@@ -6851,9 +6837,6 @@ iface lo inet loopback
 
 auto eth1000
 iface eth1000 inet dhcp
-
-# control-alias eth1000
-iface eth1000 inet6 dhcp
 """
         self.assertEqual(expected.lstrip(), contents.lstrip())
 
@@ -6913,7 +6896,6 @@ class TestNetplanNetRendering:
                   ethernets:
                     eth1000:
                       dhcp4: true
-                      dhcp6: true
                       match:
                         name: eth1000
                       set-name: eth1000
@@ -8441,7 +8423,7 @@ class TestNetworkdNetRendering(CiTestCase):
             [Match]
             Name=eth1000
             [Network]
-            DHCP=yes"""
+            DHCP=ipv4"""
         ).rstrip(" ")
 
         expected = self.create_conf_dict(expected.splitlines())

@@ -83,6 +83,7 @@ def get_version_from_git(
                 "describe",
                 branch_name,
                 "--abbrev=8",
+                "--tags",
             ] + flags
 
             try:
@@ -101,7 +102,7 @@ def get_version_from_git(
     else:
         version = src_version
         version_long = ""
-    return version, version_long
+    return os.path.basename(version), os.path.basename(version_long)
 
 
 def main(use_tags: bool = False, output_json: bool = False):
