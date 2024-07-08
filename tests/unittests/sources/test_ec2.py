@@ -1448,7 +1448,7 @@ class TestConvertEc2MetadataNetworkConfig(test_helpers.CiTestCase):
                     "dhcp4": True,
                     "dhcp4-overrides": {"route-metric": 100},
                     "dhcp6": True,
-                    "match": {"macaddress": "02:7c:03:b8:5c:af"},
+                    "match": {"name": "eth0"},
                     "set-name": "eth0",
                     "dhcp6-overrides": {"route-metric": 100},
                 },
@@ -1459,7 +1459,7 @@ class TestConvertEc2MetadataNetworkConfig(test_helpers.CiTestCase):
                         "use-routes": True,
                     },
                     "dhcp6": True,
-                    "match": {"macaddress": "02:6b:df:a2:4b:2b"},
+                    "match": {"name": "eth1"},
                     "set-name": "eth1",
                     "routes": [
                         {"to": "2600:1f16:67f:f201:0:0:0:0/64", "table": 101},
