@@ -493,7 +493,7 @@ class TestEc2(test_helpers.ResponsesTestCase):
             "version": 2,
             "ethernets": {
                 "eth9": {
-                    "match": {"name": "eth9"},
+                    "match": {"macaddress": "06:17:04:d7:26:09"},
                     "set-name": "eth9",
                     "dhcp4": True,
                     "dhcp6": True,
@@ -531,7 +531,7 @@ class TestEc2(test_helpers.ResponsesTestCase):
             "version": 2,
             "ethernets": {
                 "eth9": {
-                    "match": {"name": "eth9"},
+                    "match": {"macaddress": mac1.lower()},
                     "set-name": "eth9",
                     "dhcp4": True,
                     "dhcp6": False,
@@ -573,7 +573,7 @@ class TestEc2(test_helpers.ResponsesTestCase):
             "version": 2,
             "ethernets": {
                 "eth9": {
-                    "match": {"name": "eth9"},
+                    "match": {"macaddress": mac1},
                     "set-name": "eth9",
                     "addresses": [
                         "172.31.45.70/20",
@@ -658,7 +658,7 @@ class TestEc2(test_helpers.ResponsesTestCase):
             "version": 2,
             "ethernets": {
                 "eth9": {
-                    "match": {"name": "eth9"},
+                    "match": {"macaddress": mac1},
                     "set-name": "eth9",
                     "dhcp4": True,
                     "dhcp6": True,
@@ -1177,7 +1177,7 @@ class TestConvertEc2MetadataNetworkConfig(test_helpers.CiTestCase):
             "version": 2,
             "ethernets": {
                 "eth9": {
-                    "match": {"name": "eth9"},
+                    "match": {"macaddress": self.mac1},
                     "set-name": "eth9",
                     "dhcp4": True,
                     "dhcp6": False,
@@ -1203,7 +1203,7 @@ class TestConvertEc2MetadataNetworkConfig(test_helpers.CiTestCase):
             "version": 2,
             "ethernets": {
                 "eth9": {
-                    "match": {"name": "eth9"},
+                    "match": {"macaddress": self.mac1},
                     "set-name": "eth9",
                     "dhcp4": True,
                     "dhcp6": True,
@@ -1229,7 +1229,7 @@ class TestConvertEc2MetadataNetworkConfig(test_helpers.CiTestCase):
             "version": 2,
             "ethernets": {
                 "eth9": {
-                    "match": {"name": "eth9"},
+                    "match": {"macaddress": self.mac1},
                     "set-name": "eth9",
                     "dhcp4": True,
                     "dhcp6": False,
@@ -1256,7 +1256,7 @@ class TestConvertEc2MetadataNetworkConfig(test_helpers.CiTestCase):
             "version": 2,
             "ethernets": {
                 "eth9": {
-                    "match": {"name": "eth9"},
+                    "match": {"macaddress": self.mac1},
                     "set-name": "eth9",
                     "dhcp4": True,
                     "dhcp6": False,
@@ -1283,7 +1283,7 @@ class TestConvertEc2MetadataNetworkConfig(test_helpers.CiTestCase):
             "version": 2,
             "ethernets": {
                 "eth9": {
-                    "match": {"name": "eth9"},
+                    "match": {"macaddress": self.mac1},
                     "set-name": "eth9",
                     "dhcp4": True,
                     "dhcp6": True,
@@ -1315,7 +1315,7 @@ class TestConvertEc2MetadataNetworkConfig(test_helpers.CiTestCase):
             "version": 2,
             "ethernets": {
                 "eth9": {
-                    "match": {"name": "eth9"},
+                    "match": {"macaddress": self.mac1},
                     "set-name": "eth9",
                     "dhcp4": True,
                     "dhcp4-overrides": {"route-metric": 100},
@@ -1323,7 +1323,7 @@ class TestConvertEc2MetadataNetworkConfig(test_helpers.CiTestCase):
                     "dhcp6-overrides": {"route-metric": 100},
                 },
                 "eth10": {
-                    "match": {"name": "eth10"},
+                    "match": {"macaddress": mac2},
                     "set-name": "eth10",
                     "dhcp4": True,
                     "dhcp4-overrides": {
@@ -1345,7 +1345,7 @@ class TestConvertEc2MetadataNetworkConfig(test_helpers.CiTestCase):
             },
         }
         distro = mock.Mock()
-        distro.network_renderer = netplan.Renderer()
+        distro.network_renderer = netplan.Renderer
         distro.dhcp_client.dhcp_discovery.return_value = {
             "routers": "172.31.1.0"
         }
@@ -1377,22 +1377,22 @@ class TestConvertEc2MetadataNetworkConfig(test_helpers.CiTestCase):
             "version": 2,
             "ethernets": {
                 "eth9": {
-                    "match": {"name": "eth9"},
-                    "set-name": "eth9",
                     "dhcp4": True,
                     "dhcp4-overrides": {"route-metric": 100},
                     "dhcp6": True,
+                    "match": {"macaddress": "06:17:04:d7:26:09"},
+                    "set-name": "eth9",
                     "dhcp6-overrides": {"route-metric": 100},
                 },
                 "eth10": {
-                    "match": {"name": "eth10"},
-                    "set-name": "eth10",
                     "dhcp4": True,
                     "dhcp4-overrides": {
                         "route-metric": 200,
                         "use-routes": True,
                     },
                     "dhcp6": True,
+                    "match": {"macaddress": "06:17:04:d7:26:08"},
+                    "set-name": "eth10",
                     "routes": [
                         # via DHCP gateway
                         {"to": "0.0.0.0/0", "via": "172.31.1.0", "table": 101},
@@ -1422,7 +1422,7 @@ class TestConvertEc2MetadataNetworkConfig(test_helpers.CiTestCase):
             },
         }
         distro = mock.Mock()
-        distro.network_renderer = netplan.Renderer()
+        distro.network_renderer = netplan.Renderer
         distro.dhcp_client.dhcp_discovery.return_value = {
             "routers": "172.31.1.0"
         }
@@ -1448,7 +1448,7 @@ class TestConvertEc2MetadataNetworkConfig(test_helpers.CiTestCase):
                     "dhcp4": True,
                     "dhcp4-overrides": {"route-metric": 100},
                     "dhcp6": True,
-                    "match": {"name": "eth0"},
+                    "match": {"macaddress": "02:7c:03:b8:5c:af"},
                     "set-name": "eth0",
                     "dhcp6-overrides": {"route-metric": 100},
                 },
@@ -1459,7 +1459,7 @@ class TestConvertEc2MetadataNetworkConfig(test_helpers.CiTestCase):
                         "use-routes": True,
                     },
                     "dhcp6": True,
-                    "match": {"name": "eth1"},
+                    "match": {"macaddress": "02:6b:df:a2:4b:2b"},
                     "set-name": "eth1",
                     "routes": [
                         {"to": "2600:1f16:67f:f201:0:0:0:0/64", "table": 101},
@@ -1478,7 +1478,7 @@ class TestConvertEc2MetadataNetworkConfig(test_helpers.CiTestCase):
             },
         }
         distro = mock.Mock()
-        distro.network_renderer = netplan.Renderer()
+        distro.network_renderer = netplan.Renderer
         assert expected == ec2.convert_ec2_metadata_network_config(
             network_metadata, distro, macs_to_nics
         )
@@ -1494,7 +1494,7 @@ class TestConvertEc2MetadataNetworkConfig(test_helpers.CiTestCase):
             "version": 2,
             "ethernets": {
                 "eth9": {
-                    "match": {"name": "eth9"},
+                    "match": {"macaddress": self.mac1},
                     "set-name": "eth9",
                     "dhcp4": True,
                     "dhcp6": True,
@@ -1515,7 +1515,7 @@ class TestConvertEc2MetadataNetworkConfig(test_helpers.CiTestCase):
             "version": 2,
             "ethernets": {
                 "eth9": {
-                    "match": {"name": "eth9"},
+                    "match": {"macaddress": self.mac1},
                     "set-name": "eth9",
                     "dhcp4": True,
                     "dhcp6": False,
