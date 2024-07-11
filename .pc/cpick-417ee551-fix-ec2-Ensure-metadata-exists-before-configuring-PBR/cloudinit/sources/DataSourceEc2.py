@@ -19,7 +19,7 @@ from cloudinit import url_helper as uhelp
 from cloudinit import util, warnings
 from cloudinit.distros import Distro
 from cloudinit.event import EventScope, EventType
-from cloudinit.net import netplan
+from cloudinit.net import activators
 from cloudinit.net.dhcp import NoDHCPLeaseError
 from cloudinit.net.ephemeral import EphemeralIPNetwork
 from cloudinit.sources.helpers import ec2
@@ -963,23 +963,11 @@ def _configure_policy_routing(
     @param: is_ipv4: Boolean indicating if we are acting over ipv4 or not.
     @param: table: Routing table id.
     """
-    if is_ipv4:
-        subnet_prefix_routes = nic_metadata.get("subnet-ipv4-cidr-block")
-        ips = nic_metadata.get("local-ipv4s")
-    else:
-        subnet_prefix_routes = nic_metadata.get("subnet-ipv6-cidr-blocks")
-        ips = nic_metadata.get("ipv6s")
-    if not (subnet_prefix_routes and ips):
-        LOG.debug(
-            "Not enough IMDS information to configure policy routing "
-            "for IPv%s",
-            "4" if is_ipv4 else "6",
-        )
-        return
-
     if not dev_config.get("routes"):
         dev_config["routes"] = []
     if is_ipv4:
+        subnet_prefix_routes = nic_metadata["subnet-ipv4-cidr-block"]
+        ips = nic_metadata["local-ipv4s"]
         try:
             lease = distro.dhcp_client.dhcp_discovery(nic_name, distro=distro)
             gateway = lease["routers"]
@@ -1000,6 +988,9 @@ def _configure_policy_routing(
                     "table": table,
                 },
             )
+    else:
+        subnet_prefix_routes = nic_metadata["subnet-ipv6-cidr-blocks"]
+        ips = nic_metadata["ipv6s"]
 
     subnet_prefix_routes = (
         [subnet_prefix_routes]
@@ -1066,7 +1057,7 @@ def convert_ec2_metadata_network_config(
         dev_config = {
             "dhcp4": True,
             "dhcp6": False,
-            "match": {"match": nic_name},
+            "match": {"macaddress": mac.lower()},
             "set-name": nic_name,
         }
         nic_metadata = macs_metadata.get(mac)
@@ -1075,7 +1066,7 @@ def convert_ec2_metadata_network_config(
         netcfg["ethernets"][nic_name] = dev_config
         return netcfg
     # Apply network config for all nics and any secondary IPv4/v6 addresses
-    is_netplan = isinstance(distro.network_renderer, netplan.Renderer)
+    is_netplan = distro.network_activator == activators.NetplanActivator
     macs = sorted(macs_to_nics.keys())
     nic_order = _build_nic_order(macs_metadata, macs)
     for mac in macs:
@@ -1091,7 +1082,7 @@ def convert_ec2_metadata_network_config(
             "dhcp4": True,
             "dhcp4-overrides": dhcp_override,
             "dhcp6": False,
-            "match": {"name": nic_name},
+            "match": {"macaddress": mac.lower()},
             "set-name": nic_name,
         }
         # This config only works on systems using Netplan because Networking
