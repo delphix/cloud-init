@@ -333,13 +333,13 @@ class TestDataSourceLXD:
         assert NETWORK_V1 == lxd_ds.network_config
         assert LXD_V1_METADATA == lxd_ds._crawled_metadata
 
+    @mock.patch.object(lxd, "generate_network_config", return_value=NETWORK_V1)
     def test_network_config_crawled_metadata_no_network_config(
-        self, lxd_ds_no_network_config
+        self, m_generate, lxd_ds_no_network_config
     ):
         """network_config is correctly computed when _network_config is unset
         and _crawled_metadata does not contain network_config.
         """
-        lxd.generate_network_config = mock.Mock(return_value=NETWORK_V1)
         assert UNSET == lxd_ds_no_network_config._crawled_metadata
         assert UNSET == lxd_ds_no_network_config._network_config
         assert None is lxd_ds_no_network_config.userdata_raw
@@ -349,7 +349,7 @@ class TestDataSourceLXD:
             LXD_V1_METADATA_NO_NETWORK_CONFIG
             == lxd_ds_no_network_config._crawled_metadata
         )
-        assert 1 == lxd.generate_network_config.call_count
+        assert 1 == m_generate.call_count
 
 
 class TestIsPlatformViable:
@@ -650,8 +650,10 @@ class TestReadMetadata:
                 mock_status_code = mock.PropertyMock(return_value=404)
             type(m_resp).ok = mock_ok
             type(m_resp).status_code = mock_status_code
-            mock_text = mock.PropertyMock(return_value=content)
-            type(m_resp).text = mock_text
+            mock_content = mock.PropertyMock(
+                return_value=content.encode("utf-8")
+            )
+            type(m_resp).content = mock_content
             return m_resp
 
         m_session_get.side_effect = fake_get
