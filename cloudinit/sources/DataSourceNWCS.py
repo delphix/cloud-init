@@ -43,6 +43,12 @@ class DataSourceNWCS(sources.DataSource):
         self.wait_retry = self.ds_cfg.get("wait_retry", MD_WAIT_RETRY)
         self._network_config = sources.UNSET
         self.dsmode = sources.DSMODE_NETWORK
+        self.metadata_full = None
+
+    def _unpickle(self, ci_pkl_version: int) -> None:
+        super()._unpickle(ci_pkl_version)
+        if not self._network_config:
+            self._network_config = sources.UNSET
 
     def _get_data(self):
         md = self.get_metadata()
@@ -93,13 +99,6 @@ class DataSourceNWCS(sources.DataSource):
     @property
     def network_config(self):
         LOG.debug("Attempting network configuration")
-
-        if self._network_config is None:
-            LOG.warning(
-                "Found None as cached _network_config, resetting to %s",
-                sources.UNSET,
-            )
-            self._network_config = sources.UNSET
 
         if self._network_config != sources.UNSET:
             return self._network_config

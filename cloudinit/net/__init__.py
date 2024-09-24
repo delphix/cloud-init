@@ -15,6 +15,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 from urllib.parse import urlparse
 
 from cloudinit import subp, util
+from cloudinit.net.netops.iproute2 import Iproute2
 from cloudinit.url_helper import UrlError, readurl
 
 LOG = logging.getLogger(__name__)
@@ -242,7 +243,7 @@ def get_dev_features(devname):
 
 
 def has_netfail_standby_feature(devname):
-    """ Return True if VIRTIO_NET_F_STANDBY bit (62) is set.
+    """Return True if VIRTIO_NET_F_STANDBY bit (62) is set.
 
     https://github.com/torvalds/linux/blob/ \
         089cf7f6ecb266b6a4164919a2e69bd2f938374a/ \
@@ -641,7 +642,7 @@ def interface_has_own_mac(ifname, strict=False):
     are bonds or vlans that inherit their mac from another device.
     Possible values are:
       0: permanent address    2: stolen from another device
-      1: randomly generated   3: set using dev_set_mac_address"""
+    1: randomly generated   3: set using dev_set_mac_address"""
 
     assign_type = read_sys_net_int(ifname, "addr_assign_type")
     if assign_type is None:
@@ -721,16 +722,7 @@ def _rename_interfaces(
     LOG.debug("Detected interfaces %s", cur_info)
 
     def update_byname(bymac):
-        return dict((data["name"], data) for data in cur_info.values())
-
-    def rename(cur, new):
-        subp.subp(["ip", "link", "set", cur, "name", new], capture=True)
-
-    def down(name):
-        subp.subp(["ip", "link", "set", name, "down"], capture=True)
-
-    def up(name):
-        subp.subp(["ip", "link", "set", name, "up"], capture=True)
+        return dict((data["name"], data) for data in bymac.values())
 
     ops = []
     errors = []
@@ -835,15 +827,23 @@ def _rename_interfaces(
         cur_byname = update_byname(cur_info)
         ops += cur_ops
 
-    opmap = {"rename": rename, "down": down, "up": up}
+    opmap = {
+        "rename": Iproute2.link_rename,
+        "down": Iproute2.link_down,
+        "up": Iproute2.link_up,
+    }
 
     if len(ops) + len(ups) == 0:
         if len(errors):
-            LOG.debug("unable to do any work for renaming of %s", renames)
+            LOG.warning(
+                "Unable to rename interfaces: %s due to errors: %s",
+                renames,
+                errors,
+            )
         else:
             LOG.debug("no work necessary for renaming of %s", renames)
     else:
-        LOG.debug("achieving renaming of %s with ops %s", renames, ops + ups)
+        LOG.debug("Renamed %s with ops %s", renames, ops + ups)
 
         for op, mac, new_name, params in ops + ups:
             try:
@@ -1281,6 +1281,48 @@ def is_ipv6_network(address: str) -> bool:
     return bool(
         maybe_get_address(ipaddress.IPv6Network, address, strict=False)
     )
+
+
+def is_ip_in_subnet(address: str, subnet: str) -> bool:
+    """Returns a bool indicating if ``s`` is in subnet.
+
+    :param address:
+        The string of IP address.
+
+    :param subnet:
+        The string of subnet.
+
+    :return:
+        A bool indicating if the string is in subnet.
+    """
+    ip_address = ipaddress.ip_address(address)
+    subnet_network = ipaddress.ip_network(subnet, strict=False)
+    return ip_address in subnet_network
+
+
+def should_add_gateway_onlink_flag(gateway: str, subnet: str) -> bool:
+    """Returns a bool indicating if should add gateway onlink flag.
+
+    :param gateway:
+        The string of gateway address.
+
+    :param subnet:
+        The string of subnet.
+
+    :return:
+        A bool indicating if the string is in subnet.
+    """
+    try:
+        return not is_ip_in_subnet(gateway, subnet)
+    except ValueError as e:
+        LOG.warning(
+            "Failed to check whether gateway %s"
+            " is contained within subnet %s: %s",
+            gateway,
+            subnet,
+            e,
+        )
+        return False
 
 
 def subnet_is_ipv6(subnet) -> bool:

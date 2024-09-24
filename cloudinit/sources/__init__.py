@@ -17,7 +17,7 @@ import pickle
 import re
 from collections import namedtuple
 from enum import Enum, unique
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from cloudinit import atomic_helper, dmi, importer, net, type_utils
 from cloudinit import user_data as ud
@@ -78,6 +78,16 @@ class NetworkConfigSource(Enum):
     SYSTEM_CFG = "system_cfg"
     FALLBACK = "fallback"
     INITRAMFS = "initramfs"
+
+    def __str__(self) -> str:
+        return self.value
+
+
+class NicOrder(Enum):
+    """Represents ways to sort NICs"""
+
+    MAC = "mac"
+    NIC_NAME = "nic_name"
 
     def __str__(self) -> str:
         return self.value
@@ -195,6 +205,8 @@ class DataSource(CloudInitPickleMixin, metaclass=abc.ABCMeta):
     #  - seed-dir (<dirname>)
     _subplatform = None
 
+    _crawled_metadata: Optional[Union[Dict, str]] = None
+
     # The network configuration sources that should be considered for this data
     # source.  (The first source in this list that provides network
     # configuration will be used without considering any that follow.)  This
@@ -305,13 +317,16 @@ class DataSource(CloudInitPickleMixin, metaclass=abc.ABCMeta):
         self.sys_cfg = sys_cfg
         self.distro = distro
         self.paths = paths
-        self.userdata = None
+        self.userdata: Optional[Any] = None
         self.metadata: dict = {}
         self.userdata_raw: Optional[str] = None
         self.vendordata = None
         self.vendordata2 = None
         self.vendordata_raw = None
         self.vendordata2_raw = None
+        self.metadata_address = None
+        self.network_json = UNSET
+        self.ec2_metadata = UNSET
 
         self.ds_cfg = util.get_cfg_by_path(
             self.sys_cfg, ("datasource", self.dsname), {}
@@ -326,12 +341,24 @@ class DataSource(CloudInitPickleMixin, metaclass=abc.ABCMeta):
 
     def _unpickle(self, ci_pkl_version: int) -> None:
         """Perform deserialization fixes for Paths."""
-        if not hasattr(self, "vendordata2"):
-            self.vendordata2 = None
-        if not hasattr(self, "vendordata2_raw"):
-            self.vendordata2_raw = None
-        if not hasattr(self, "skip_hotplug_detect"):
-            self.skip_hotplug_detect = False
+        expected_attrs = {
+            "_crawled_metadata": None,
+            "_platform_type": None,
+            "_subplatform": None,
+            "ec2_metadata": UNSET,
+            "extra_hotplug_udev_rules": None,
+            "metadata_address": None,
+            "network_json": UNSET,
+            "skip_hotplug_detect": False,
+            "vendordata2": None,
+            "vendordata2_raw": None,
+        }
+        for key, value in expected_attrs.items():
+            if not hasattr(self, key):
+                setattr(self, key, value)
+
+        if not hasattr(self, "check_if_fallback_is_allowed"):
+            setattr(self, "check_if_fallback_is_allowed", lambda: False)
         if hasattr(self, "userdata") and self.userdata is not None:
             # If userdata stores MIME data, on < python3.6 it will be
             # missing the 'policy' attribute that exists on >=python3.6.
@@ -347,8 +374,6 @@ class DataSource(CloudInitPickleMixin, metaclass=abc.ABCMeta):
                     e,
                 )
                 raise DatasourceUnpickleUserDataError() from e
-        if not hasattr(self, "extra_hotplug_udev_rules"):
-            self.extra_hotplug_udev_rules = None
 
     def __str__(self):
         return type_utils.obj_name(self)
@@ -360,7 +385,7 @@ class DataSource(CloudInitPickleMixin, metaclass=abc.ABCMeta):
     def override_ds_detect(self) -> bool:
         """Override if either:
         - only a single datasource defined (nothing to fall back to)
-        - commandline argument is used (ci.ds=OpenStack)
+        - command line argument is used (ci.ds=OpenStack)
 
         Note: get_cmdline() is required for the general case - when ds-identify
         does not run, _something_ needs to detect the kernel command line
@@ -368,7 +393,7 @@ class DataSource(CloudInitPickleMixin, metaclass=abc.ABCMeta):
         """
         if self.dsname.lower() == parse_cmdline().lower():
             LOG.debug(
-                "Machine is configured by the kernel commandline to run on "
+                "Machine is configured by the kernel command line to run on "
                 "single datasource %s.",
                 self,
             )
@@ -458,6 +483,12 @@ class DataSource(CloudInitPickleMixin, metaclass=abc.ABCMeta):
         """
         self._dirty_cache = True
         return_value = self._check_and_get_data()
+        # TODO: verify that datasource types are what they are expected to be
+        # each datasource uses different logic to get userdata, metadata, etc
+        # and then the rest of the codebase assumes the types of this data
+        # it would be prudent to have a type check here that warns, when the
+        # datatype is incorrect, rather than assuming types and throwing
+        # exceptions later if/when they get used incorrectly.
         if not return_value:
             return return_value
         self.persist_instance_data()
@@ -476,25 +507,19 @@ class DataSource(CloudInitPickleMixin, metaclass=abc.ABCMeta):
         """
         if write_cache and os.path.lexists(self.paths.instance_link):
             pkl_store(self, self.paths.get_ipath_cur("obj_pkl"))
-        if hasattr(self, "_crawled_metadata"):
+        if self._crawled_metadata is not None:
             # Any datasource with _crawled_metadata will best represent
             # most recent, 'raw' metadata
-            crawled_metadata = copy.deepcopy(
-                getattr(self, "_crawled_metadata")
-            )
+            crawled_metadata = copy.deepcopy(self._crawled_metadata)
             crawled_metadata.pop("user-data", None)
             crawled_metadata.pop("vendor-data", None)
             instance_data = {"ds": crawled_metadata}
         else:
             instance_data = {"ds": {"meta_data": self.metadata}}
-            if hasattr(self, "network_json"):
-                network_json = getattr(self, "network_json")
-                if network_json != UNSET:
-                    instance_data["ds"]["network_json"] = network_json
-            if hasattr(self, "ec2_metadata"):
-                ec2_metadata = getattr(self, "ec2_metadata")
-                if ec2_metadata != UNSET:
-                    instance_data["ds"]["ec2_metadata"] = ec2_metadata
+            if self.network_json != UNSET:
+                instance_data["ds"]["network_json"] = self.network_json
+            if self.ec2_metadata != UNSET:
+                instance_data["ds"]["ec2_metadata"] = self.ec2_metadata
         instance_data["ds"]["_doc"] = EXPERIMENTAL_TEXT
         # Add merged cloud.cfg and sys info for jinja templates and cli query
         instance_data["merged_cfg"] = copy.deepcopy(self.sys_cfg)
@@ -631,9 +656,6 @@ class DataSource(CloudInitPickleMixin, metaclass=abc.ABCMeta):
 
     @property
     def platform_type(self):
-        if not hasattr(self, "_platform_type"):
-            # Handle upgrade path where pickled datasource has no _platform.
-            self._platform_type = self.dsname.lower()
         if not self._platform_type:
             self._platform_type = self.dsname.lower()
         return self._platform_type
@@ -650,17 +672,14 @@ class DataSource(CloudInitPickleMixin, metaclass=abc.ABCMeta):
             nocloud:   seed-dir (/seed/dir/path)
             lxd:   nocloud (/seed/dir/path)
         """
-        if not hasattr(self, "_subplatform"):
-            # Handle upgrade path where pickled datasource has no _platform.
-            self._subplatform = self._get_subplatform()
         if not self._subplatform:
             self._subplatform = self._get_subplatform()
         return self._subplatform
 
     def _get_subplatform(self):
         """Subclasses should implement to return a "slug (detail)" string."""
-        if hasattr(self, "metadata_address"):
-            return "metadata (%s)" % getattr(self, "metadata_address")
+        if self.metadata_address:
+            return f"metadata ({self.metadata_address})"
         return METADATA_UNKNOWN
 
     @property
@@ -711,10 +730,6 @@ class DataSource(CloudInitPickleMixin, metaclass=abc.ABCMeta):
         for f in filters:
             new_ud = f.apply(new_ud)
         return new_ud
-
-    @property
-    def is_disconnected(self):
-        return False
 
     def get_userdata_raw(self):
         return self.userdata_raw
@@ -923,6 +938,16 @@ class DataSource(CloudInitPickleMixin, metaclass=abc.ABCMeta):
 
     def check_instance_id(self, sys_cfg):
         # quickly (local check only) if self.instance_id is still
+        return False
+
+    def check_if_fallback_is_allowed(self):
+        """check_if_fallback_is_allowed()
+        Checks if a cached ds is allowed to be restored when no valid ds is
+        found in local mode by checking instance-id and searching valid data
+        through ds list.
+
+        @return True if a ds allows fallback, False otherwise.
+        """
         return False
 
     @staticmethod
@@ -1208,7 +1233,7 @@ def parse_cmdline_or_dmi(input: str) -> str:
         dsname = deprecated.group(1).strip()
         util.deprecate(
             deprecated=(
-                f"Defining the datasource on the commandline using "
+                f"Defining the datasource on the command line using "
                 f"ci.ds={dsname} or "
                 f"ci.datasource={dsname}"
             ),

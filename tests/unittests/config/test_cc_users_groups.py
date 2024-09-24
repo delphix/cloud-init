@@ -97,6 +97,7 @@ class TestHandleUsersGroups(CiTestCase):
                 "lock_passwd": True,
                 "groups": ["wheel"],
                 "shell": "/bin/tcsh",
+                "homedir": "/home/freebsd",
             }
         }
         metadata = {}
@@ -116,6 +117,7 @@ class TestHandleUsersGroups(CiTestCase):
                     groups="wheel",
                     lock_passwd=True,
                     shell="/bin/tcsh",
+                    homedir="/home/freebsd",
                 ),
                 mock.call("me2", uid=1234, default=False),
             ],
@@ -371,9 +373,20 @@ class TestUsersGroupsSchema:
                     SchemaValidationError,
                     match=(
                         "Cloud config schema deprecations: "
-                        "users.0.lock-passwd: Default: ``true`` "
-                        "Deprecated in version 22.3. Use "
-                        "``lock_passwd`` instead."
+                        "users.0.lock-passwd:  Deprecated in version 22.3."
+                        " Use ``lock_passwd`` instead."
+                    ),
+                ),
+                False,
+            ),
+            (
+                {"users": [{"name": "bbsw", "no-create-home": True}]},
+                pytest.raises(
+                    SchemaValidationError,
+                    match=(
+                        "Cloud config schema deprecations: "
+                        "users.0.no-create-home:  Deprecated in version 24.2."
+                        " Use ``no_create_home`` instead."
                     ),
                 ),
                 False,
@@ -394,13 +407,10 @@ class TestUsersGroupsSchema:
                     SchemaValidationError,
                     match=(
                         "Cloud config schema deprecations: "
-                        "users.0.groups.adm: When providing an object "
-                        "for users.groups the ``<group_name>`` keys "
-                        "are the groups to add this user to Deprecated"
-                        " in version 23.1., users.0.groups.sudo: When "
-                        "providing an object for users.groups the "
-                        "``<group_name>`` keys are the groups to add "
-                        "this user to Deprecated in version 23.1."
+                        "users.0.groups.adm:  Deprecated in version 23.1. "
+                        "The use of ``object`` type is deprecated. Use "
+                        "``string`` or ``array`` of ``string`` instead., "
+                        "users.0.groups.sudo:  Deprecated in version 23.1."
                     ),
                 ),
                 False,
@@ -456,10 +466,7 @@ class TestUsersGroupsSchema:
                     SchemaValidationError,
                     match=(
                         "Cloud config schema deprecations: "
-                        "user.groups.sbuild: When providing an object "
-                        "for users.groups the ``<group_name>`` keys "
-                        "are the groups to add this user to Deprecated"
-                        " in version 23.1."
+                        "user.groups.sbuild:  Deprecated in version 23.1."
                     ),
                 ),
                 False,
@@ -502,6 +509,36 @@ class TestUsersGroupsSchema:
                     match=("users.0.expiredate: '2038,1,19' is not a 'date'"),
                 ),
                 True,
+            ),
+            (
+                {
+                    "users": [
+                        {
+                            "name": "lima",
+                            "uid": "1000",
+                            "homedir": "/home/lima.linux",
+                            "shell": "/bin/bash",
+                            "sudo": "ALL=(ALL) NOPASSWD:ALL",
+                            "lock_passwd": True,
+                            "ssh-authorized-keys": ["ssh-ed25519 ..."],
+                        }
+                    ]
+                },
+                pytest.raises(
+                    SchemaValidationError,
+                    match=(
+                        "Cloud config schema deprecations: "
+                        "users.0.ssh-authorized-keys: "
+                        " Deprecated in version 18.3."
+                        " Use ``ssh_authorized_keys`` instead."
+                        ", "
+                        "users.0.uid: "
+                        " Changed in version 22.3."
+                        " The use of ``string`` type is deprecated."
+                        " Use an ``integer`` instead."
+                    ),
+                ),
+                False,
             ),
         ],
     )

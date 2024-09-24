@@ -1,4 +1,5 @@
 # This file is part of cloud-init. See LICENSE file for license information.
+# pylint: disable=attribute-defined-outside-init
 
 """Tests related to cloudinit.stages module."""
 import json
@@ -410,7 +411,7 @@ class TestInit:
         }
         self.init.datasource = FakeDataSource(network_config={"network": None})
 
-        self.init.distro.generate_fallback_config = lambda: {}
+        self.init.distro.generate_fallback_config = dict
 
         self.init._find_networking_config()
         assert "Empty network config found" in caplog.text

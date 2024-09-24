@@ -1,5 +1,6 @@
 # This file is part of cloud-init. See LICENSE file for license information.
 
+import copy
 import logging
 from unittest import mock
 
@@ -453,7 +454,10 @@ expire_cases = [
 class TestExpire:
     @pytest.mark.parametrize("cfg", expire_cases)
     def test_expire(self, cfg, mocker, caplog):
-        features.EXPIRE_APPLIES_TO_HASHED_USERS = True
+        # Stable release sets EXPIRE_APPLIES_TO_HASHED_USERS=False
+        # This test wants True
+        mocker.patch.object(features, "EXPIRE_APPLIES_TO_HASHED_USERS", True)
+        cfg = copy.deepcopy(cfg)
         cloud = get_cloud()
         mocker.patch(f"{MODPATH}subp.subp")
         mocker.patch.object(cloud.distro, "chpasswd")
@@ -479,7 +483,9 @@ class TestExpire:
     def test_expire_old_behavior(self, cfg, mocker, caplog):
         # Previously expire didn't apply to hashed passwords.
         # Ensure we can preserve that case on older releases
-        features.EXPIRE_APPLIES_TO_HASHED_USERS = False
+        mocker.patch.object(features, "EXPIRE_APPLIES_TO_HASHED_USERS", False)
+
+        cfg = copy.deepcopy(cfg)
         cloud = get_cloud()
         mocker.patch(f"{MODPATH}subp.subp")
         mocker.patch.object(cloud.distro, "chpasswd")

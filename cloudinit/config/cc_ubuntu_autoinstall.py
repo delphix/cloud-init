@@ -6,6 +6,7 @@ import logging
 import re
 from textwrap import dedent
 
+from cloudinit import subp, util
 from cloudinit.cloud import Cloud
 from cloudinit.config import Config
 from cloudinit.config.schema import (
@@ -15,7 +16,6 @@ from cloudinit.config.schema import (
     get_meta_doc,
 )
 from cloudinit.settings import PER_ONCE
-from cloudinit.subp import subp
 
 LOG = logging.getLogger(__name__)
 
@@ -83,7 +83,7 @@ def handle(name: str, cfg: Config, cloud: Cloud, args: list) -> None:
         )
         return
 
-    snap_list, _ = subp(["snap", "list"])
+    snap_list, _ = subp.subp(["snap", "list"])
     installer_present = None
     for snap_name in LIVE_INSTALLER_SNAPS:
         if re.search(snap_name, snap_list):
