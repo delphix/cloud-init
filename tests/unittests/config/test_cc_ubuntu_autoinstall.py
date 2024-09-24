@@ -64,7 +64,7 @@ class TestvalidateConfigSchema:
             cc_ubuntu_autoinstall.validate_config_schema(src_cfg)
 
 
-@mock.patch(MODPATH + "subp")
+@mock.patch(MODPATH + "subp.subp")
 class TestHandleAutoinstall:
     """Test cc_ubuntu_autoinstall handling of config."""
 
