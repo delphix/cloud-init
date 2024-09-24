@@ -6,61 +6,23 @@ import re
 import sys
 import sysconfig
 from copy import deepcopy
-from textwrap import dedent
 from typing import Optional
 
+from cloudinit import subp
 from cloudinit.cloud import Cloud
 from cloudinit.config import Config
-from cloudinit.config.schema import MetaSchema, get_meta_doc
+from cloudinit.config.schema import MetaSchema
 from cloudinit.distros import ALL_DISTROS, Distro
 from cloudinit.settings import PER_INSTANCE
-from cloudinit.subp import subp, which
 from cloudinit.util import Version, get_cfg_by_path
 
 meta: MetaSchema = {
     "id": "cc_ansible",
-    "name": "Ansible",
-    "title": "Configure ansible for instance",
     "frequency": PER_INSTANCE,
     "distros": [ALL_DISTROS],
     "activate_by_schema_keys": ["ansible"],
-    "description": dedent(
-        """\
-        This module provides ``ansible`` integration for
-        augmenting cloud-init's configuration of the local
-        node.
+}  # type: ignore
 
-
-        This module installs ansible during boot and
-        then uses ``ansible-pull`` to run the playbook
-        repository at the remote URL.
-        """
-    ),
-    "examples": [
-        dedent(
-            """\
-            ansible:
-              package_name: ansible-core
-              install_method: distro
-              pull:
-                url: "https://github.com/holmanb/vmboot.git"
-                playbook_name: ubuntu.yml
-            """
-        ),
-        dedent(
-            """\
-            ansible:
-              package_name: ansible-core
-              install_method: pip
-              pull:
-                url: "https://github.com/holmanb/vmboot.git"
-                playbook_name: ubuntu.yml
-            """
-        ),
-    ],
-}
-
-__doc__ = get_meta_doc(meta)
 LOG = logging.getLogger(__name__)
 CFG_OVERRIDE = "ansible_config"
 
@@ -100,7 +62,7 @@ class AnsiblePull(abc.ABC):
         return self.distro.do_as(command, self.run_user, **kwargs)
 
     def subp(self, command, **kwargs):
-        return subp(command, update_env=self.env, **kwargs)
+        return subp.subp(command, update_env=self.env, **kwargs)
 
     @abc.abstractmethod
     def is_installed(self):
@@ -165,7 +127,7 @@ class AnsiblePullDistro(AnsiblePull):
             self.distro.install_packages([pkg_name])
 
     def is_installed(self) -> bool:
-        return bool(which("ansible"))
+        return bool(subp.which("ansible"))
 
 
 def handle(name: str, cfg: Config, cloud: Cloud, args: list) -> None:

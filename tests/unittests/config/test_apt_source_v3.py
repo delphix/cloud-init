@@ -1,4 +1,5 @@
 # This file is part of cloud-init. See LICENSE file for license information.
+# pylint: disable=attribute-defined-outside-init
 
 """test_handler_apt_source_v3
 Testing various config variations of the apt_source custom config
@@ -63,9 +64,9 @@ class TestAptSourceConfig:
         self.matcher = re.compile(ADD_APT_REPO_MATCH).search
 
     @staticmethod
-    def _add_apt_sources(*args, **kwargs):
-        with mock.patch.object(cc_apt_configure, "update_packages"):
-            cc_apt_configure.add_apt_sources(*args, **kwargs)
+    def _add_apt_sources(cfg, cloud, gpg, **kwargs):
+        # with mock.patch.object(cloud.distro, "update_package_sources"):
+        cc_apt_configure.add_apt_sources(cfg, cloud, gpg, **kwargs)
 
     @staticmethod
     def _get_default_params():
@@ -80,7 +81,7 @@ class TestAptSourceConfig:
         ]
         return params
 
-    def _apt_src_basic(self, filename, cfg, tmpdir):
+    def _apt_src_basic(self, filename, cfg, tmpdir, gpg):
         """_apt_src_basic
         Test Fix deb source string, has to overwrite mirror conf in params
         """
@@ -88,7 +89,8 @@ class TestAptSourceConfig:
 
         self._add_apt_sources(
             cfg,
-            cloud=None,
+            cloud=mock.Mock(),
+            gpg=gpg,
             template_params=params,
             aa_repo_match=self.matcher,
         )
@@ -110,7 +112,7 @@ class TestAptSourceConfig:
             flags=re.IGNORECASE,
         ), f"Unexpected APT config in {filename}: {contents}"
 
-    def test_apt_v3_src_basic(self, tmpdir):
+    def test_apt_v3_src_basic(self, tmpdir, m_gpg):
         """test_apt_v3_src_basic - Test fix deb source string"""
         cfg = {
             self.aptlistfile: {
@@ -121,9 +123,9 @@ class TestAptSourceConfig:
                 )
             }
         }
-        self._apt_src_basic(self.aptlistfile, cfg, tmpdir)
+        self._apt_src_basic(self.aptlistfile, cfg, tmpdir, m_gpg)
 
-    def test_apt_v3_src_basic_tri(self, tmpdir):
+    def test_apt_v3_src_basic_tri(self, tmpdir, m_gpg):
         """test_apt_v3_src_basic_tri - Test multiple fix deb source strings"""
         cfg = {
             self.aptlistfile: {
@@ -148,7 +150,7 @@ class TestAptSourceConfig:
                 )
             },
         }
-        self._apt_src_basic(self.aptlistfile, cfg, tmpdir)
+        self._apt_src_basic(self.aptlistfile, cfg, tmpdir, m_gpg)
 
         # extra verify on two extra files of this test
         contents = util.load_text_file(self.aptlistfile2)
@@ -176,14 +178,15 @@ class TestAptSourceConfig:
             flags=re.IGNORECASE,
         ), f"Unexpected APT format of {self.aptlistfile3}: contents"
 
-    def _apt_src_replacement(self, filename, cfg, tmpdir):
+    def _apt_src_replacement(self, filename, cfg, tmpdir, gpg):
         """apt_src_replace
         Test Autoreplacement of MIRROR and RELEASE in source specs
         """
         params = self._get_default_params()
         self._add_apt_sources(
             cfg,
-            cloud=None,
+            cloud=mock.Mock(),
+            gpg=gpg,
             template_params=params,
             aa_repo_match=self.matcher,
         )
@@ -198,12 +201,12 @@ class TestAptSourceConfig:
             flags=re.IGNORECASE,
         )
 
-    def test_apt_v3_src_replace(self, tmpdir):
+    def test_apt_v3_src_replace(self, tmpdir, m_gpg):
         """test_apt_v3_src_replace - Test replacement of MIRROR & RELEASE"""
         cfg = {self.aptlistfile: {"source": "deb $MIRROR $RELEASE multiverse"}}
-        self._apt_src_replacement(self.aptlistfile, cfg, tmpdir)
+        self._apt_src_replacement(self.aptlistfile, cfg, tmpdir, m_gpg)
 
-    def test_apt_v3_src_replace_fn(self, tmpdir):
+    def test_apt_v3_src_replace_fn(self, tmpdir, m_gpg):
         """test_apt_v3_src_replace_fn - Test filename overwritten in dict"""
         cfg = {
             "ignored": {
@@ -212,14 +215,14 @@ class TestAptSourceConfig:
             }
         }
         # second file should overwrite the dict key
-        self._apt_src_replacement(self.aptlistfile, cfg, tmpdir)
+        self._apt_src_replacement(self.aptlistfile, cfg, tmpdir, m_gpg)
 
-    def _apt_src_replace_tri(self, cfg, tmpdir):
+    def _apt_src_replace_tri(self, cfg, tmpdir, gpg):
         """_apt_src_replace_tri
         Test three autoreplacements of MIRROR and RELEASE in source specs with
         generic part
         """
-        self._apt_src_replacement(self.aptlistfile, cfg, tmpdir)
+        self._apt_src_replacement(self.aptlistfile, cfg, tmpdir, gpg)
 
         # extra verify on two extra files of this test
         params = self._get_default_params()
@@ -238,7 +241,7 @@ class TestAptSourceConfig:
             flags=re.IGNORECASE,
         ), f"Unexpected APT format {self.aptlistfile3}: {contents}"
 
-    def test_apt_v3_src_replace_tri(self, tmpdir):
+    def test_apt_v3_src_replace_tri(self, tmpdir, m_gpg):
         """test_apt_v3_src_replace_tri - Test multiple replace/overwrites"""
         cfg = {
             self.aptlistfile: {"source": "deb $MIRROR $RELEASE multiverse"},
@@ -248,18 +251,22 @@ class TestAptSourceConfig:
             },
             self.aptlistfile3: {"source": "deb $MIRROR $RELEASE universe"},
         }
-        self._apt_src_replace_tri(cfg, tmpdir)
+        self._apt_src_replace_tri(cfg, tmpdir, m_gpg)
 
-    def _apt_src_keyid(self, filename, cfg, keynum, tmpdir, is_hardened=None):
+    def _apt_src_keyid(
+        self, filename, cfg, keynum, tmpdir, gpg, is_hardened=None
+    ):
         """_apt_src_keyid
         Test specification of a source + keyid
         """
         params = self._get_default_params()
 
+        cloud = get_cloud()
         with mock.patch.object(cc_apt_configure, "add_apt_key") as mockobj:
             self._add_apt_sources(
                 cfg,
-                cloud=None,
+                cloud=cloud,
+                gpg=gpg,
                 template_params=params,
                 aa_repo_match=self.matcher,
             )
@@ -268,9 +275,9 @@ class TestAptSourceConfig:
         calls = []
         for key in cfg:
             if is_hardened is not None:
-                calls.append(call(cfg[key], None, hardened=is_hardened))
+                calls.append(call(cfg[key], cloud, gpg, hardened=is_hardened))
             else:
-                calls.append(call(cfg[key], None))
+                calls.append(call(cfg[key], cloud, gpg))
 
         mockobj.assert_has_calls(calls, any_order=True)
 
@@ -289,7 +296,7 @@ class TestAptSourceConfig:
             flags=re.IGNORECASE,
         )
 
-    def test_apt_v3_src_keyid(self, tmpdir):
+    def test_apt_v3_src_keyid(self, tmpdir, m_gpg):
         """test_apt_v3_src_keyid - Test source + keyid with filename"""
         cfg = {
             self.aptlistfile: {
@@ -303,9 +310,9 @@ class TestAptSourceConfig:
                 "keyid": "03683F77",
             }
         }
-        self._apt_src_keyid(self.aptlistfile, cfg, 1, tmpdir)
+        self._apt_src_keyid(self.aptlistfile, cfg, 1, tmpdir, m_gpg)
 
-    def test_apt_v3_src_keyid_tri(self, tmpdir):
+    def test_apt_v3_src_keyid_tri(self, tmpdir, m_gpg):
         """test_apt_v3_src_keyid_tri - Test multiple src+key+file writes"""
         cfg = {
             self.aptlistfile: {
@@ -339,7 +346,7 @@ class TestAptSourceConfig:
             },
         }
 
-        self._apt_src_keyid(self.aptlistfile, cfg, 3, tmpdir)
+        self._apt_src_keyid(self.aptlistfile, cfg, 3, tmpdir, m_gpg)
         contents = util.load_text_file(self.aptlistfile2)
         assert re.search(
             r"%s %s %s %s\n"
@@ -365,7 +372,7 @@ class TestAptSourceConfig:
             flags=re.IGNORECASE,
         )
 
-    def test_apt_v3_src_key(self, mocker):
+    def test_apt_v3_src_key(self, mocker, m_gpg):
         """test_apt_v3_src_key - Test source + key"""
         params = self._get_default_params()
         cfg = {
@@ -383,7 +390,8 @@ class TestAptSourceConfig:
         mockobj = mocker.patch.object(cc_apt_configure, "apt_key")
         self._add_apt_sources(
             cfg,
-            cloud=None,
+            cloud=mock.Mock(),
+            gpg=m_gpg,
             template_params=params,
             aa_repo_match=self.matcher,
         )
@@ -391,6 +399,7 @@ class TestAptSourceConfig:
         calls = (
             call(
                 "add",
+                m_gpg,
                 output_file=pathlib.Path(self.aptlistfile).stem,
                 data="fakekey 4321",
                 hardened=False,
@@ -410,15 +419,17 @@ class TestAptSourceConfig:
             flags=re.IGNORECASE,
         )
 
-    def test_apt_v3_src_keyonly(self, mocker):
+    def test_apt_v3_src_keyonly(self, mocker, m_gpg):
         """test_apt_v3_src_keyonly - Test key without source"""
+        m_gpg.getkeybyid = mock.Mock(return_value="fakekey 4242")
         params = self._get_default_params()
         cfg = {self.aptlistfile: {"key": "fakekey 4242"}}
 
         mockobj = mocker.patch.object(cc_apt_configure, "apt_key")
         self._add_apt_sources(
             cfg,
-            cloud=None,
+            cloud=mock.Mock(),
+            gpg=m_gpg,
             template_params=params,
             aa_repo_match=self.matcher,
         )
@@ -426,6 +437,7 @@ class TestAptSourceConfig:
         calls = (
             call(
                 "add",
+                m_gpg,
                 output_file=pathlib.Path(self.aptlistfile).stem,
                 data="fakekey 4242",
                 hardened=False,
@@ -436,8 +448,9 @@ class TestAptSourceConfig:
         # filename should be ignored on key only
         assert os.path.isfile(self.aptlistfile) is False
 
-    def test_apt_v3_src_keyidonly(self):
+    def test_apt_v3_src_keyidonly(self, m_gpg):
         """test_apt_v3_src_keyidonly - Test keyid without source"""
+        m_gpg.getkeybyid = mock.Mock(return_value="fakekey 1212")
         params = self._get_default_params()
         cfg = {self.aptlistfile: {"keyid": "03683F77"}}
         with mock.patch.object(
@@ -446,7 +459,8 @@ class TestAptSourceConfig:
             with mock.patch.object(cc_apt_configure, "apt_key") as mockobj:
                 self._add_apt_sources(
                     cfg,
-                    cloud=None,
+                    cloud=mock.Mock(),
+                    gpg=m_gpg,
                     template_params=params,
                     aa_repo_match=self.matcher,
                 )
@@ -454,6 +468,7 @@ class TestAptSourceConfig:
         calls = (
             call(
                 "add",
+                m_gpg,
                 output_file=pathlib.Path(self.aptlistfile).stem,
                 data="fakekey 1212",
                 hardened=False,
@@ -466,7 +481,7 @@ class TestAptSourceConfig:
             os.path.isfile(self.aptlistfile) is False
         ), f"Unexpected file {self.aptlistfile} found"
 
-    def apt_src_keyid_real(self, cfg, expectedkey, is_hardened=None):
+    def apt_src_keyid_real(self, cfg, expectedkey, gpg, is_hardened=None):
         """apt_src_keyid_real
         Test specification of a keyid without source including
         up to addition of the key (add_apt_key_raw mocked to keep the
@@ -480,7 +495,8 @@ class TestAptSourceConfig:
             ) as mockgetkey:
                 self._add_apt_sources(
                     cfg,
-                    cloud=None,
+                    cloud=mock.Mock(),
+                    gpg=gpg,
                     template_params=params,
                     aa_repo_match=self.matcher,
                 )
@@ -493,27 +509,28 @@ class TestAptSourceConfig:
             mockkey.assert_called_with(
                 expectedkey,
                 keycfg["keyfile"],
+                gpg,
                 hardened=is_hardened,
             )
 
         # filename should be ignored on key only
         assert os.path.isfile(self.aptlistfile) is False
 
-    def test_apt_v3_src_keyid_real(self):
+    def test_apt_v3_src_keyid_real(self, m_gpg):
         """test_apt_v3_src_keyid_real - Test keyid including key add"""
         keyid = "03683F77"
         cfg = {self.aptlistfile: {"keyid": keyid, "keyfile": self.aptlistfile}}
 
-        self.apt_src_keyid_real(cfg, EXPECTEDKEY, is_hardened=False)
+        self.apt_src_keyid_real(cfg, EXPECTEDKEY, m_gpg, is_hardened=False)
 
-    def test_apt_v3_src_longkeyid_real(self):
+    def test_apt_v3_src_longkeyid_real(self, m_gpg):
         """test_apt_v3_src_longkeyid_real Test long keyid including key add"""
         keyid = "B59D 5F15 97A5 04B7 E230  6DCA 0620 BBCF 0368 3F77"
         cfg = {self.aptlistfile: {"keyid": keyid, "keyfile": self.aptlistfile}}
 
-        self.apt_src_keyid_real(cfg, EXPECTEDKEY, is_hardened=False)
+        self.apt_src_keyid_real(cfg, EXPECTEDKEY, m_gpg, is_hardened=False)
 
-    def test_apt_v3_src_longkeyid_ks_real(self):
+    def test_apt_v3_src_longkeyid_ks_real(self, m_gpg):
         """test_apt_v3_src_longkeyid_ks_real Test long keyid from other ks"""
         keyid = "B59D 5F15 97A5 04B7 E230  6DCA 0620 BBCF 0368 3F77"
         cfg = {
@@ -524,9 +541,9 @@ class TestAptSourceConfig:
             }
         }
 
-        self.apt_src_keyid_real(cfg, EXPECTEDKEY)
+        self.apt_src_keyid_real(cfg, EXPECTEDKEY, m_gpg)
 
-    def test_apt_v3_src_keyid_keyserver(self):
+    def test_apt_v3_src_keyid_keyserver(self, m_gpg):
         """test_apt_v3_src_keyid_keyserver - Test custom keyserver"""
         keyid = "03683F77"
         params = self._get_default_params()
@@ -540,30 +557,27 @@ class TestAptSourceConfig:
 
         # in some test environments only *.ubuntu.com is reachable
         # so mock the call and check if the config got there
-        with mock.patch.object(
-            gpg, "getkeybyid", return_value="fakekey"
-        ) as mockgetkey:
-            with mock.patch.object(
-                cc_apt_configure, "add_apt_key_raw"
-            ) as mockadd:
-                self._add_apt_sources(
-                    cfg,
-                    cloud=None,
-                    template_params=params,
-                    aa_repo_match=self.matcher,
-                )
+        with mock.patch.object(cc_apt_configure, "add_apt_key_raw") as mockadd:
+            self._add_apt_sources(
+                cfg,
+                cloud=mock.Mock(),
+                gpg=m_gpg,
+                template_params=params,
+                aa_repo_match=self.matcher,
+            )
 
-        mockgetkey.assert_called_with("03683F77", "test.random.com")
+        m_gpg.getkeybyid.assert_called_with("03683F77", "test.random.com")
         mockadd.assert_called_with(
-            "fakekey",
+            "<mocked: getkeybyid>",
             self.aptlistfile,
+            m_gpg,
             hardened=False,
         )
 
         # filename should be ignored on key only
         assert os.path.isfile(self.aptlistfile) is False
 
-    def test_apt_v3_src_ppa(self):
+    def test_apt_v3_src_ppa(self, m_gpg):
         """test_apt_v3_src_ppa - Test specification of a ppa"""
         params = self._get_default_params()
         cfg = {self.aptlistfile: {"source": "ppa:smoser/cloud-init-test"}}
@@ -571,7 +585,8 @@ class TestAptSourceConfig:
         with mock.patch("cloudinit.subp.subp") as mockobj:
             self._add_apt_sources(
                 cfg,
-                cloud=None,
+                cloud=mock.Mock(),
+                gpg=m_gpg,
                 template_params=params,
                 aa_repo_match=self.matcher,
             )
@@ -588,7 +603,7 @@ class TestAptSourceConfig:
             os.path.isfile(self.aptlistfile) is False
         ), f"Unexpected file found {self.aptlistfile}"
 
-    def test_apt_v3_src_ppa_tri(self):
+    def test_apt_v3_src_ppa_tri(self, m_gpg):
         """test_apt_v3_src_ppa_tri - Test specification of multiple ppa's"""
         params = self._get_default_params()
         cfg = {
@@ -600,7 +615,8 @@ class TestAptSourceConfig:
         with mock.patch("cloudinit.subp.subp") as mockobj:
             self._add_apt_sources(
                 cfg,
-                cloud=None,
+                cloud=mock.Mock(),
+                gpg=m_gpg,
                 template_params=params,
                 aa_repo_match=self.matcher,
             )
@@ -1202,7 +1218,7 @@ deb http://ubuntu.com/ubuntu/ xenial-proposed main"""
         assert mirrors["PRIMARY"] == pmir
         assert mirrors["SECURITY"] == smir
 
-    def test_apt_v3_add_mirror_keys(self, tmpdir):
+    def test_apt_v3_add_mirror_keys(self, tmpdir, m_gpg):
         """test_apt_v3_add_mirror_keys - Test adding key for mirrors"""
         arch = "amd64"
         cfg = {
@@ -1225,10 +1241,10 @@ deb http://ubuntu.com/ubuntu/ xenial-proposed main"""
         }
 
         with mock.patch.object(cc_apt_configure, "add_apt_key_raw") as mockadd:
-            cc_apt_configure.add_mirror_keys(cfg, None)
+            cc_apt_configure.add_mirror_keys(cfg, None, gpg)
         calls = [
-            mock.call("fakekey_primary", "primary", hardened=False),
-            mock.call("fakekey_security", "security", hardened=False),
+            mock.call("fakekey_primary", "primary", gpg, hardened=False),
+            mock.call("fakekey_security", "security", gpg, hardened=False),
         ]
         mockadd.assert_has_calls(calls, any_order=True)
 
