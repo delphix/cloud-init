@@ -50,6 +50,7 @@ from cloudinit.distros.package_management.utils import known_package_managers
 from cloudinit.distros.parsers import hosts
 from cloudinit.features import ALLOW_EC2_MIRRORS_ON_NON_AWS_INSTANCE_TYPES
 from cloudinit.net import activators, dhcp, renderers
+from cloudinit.net.netops import NetOps
 from cloudinit.net.network_state import parse_net_config_data
 from cloudinit.net.renderer import Renderer
 
@@ -68,6 +69,7 @@ OSFAMILIES = {
     "redhat": [
         "almalinux",
         "amazon",
+        "azurelinux",
         "centos",
         "cloudlinux",
         "eurolinux",
@@ -141,7 +143,7 @@ class Distro(persistence.CloudInitPickleMixin, metaclass=abc.ABCMeta):
     # This is used by self.shutdown_command(), and can be overridden in
     # subclasses
     shutdown_options_map = {"halt": "-H", "poweroff": "-P", "reboot": "-r"}
-    net_ops = iproute2.Iproute2
+    net_ops: Type[NetOps] = iproute2.Iproute2
 
     _ci_pkl_version = 1
     prefer_fqdn = False
@@ -395,7 +397,7 @@ class Distro(persistence.CloudInitPickleMixin, metaclass=abc.ABCMeta):
         # managers.
         raise NotImplementedError()
 
-    def update_package_sources(self):
+    def update_package_sources(self, *, force=False):
         for manager in self.package_managers:
             if not manager.available():
                 LOG.debug(
@@ -404,7 +406,7 @@ class Distro(persistence.CloudInitPickleMixin, metaclass=abc.ABCMeta):
                 )
                 continue
             try:
-                manager.update_package_sources()
+                manager.update_package_sources(force=force)
             except Exception as e:
                 LOG.error(
                     "Failed to update package using %s: %s", manager.name, e
@@ -845,7 +847,7 @@ class Distro(persistence.CloudInitPickleMixin, metaclass=abc.ABCMeta):
                 util.deprecate(
                     deprecated=f"The value of 'false' in user {name}'s "
                     "'sudo' config",
-                    deprecated_version="22.3",
+                    deprecated_version="22.2",
                     extra_message="Use 'null' instead.",
                 )
 
@@ -920,8 +922,8 @@ class Distro(persistence.CloudInitPickleMixin, metaclass=abc.ABCMeta):
 
         if hashed:
             # Need to use the short option name '-e' instead of '--encrypted'
-            # (which would be more descriptive) since SLES 11 doesn't know
-            # about long names.
+            # (which would be more descriptive) since Busybox and SLES 11
+            # chpasswd don't know about long names.
             cmd.append("-e")
 
         try:
@@ -1017,9 +1019,12 @@ class Distro(persistence.CloudInitPickleMixin, metaclass=abc.ABCMeta):
         # it actually exists as a directory
         sudoers_contents = ""
         base_exists = False
+        system_sudo_base = "/usr/etc/sudoers"
         if os.path.exists(sudo_base):
             sudoers_contents = util.load_text_file(sudo_base)
             base_exists = True
+        elif os.path.exists(system_sudo_base):
+            sudoers_contents = util.load_text_file(system_sudo_base)
         found_include = False
         for line in sudoers_contents.splitlines():
             line = line.strip()
@@ -1044,7 +1049,9 @@ class Distro(persistence.CloudInitPickleMixin, metaclass=abc.ABCMeta):
                         "#includedir %s" % (path),
                         "",
                     ]
-                    sudoers_contents = "\n".join(lines)
+                    if sudoers_contents:
+                        LOG.info("Using content from '%s'", system_sudo_base)
+                    sudoers_contents += "\n".join(lines)
                     util.write_file(sudo_base, sudoers_contents, 0o440)
                 else:
                     lines = [
@@ -1134,9 +1141,10 @@ class Distro(persistence.CloudInitPickleMixin, metaclass=abc.ABCMeta):
                 subp.subp(["usermod", "-a", "-G", name, member])
                 LOG.info("Added user '%s' to group '%s'", member, name)
 
-    def shutdown_command(self, *, mode, delay, message):
+    @classmethod
+    def shutdown_command(cls, *, mode, delay, message):
         # called from cc_power_state_change.load_power_state
-        command = ["shutdown", self.shutdown_options_map[mode]]
+        command = ["shutdown", cls.shutdown_options_map[mode]]
         try:
             if delay != "now":
                 delay = "+%d" % int(delay)
@@ -1343,6 +1351,60 @@ class Distro(persistence.CloudInitPickleMixin, metaclass=abc.ABCMeta):
                 reason="neither eject nor /lib/udev/cdrom_id are found",
             )
         subp.subp(cmd)
+
+    @staticmethod
+    def get_mapped_device(blockdev: str) -> Optional[str]:
+        """Returns underlying block device for a mapped device.
+
+        If it is mapped, blockdev will usually take the form of
+        /dev/mapper/some_name
+
+        If blockdev is a symlink pointing to a /dev/dm-* device, return
+        the device pointed to. Otherwise, return None.
+        """
+        realpath = os.path.realpath(blockdev)
+        if realpath.startswith("/dev/dm-"):
+            LOG.debug(
+                "%s is a mapped device pointing to %s", blockdev, realpath
+            )
+            return realpath
+        return None
+
+    @staticmethod
+    def device_part_info(devpath: str) -> tuple:
+        """convert an entry in /dev/ to parent disk and partition number
+
+        input of /dev/vdb or /dev/disk/by-label/foo
+        rpath is hopefully a real-ish path in /dev (vda, sdb..)
+        """
+        rpath = os.path.realpath(devpath)
+
+        bname = os.path.basename(rpath)
+        syspath = "/sys/class/block/%s" % bname
+
+        if not os.path.exists(syspath):
+            raise ValueError("%s had no syspath (%s)" % (devpath, syspath))
+
+        ptpath = os.path.join(syspath, "partition")
+        if not os.path.exists(ptpath):
+            raise TypeError("%s not a partition" % devpath)
+
+        ptnum = util.load_text_file(ptpath).rstrip()
+
+        # for a partition, real syspath is something like:
+        # /sys/devices/pci0000:00/0000:00:04.0/virtio1/block/vda/vda1
+        rsyspath = os.path.realpath(syspath)
+        disksyspath = os.path.dirname(rsyspath)
+
+        diskmajmin = util.load_text_file(
+            os.path.join(disksyspath, "dev")
+        ).rstrip()
+        diskdevpath = os.path.realpath("/dev/block/%s" % diskmajmin)
+
+        # diskdevpath has something like 253:0
+        # and udev has put links in /dev/block/253:0 to the device
+        # name in /dev/
+        return diskdevpath, ptnum
 
 
 def _apply_hostname_transformations_to_url(url: str, transformations: list):

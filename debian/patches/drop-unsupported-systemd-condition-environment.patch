@@ -1,0 +1,77 @@
+Description: Drop systemd ignored ConditionEnvironment keys from units on Focal
+ The systemd ConditionEnvironment config key was introduced in systemd
+ version 246, yet Ubuntu Focal contains only systemd v. 245.4. This setting
+ is otherwise ignored by systemd on Focal, but drop the config to avoid
+ warnings from systemctl status cloud-init.
+Origin: backport
+Author: Chad Smith <chad.smith@canonical.com>
+Last-Update: 2024-05-21
+---
+This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
+--- a/systemd/cloud-config.service.tmpl
++++ b/systemd/cloud-config.service.tmpl
+@@ -6,7 +6,6 @@ After=network-online.target cloud-config
+ Wants=network-online.target cloud-config.target
+ ConditionPathExists=!/etc/cloud/cloud-init.disabled
+ ConditionKernelCommandLine=!cloud-init=disabled
+-ConditionEnvironment=!KERNEL_CMDLINE=cloud-init=disabled
+ 
+ [Service]
+ Type=oneshot
+--- a/systemd/cloud-final.service.tmpl
++++ b/systemd/cloud-final.service.tmpl
+@@ -10,7 +10,6 @@ Before=apt-daily.service
+ Wants=network-online.target cloud-config.service
+ ConditionPathExists=!/etc/cloud/cloud-init.disabled
+ ConditionKernelCommandLine=!cloud-init=disabled
+-ConditionEnvironment=!KERNEL_CMDLINE=cloud-init=disabled
+ 
+ 
+ [Service]
+--- a/systemd/cloud-init-local.service.tmpl
++++ b/systemd/cloud-init-local.service.tmpl
+@@ -29,7 +29,6 @@ Conflicts=shutdown.target
+ RequiresMountsFor=/var/lib/cloud
+ ConditionPathExists=!/etc/cloud/cloud-init.disabled
+ ConditionKernelCommandLine=!cloud-init=disabled
+-ConditionEnvironment=!KERNEL_CMDLINE=cloud-init=disabled
+ 
+ [Service]
+ Type=oneshot
+--- a/systemd/cloud-init.service.tmpl
++++ b/systemd/cloud-init.service.tmpl
+@@ -42,7 +42,6 @@ Conflicts=shutdown.target
+ {% endif %}
+ ConditionPathExists=!/etc/cloud/cloud-init.disabled
+ ConditionKernelCommandLine=!cloud-init=disabled
+-ConditionEnvironment=!KERNEL_CMDLINE=cloud-init=disabled
+ 
+ [Service]
+ Type=oneshot
+--- a/systemd/cloud-init.target
++++ b/systemd/cloud-init.target
+@@ -12,4 +12,3 @@ Description=Cloud-init target
+ After=multi-user.target
+ ConditionPathExists=!/etc/cloud/cloud-init.disabled
+ ConditionKernelCommandLine=!cloud-init=disabled
+-ConditionEnvironment=!KERNEL_CMDLINE=cloud-init=disabled
+--- a/systemd/cloud-init-hotplugd.service
++++ b/systemd/cloud-init-hotplugd.service
+@@ -16,7 +16,6 @@ After=cloud-init.target
+ Requires=cloud-init-hotplugd.socket
+ ConditionPathExists=!/etc/cloud/cloud-init.disabled
+ ConditionKernelCommandLine=!cloud-init=disabled
+-ConditionEnvironment=!KERNEL_CMDLINE=cloud-init=disabled
+ 
+ [Service]
+ Type=oneshot
+--- a/systemd/cloud-init-hotplugd.socket
++++ b/systemd/cloud-init-hotplugd.socket
+@@ -8,7 +8,6 @@ Description=cloud-init hotplug hook sock
+ After=cloud-config.target
+ ConditionPathExists=!/etc/cloud/cloud-init.disabled
+ ConditionKernelCommandLine=!cloud-init=disabled
+-ConditionEnvironment=!KERNEL_CMDLINE=cloud-init=disabled
+ 
+ [Socket]
+ ListenFIFO=/run/cloud-init/hook-hotplug-cmd

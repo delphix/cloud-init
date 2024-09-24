@@ -38,8 +38,10 @@ def publish_hostkey_test_setup(tmpdir):
         with open(filepath, "w") as f:
             f.write(" ".join(test_hostkeys[key_type]))
 
-    cc_ssh.KEY_FILE_TPL = os.path.join(hostkey_tmpdir, "ssh_host_%s_key")
-    yield test_hostkeys, test_hostkey_files
+    with mock.patch.object(
+        cc_ssh, "KEY_FILE_TPL", os.path.join(hostkey_tmpdir, "ssh_host_%s_key")
+    ):
+        yield test_hostkeys, test_hostkey_files
 
 
 def _replace_options(user: Optional[str] = None) -> str:
@@ -255,6 +257,7 @@ class TestHandleSsh:
     @mock.patch(MODPATH + "ug_util.normalize_users_groups")
     @mock.patch(MODPATH + "os.path.exists")
     @mock.patch(MODPATH + "util.fips_enabled", return_value=False)
+    @mock.patch.object(cc_ssh, "PUBLISH_HOST_KEYS", True)
     def test_handle_publish_hostkeys(
         self,
         m_fips,
@@ -268,7 +271,6 @@ class TestHandleSsh:
     ):
         """Test handle with various configs for ssh_publish_hostkeys."""
         test_hostkeys, test_hostkey_files = publish_hostkey_test_setup
-        cc_ssh.PUBLISH_HOST_KEYS = True
         keys = ["key1"]
         user = "clouduser"
         # Return no matching keys for first glob, test keys for second.
@@ -282,7 +284,6 @@ class TestHandleSsh:
         m_path_exists.return_value = True
         m_nug.return_value = ({user: {"default": user}}, {})
         cloud = get_cloud(distro="ubuntu", metadata={"public-keys": keys})
-        cloud.datasource.publish_host_keys = mock.Mock()
 
         expected_calls = []
         if expected_key_types is not None:
@@ -294,14 +295,19 @@ class TestHandleSsh:
                     ]
                 )
             ]
-        cc_ssh.handle("name", cfg, cloud, None)
-        assert (
-            expected_calls == cloud.datasource.publish_host_keys.call_args_list
-        )
+
+        with mock.patch.object(
+            cloud.datasource, "publish_host_keys", mock.Mock()
+        ):
+            cc_ssh.handle("name", cfg, cloud, None)
+            assert (
+                expected_calls
+                == cloud.datasource.publish_host_keys.call_args_list
+            )
 
     @pytest.mark.parametrize(
         "ssh_keys_group_exists,sshd_version,expected_private_permissions",
-        [(False, 0, 0), (True, 8, 0o640), (True, 10, 0o600)],
+        [(False, 9, 0o600), (True, 8, 0o640), (True, 10, 0o600)],
     )
     @mock.patch(MODPATH + "subp.subp", return_value=("", ""))
     @mock.patch(MODPATH + "util.get_group_id", return_value=10)
@@ -330,18 +336,17 @@ class TestHandleSsh:
         m_gid.return_value = 10 if ssh_keys_group_exists else -1
         m_sshd_version.return_value = util.Version(sshd_version, 0)
         key_path = cc_ssh.KEY_FILE_TPL % "rsa"
-        cloud = get_cloud(distro="ubuntu")
+        cloud = get_cloud(distro="centos")
         cc_ssh.handle("name", {"ssh_genkeytypes": ["rsa"]}, cloud, [])
         if ssh_keys_group_exists:
             m_chown.assert_called_once_with(key_path, -1, 10)
-            assert m_chmod.call_args_list == [
-                mock.call(key_path, expected_private_permissions),
-                mock.call(f"{key_path}.pub", 0o644),
-            ]
         else:
-            m_sshd_version.assert_not_called()
             m_chown.assert_not_called()
-            m_chmod.assert_not_called()
+
+        assert m_chmod.call_args_list == [
+            mock.call(key_path, expected_private_permissions),
+            mock.call(f"{key_path}.pub", 0o644),
+        ]
 
     @pytest.mark.parametrize("with_sshd_dconf", [False, True])
     @mock.patch(MODPATH + "util.ensure_dir")

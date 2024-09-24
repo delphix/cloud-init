@@ -190,6 +190,7 @@ class DataSourceSmartOS(sources.DataSource):
         self.metadata = {}
         self.network_data = None
         self._network_config = None
+        self.routes_data = None
 
         self.script_base_d = os.path.join(self.paths.get_cpath("scripts"))
 
@@ -423,7 +424,7 @@ class JoyentMetadataClient:
         return value
 
     def _readline(self):
-        """
+        r"""
         Reads a line a byte at a time until \n is encountered.  Returns an
         ascii string with the trailing newline removed.
 
@@ -643,7 +644,7 @@ class JoyentMetadataLegacySerialClient(JoyentMetadataSerialClient):
       b.) base64_all: string interpreted as a boolean that indicates
           if all keys are base64 encoded.
       c.) set a key named b64-<keyname> with a boolean indicating that
-          <keyname> is base64 encoded."""
+    <keyname> is base64 encoded."""
 
     def __init__(self, device, timeout=10, smartos_type=None):
         s = super(JoyentMetadataLegacySerialClient, self)

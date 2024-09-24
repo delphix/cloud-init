@@ -173,6 +173,7 @@ class DataSourceScaleway(sources.DataSource):
         self.max_wait = int(self.ds_cfg.get("max_wait", DEF_MD_MAX_WAIT))
         self._network_config = sources.UNSET
         self.metadata_urls = DS_BASE_URLS
+        self.metadata_url = None
         self.userdata_url = None
         self.vendordata_url = None
         self.ephemeral_fixed_address = None
@@ -199,7 +200,7 @@ class DataSourceScaleway(sources.DataSource):
         Define metadata_url based upon api-metadata URL availability.
         """
 
-        start_time = time.time()
+        start_time = time.monotonic()
         avail_url, _ = url_helper.wait_for_url(
             urls=urls,
             max_wait=self.max_wait,
@@ -216,7 +217,7 @@ class DataSourceScaleway(sources.DataSource):
             LOG.debug(
                 "Unable to reach api-metadata at %s after %s seconds",
                 urls,
-                int(time.time() - start_time),
+                int(time.monotonic() - start_time),
             )
             raise ConnectionError
 
