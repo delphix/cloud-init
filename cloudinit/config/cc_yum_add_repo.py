@@ -89,7 +89,7 @@ def _format_repository_config(repo_id, repo_config):
     to_be = ConfigParser()
     to_be.add_section(repo_id)
     # Do basic translation of the items -> values
-    for (k, v) in repo_config.items():
+    for k, v in repo_config.items():
         # For now assume that people using this know
         # the format of yum and don't verify keys/values further
         to_be.set(repo_id, k, _format_repo_value(v))
@@ -114,7 +114,7 @@ def handle(name: str, cfg: Config, cloud: Cloud, args: list) -> None:
     )
     repo_locations = {}
     repo_configs = {}
-    for (repo_id, repo_config) in repos.items():
+    for repo_id, repo_config in repos.items():
         canon_repo_id = _canonicalize_id(repo_id)
         repo_fn_pth = os.path.join(repo_base_path, "%s.repo" % (canon_repo_id))
         if os.path.exists(repo_fn_pth):
@@ -135,13 +135,13 @@ def handle(name: str, cfg: Config, cloud: Cloud, args: list) -> None:
             repo_config = {}
         # Do some basic sanity checks/cleaning
         n_repo_config = {}
-        for (k, v) in repo_config.items():
+        for k, v in repo_config.items():
             k = k.lower().strip().replace("-", "_")
             if k:
                 n_repo_config[k] = v
         repo_config = n_repo_config
         missing_required = 0
-        req_fields = ["baseurl", "metalink"]
+        req_fields = ["baseurl", "metalink", "mirrorlist"]
         for req_field in req_fields:
             if req_field not in repo_config:
                 missing_required += 1
@@ -157,7 +157,7 @@ def handle(name: str, cfg: Config, cloud: Cloud, args: list) -> None:
             repo_configs[canon_repo_id] = repo_config
             repo_locations[canon_repo_id] = repo_fn_pth
 
-    for (c_repo_id, path) in repo_locations.items():
+    for c_repo_id, path in repo_locations.items():
         repo_blob = _format_repository_config(
             c_repo_id, repo_configs.get(c_repo_id)
         )
