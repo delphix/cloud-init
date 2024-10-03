@@ -1,16 +1,4 @@
-retain-apt-partner-pocket.patch
-expire-on-hashed-users.patch
-retain-netplan-world-readable.patch
-netplan99-cannot-use-default.patch
-retain-old-groups.patch
-keep-dhclient-as-priority-client.patch
-revert-551f560d-cloud-config-after-snap-seeding.patch
-status-do-not-remove-duplicated-data.patch
-retain-apt-pre-deb822.patch
-status-retain-recoverable-error-exit-code.patch
-retain-ec2-default-net-update-events.patch
-cli-retain-file-argument-as-main-cmd-arg.patch
-drop-unsupported-systemd-condition-environment.patch
 deprecation-version-boundary.patch
 no-single-process.patch
 no-nocloud-network.patch
+cpick-hotplugd-systemd-ordering-fix.patch

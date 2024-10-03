@@ -193,7 +193,7 @@ network:
             addresses:
             - 192.168.1.5/24
             routes:
-            -   to: 0.0.0.0/0
+            -   to: default
                 via: 192.168.1.254
         eth1:
             dhcp4: true
@@ -212,7 +212,7 @@ network:
             addresses:
             - 2607:f0d0:1002:0011::2/64
             routes:
-            -   to: ::/0
+            -   to: default
                 via: 2607:f0d0:1002:0011::1
         eth1:
             dhcp4: true
@@ -602,41 +602,32 @@ class TestNetCfgDistroUbuntuNetplan(TestNetCfgDistroBase):
             (self.netplan_path(), V1_TO_V2_NET_CFG_OUTPUT, 0o600),
         )
 
-        with mock.patch.object(
-            features, "NETPLAN_CONFIG_ROOT_READ_ONLY", True
-        ):
-            self._apply_and_verify_netplan(
-                self.distro.apply_network_config,
-                V1_NET_CFG,
-                expected_cfgs=expected_cfgs,
-            )
+        self._apply_and_verify_netplan(
+            self.distro.apply_network_config,
+            V1_NET_CFG,
+            expected_cfgs=expected_cfgs,
+        )
 
     def test_apply_network_config_v1_ipv6_to_netplan_ub(self):
         expected_cfgs = (
             (self.netplan_path(), V1_TO_V2_NET_CFG_IPV6_OUTPUT, 0o600),
         )
 
-        with mock.patch.object(
-            features, "NETPLAN_CONFIG_ROOT_READ_ONLY", True
-        ):
-            self._apply_and_verify_netplan(
-                self.distro.apply_network_config,
-                V1_NET_CFG_IPV6,
-                expected_cfgs=expected_cfgs,
-            )
+        self._apply_and_verify_netplan(
+            self.distro.apply_network_config,
+            V1_NET_CFG_IPV6,
+            expected_cfgs=expected_cfgs,
+        )
 
     def test_apply_network_config_v2_passthrough_ub(self):
         expected_cfgs = (
             (self.netplan_path(), V2_TO_V2_NET_CFG_OUTPUT, 0o600),
         )
-        with mock.patch.object(
-            features, "NETPLAN_CONFIG_ROOT_READ_ONLY", True
-        ):
-            self._apply_and_verify_netplan(
-                self.distro.apply_network_config,
-                V2_NET_CFG,
-                expected_cfgs=expected_cfgs,
-            )
+        self._apply_and_verify_netplan(
+            self.distro.apply_network_config,
+            V2_NET_CFG,
+            expected_cfgs=expected_cfgs,
+        )
 
     def test_apply_network_config_v2_passthrough_retain_orig_perms(self):
         """Custom permissions on existing netplan is kept when more strict."""
@@ -676,14 +667,11 @@ class TestNetCfgDistroUbuntuNetplan(TestNetCfgDistroBase):
         expected_cfgs = (
             (self.netplan_path(), V2_PASSTHROUGH_NET_CFG_OUTPUT, 0o600),
         )
-        with mock.patch.object(
-            features, "NETPLAN_CONFIG_ROOT_READ_ONLY", True
-        ):
-            self._apply_and_verify_netplan(
-                self.distro.apply_network_config,
-                V2_PASSTHROUGH_NET_CFG,
-                expected_cfgs=expected_cfgs,
-            )
+        self._apply_and_verify_netplan(
+            self.distro.apply_network_config,
+            V2_PASSTHROUGH_NET_CFG,
+            expected_cfgs=expected_cfgs,
+        )
         self.assertIn("Passthrough netplan v2 config", self.logs.getvalue())
         self.assertIn(
             "Selected renderer 'netplan' from priority list: ['netplan']",
@@ -1022,7 +1010,7 @@ class TestNetCfgDistroArch(TestNetCfgDistroBase):
                             addresses:
                             - 192.168.1.5/24
                             routes:
-                            -   to: 0.0.0.0/0
+                            -   to: default
                                 via: 192.168.1.254
                         eth1:
                             dhcp4: true
@@ -1033,16 +1021,12 @@ class TestNetCfgDistroArch(TestNetCfgDistroBase):
         with mock.patch(
             "cloudinit.net.netplan.get_devicelist", return_value=[]
         ):
-            with mock.patch.object(
-                features, "NETPLAN_CONFIG_ROOT_READ_ONLY"
-            ) as netplan_readonly:
-                netplan_readonly = True
-                self._apply_and_verify(
-                    self.distro.apply_network_config,
-                    V1_NET_CFG,
-                    expected_cfgs=expected_cfgs.copy(),
-                    with_netplan=True,
-                )
+            self._apply_and_verify(
+                self.distro.apply_network_config,
+                V1_NET_CFG,
+                expected_cfgs=expected_cfgs.copy(),
+                with_netplan=True,
+            )
 
 
 class TestNetCfgDistroPhoton(TestNetCfgDistroBase):

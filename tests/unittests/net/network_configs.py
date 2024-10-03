@@ -1684,7 +1684,7 @@ pre-down route del -net 10.0.0.0/8 gw 11.0.0.1 metric 3 || true
                             - sacchromyces.maas
                             - brettanomyces.maas
                         routes:
-                        -   to: 0.0.0.0/0
+                        -   to: default
                             via: 192.168.0.1
         """
         ).rstrip(" "),
@@ -3117,7 +3117,7 @@ pre-down route del -net 10.0.0.0/8 gw 11.0.0.1 metric 3 || true
                          transmit-hash-policy: layer3+4
                          up-delay: 20
                      routes:
-                     -   to: 0.0.0.0/0
+                     -   to: default
                          via: 192.168.0.1
                      -   to: 10.1.3.0/24
                          via: 192.168.0.3

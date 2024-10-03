@@ -18,7 +18,7 @@
                   "photon": "wheel",
                   "openmandriva": "wheel, users, systemd-journal",
                   "suse": "cdrom, users",
-                  "ubuntu": "adm, audio, cdrom, dialout, dip, floppy, lxd, netdev, plugdev, sudo, video",
+                  "ubuntu": "adm, cdrom, dip, lxd, sudo",
                   "unknown": "adm, cdrom, dip, lxd, sudo"}) %}
 {% set shells = ({"alpine": "/bin/ash", "dragonfly": "/bin/sh",
                   "freebsd": "/bin/tcsh", "netbsd": "/bin/sh",
@@ -303,7 +303,7 @@ system_info:
 {% elif variant in ["ubuntu", "unknown"] %}
 {# SRU_BLOCKER: do not ship network renderers on Xenial, Bionic or Eoan #}
   network:
-    dhcp_client_priority: [dhclient, dhcpcd, udhcpc]
+    dhcp_client_priority: [dhcpcd, dhclient, udhcpc]
     renderers: ['netplan', 'eni', 'sysconfig']
     activators: ['netplan', 'eni', 'network-manager', 'networkd']
 {% elif is_rhel %}

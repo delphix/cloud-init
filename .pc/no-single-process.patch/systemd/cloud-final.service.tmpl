@@ -10,6 +10,7 @@ Before=apt-daily.service
 Wants=network-online.target cloud-config.service
 ConditionPathExists=!/etc/cloud/cloud-init.disabled
 ConditionKernelCommandLine=!cloud-init=disabled
+ConditionEnvironment=!KERNEL_CMDLINE=cloud-init=disabled
 
 
 [Service]

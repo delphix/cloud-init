@@ -50,7 +50,7 @@ directives in cloud-config.
 """
 
 
-EXPIRE_APPLIES_TO_HASHED_USERS = False
+EXPIRE_APPLIES_TO_HASHED_USERS = True
 """
 If ``EXPIRE_APPLIES_TO_HASHED_USERS`` is True, then when expire is set true
 in cc_set_passwords, hashed passwords will be expired. Previous to 22.3,
@@ -59,7 +59,7 @@ only non-hashed passwords were expired.
 (This flag can be removed after Jammy is no longer supported.)
 """
 
-NETPLAN_CONFIG_ROOT_READ_ONLY = False
+NETPLAN_CONFIG_ROOT_READ_ONLY = True
 """
 If ``NETPLAN_CONFIG_ROOT_READ_ONLY`` is True, then netplan configuration will
 be written as a single root read-only file /etc/netplan/50-cloud-init.yaml.
@@ -80,14 +80,14 @@ separators.
 (This flag can be removed when Jammy is no longer supported.)
 """
 
-APT_DEB822_SOURCE_LIST_FILE = False
+APT_DEB822_SOURCE_LIST_FILE = True
 """
 On Debian and Ubuntu systems, cc_apt_configure will write a deb822 compatible
 /etc/apt/sources.list.d/(debian|ubuntu).sources file. When set False, continue
 to write /etc/apt/sources.list directly.
 """
 
-DEPRECATION_INFO_BOUNDARY = "20.1"
+DEPRECATION_INFO_BOUNDARY = "24.1"
 """
 DEPRECATION_INFO_BOUNDARY is used by distros to configure at which upstream
 version to start logging deprecations at a level higher than INFO.

@@ -178,9 +178,6 @@ def print_status(args, details: StatusDetails):
         "last_update": details.last_update,
         **details.v1,
     }
-    details_dict["schemas"] = {"1": deepcopy(details_dict)}
-    details_dict["_schema_version"] = "1"
-
     if args.format == "tabular":
         prefix = "\n" if args.wait else ""
 
@@ -254,7 +251,7 @@ def handle_status_args(name, args) -> int:
         return 1
     # Recoverable error
     elif details.condition_status == ConditionStatus.DEGRADED:
-        return 0
+        return 2
     return 0
 
 
