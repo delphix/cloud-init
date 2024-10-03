@@ -126,7 +126,6 @@ The following datasources optionally provide network configuration:
 - :ref:`datasource_config_drive`
 
   - `OpenStack Metadata Service Network`_
-  - :ref:`network_config_eni`
 
 - :ref:`datasource_digital_ocean`
 
@@ -140,15 +139,9 @@ The following datasources optionally provide network configuration:
 
   - :ref:`network_config_v1`
   - :ref:`network_config_v2`
-  - :ref:`network_config_eni`
-
-- :ref:`datasource_opennebula`
-
-  - :ref:`network_config_eni`
 
 - :ref:`datasource_openstack`
 
-  - :ref:`network_config_eni`
   - `OpenStack Metadata Service Network`_
 
 - :ref:`datasource_smartos`
@@ -168,7 +161,6 @@ For more information on network configuration formats:
 .. toctree::
    :maxdepth: 1
 
-   network-config-format-eni.rst
    network-config-format-v1.rst
    network-config-format-v2.rst
 
@@ -223,6 +215,11 @@ for BSD flavors at the moment.
 Network output policy
 =====================
 
+.. note::
+
+   These are **upstream** defaults and are known to be overridden by
+   downstream distributions.
+
 The default policy for selecting a network ``renderer`` (in order of
 preference) is as follows:
 
@@ -273,7 +270,7 @@ Example output:
 .. code-block::
 
    usage: /usr/bin/cloud-init devel net-convert [-h] -p PATH -k {eni,network_data.json,yaml,azure-imds,vmware-imc} -d PATH -D
-                                                  {alpine,arch,debian,ubuntu,freebsd,dragonfly,gentoo,cos,netbsd,openbsd,almalinux,amazon,centos,cloudlinux,eurolinux,fedora,mariner,miraclelinux,openmandriva,photon,rhel,rocky,virtuozzo,opensuse,sles,openEuler}
+                                                  {alpine,arch,azurelinux,debian,ubuntu,freebsd,dragonfly,gentoo,cos,netbsd,openbsd,almalinux,amazon,centos,cloudlinux,eurolinux,fedora,mariner,miraclelinux,openmandriva,photon,rhel,rocky,virtuozzo,opensuse,sles,openEuler}
                                                   [-m name,mac] [--debug] -O {eni,netplan,networkd,sysconfig,network-manager}
 
    options:
@@ -284,7 +281,7 @@ Example output:
                            The format of the given network config
      -d PATH, --directory PATH
                            directory to place output in
-     -D {alpine,arch,debian,ubuntu,freebsd,dragonfly,gentoo,cos,netbsd,openbsd,almalinux,amazon,centos,cloudlinux,eurolinux,fedora,mariner,miraclelinux,openmandriva,photon,rhel,rocky,virtuozzo,opensuse,sles,openeuler}, --distro {alpine,arch,debian,ubuntu,freebsd,dragonfly,gentoo,cos,netbsd,openbsd,almalinux,amazon,centos,cloudlinux,eurolinux,fedora,mariner,miraclelinux,openmandriva,photon,rhel,rocky,virtuozzo,opensuse,sles,openEuler}
+     -D {alpine,arch,azurelinux,debian,ubuntu,freebsd,dragonfly,gentoo,cos,netbsd,openbsd,almalinux,amazon,centos,cloudlinux,eurolinux,fedora,mariner,miraclelinux,openmandriva,photon,rhel,rocky,virtuozzo,opensuse,sles,openeuler}, --distro {alpine,arch,azurelinux,debian,ubuntu,freebsd,dragonfly,gentoo,cos,netbsd,openbsd,almalinux,amazon,centos,cloudlinux,eurolinux,fedora,mariner,miraclelinux,openmandriva,photon,rhel,rocky,virtuozzo,opensuse,sles,openEuler}
      -m name,mac, --mac name,mac
                            interface name to mac mapping
      --debug               enable debug logging to stderr.
@@ -308,7 +305,6 @@ Example output:
    BOOTPROTO=static
    DEVICE=eth7
    IPADDR=192.168.1.5/255.255.255.0
-   NM_CONTROLLED=no
    ONBOOT=yes
    TYPE=Ethernet
    USERCTL=no
@@ -316,7 +312,6 @@ Example output:
    #
    BOOTPROTO=dhcp
    DEVICE=eth9
-   NM_CONTROLLED=no
    ONBOOT=yes
    TYPE=Ethernet
    USERCTL=no

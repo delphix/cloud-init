@@ -14,7 +14,7 @@ from cloudinit.util import ensure_dir, load_text_file, write_file
 from tests.unittests.helpers import FilesystemMockingTestCase, wrap_and_call
 
 MyArgs = namedtuple(
-    "MyArgs", "debug main_files files force local reporter subcommand"
+    "MyArgs", "debug files force local reporter subcommand skip_log_setup"
 )
 
 
@@ -56,22 +56,34 @@ class TestMain(FilesystemMockingTestCase):
         self.patchUtils(self.new_root)
         self.stderr = StringIO()
         self.patchStdoutAndStderr(stderr=self.stderr)
+        # Every cc_ module calls get_meta_doc on import.
+        # This call will fail if filesystem redirection mocks are in place
+        # and the module hasn't already been imported which can depend
+        # on test ordering.
+        self.m_doc = mock.patch(
+            "cloudinit.config.schema.get_meta_doc", return_value={}
+        )
+        self.m_doc.start()
+
+    def tearDown(self):
+        self.m_doc.stop()
+        super().tearDown()
 
     def test_main_init_run_net_runs_modules(self):
         """Modules like write_files are run in 'net' mode."""
         cmdargs = MyArgs(
             debug=False,
-            main_files=None,
             files=None,
             force=False,
             local=False,
             reporter=None,
             subcommand="init",
+            skip_log_setup=False,
         )
         (_item1, item2) = wrap_and_call(
             "cloudinit.cmd.main",
             {
-                "util.close_stdin": True,
+                "close_stdin": True,
                 "netinfo.debug_info": "my net debug info",
                 "util.fixup_output": ("outfmt", "errfmt"),
             },
@@ -108,12 +120,12 @@ class TestMain(FilesystemMockingTestCase):
         write_file(self.cloud_cfg_file, cloud_cfg)
         cmdargs = MyArgs(
             debug=False,
-            main_files=None,
             files=None,
             force=False,
             local=False,
             reporter=None,
             subcommand="init",
+            skip_log_setup=False,
         )
 
         def set_hostname(name, cfg, cloud, args):
@@ -141,7 +153,7 @@ class TestMain(FilesystemMockingTestCase):
         (_item1, item2) = wrap_and_call(
             "cloudinit.cmd.main",
             {
-                "util.close_stdin": True,
+                "close_stdin": True,
                 "netinfo.debug_info": "my net debug info",
                 "cc_set_hostname.handle": {"side_effect": set_hostname},
                 "util.fixup_output": ("outfmt", "errfmt"),

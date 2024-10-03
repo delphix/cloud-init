@@ -36,6 +36,7 @@ import cloudinit.net.netops.iproute2 as iproute2
 from cloudinit import (
     helpers,
     importer,
+    lifecycle,
     net,
     persistence,
     ssh_util,
@@ -50,6 +51,7 @@ from cloudinit.distros.package_management.utils import known_package_managers
 from cloudinit.distros.parsers import hosts
 from cloudinit.features import ALLOW_EC2_MIRRORS_ON_NON_AWS_INSTANCE_TYPES
 from cloudinit.net import activators, dhcp, renderers
+from cloudinit.net.netops import NetOps
 from cloudinit.net.network_state import parse_net_config_data
 from cloudinit.net.renderer import Renderer
 
@@ -59,6 +61,7 @@ ALL_DISTROS = "all"
 
 OSFAMILIES = {
     "alpine": ["alpine"],
+    "aosc": ["aosc"],
     "arch": ["arch"],
     "debian": ["debian", "ubuntu"],
     "freebsd": ["freebsd", "dragonfly"],
@@ -68,6 +71,7 @@ OSFAMILIES = {
     "redhat": [
         "almalinux",
         "amazon",
+        "azurelinux",
         "centos",
         "cloudlinux",
         "eurolinux",
@@ -132,6 +136,10 @@ class Distro(persistence.CloudInitPickleMixin, metaclass=abc.ABCMeta):
     doas_fn = "/etc/doas.conf"
     ci_sudoers_fn = "/etc/sudoers.d/90-cloud-init-users"
     hostname_conf_fn = "/etc/hostname"
+    shadow_fn = "/etc/shadow"
+    shadow_extrausers_fn = "/var/lib/extrausers/shadow"
+    # /etc/shadow match patterns indicating empty passwords
+    shadow_empty_locked_passwd_patterns = ["^{username}::", "^{username}:!:"]
     tz_zone_dir = "/usr/share/zoneinfo"
     default_owner = "root:root"
     init_cmd = ["service"]  # systemctl, service etc
@@ -141,7 +149,7 @@ class Distro(persistence.CloudInitPickleMixin, metaclass=abc.ABCMeta):
     # This is used by self.shutdown_command(), and can be overridden in
     # subclasses
     shutdown_options_map = {"halt": "-H", "poweroff": "-P", "reboot": "-r"}
-    net_ops = iproute2.Iproute2
+    net_ops: Type[NetOps] = iproute2.Iproute2
 
     _ci_pkl_version = 1
     prefer_fqdn = False
@@ -168,6 +176,7 @@ class Distro(persistence.CloudInitPickleMixin, metaclass=abc.ABCMeta):
         self.package_managers: List[PackageManager] = []
         self._dhcp_client = None
         self._fallback_interface = None
+        self.is_linux = True
 
     def _unpickle(self, ci_pkl_version: int) -> None:
         """Perform deserialization fixes for Distro."""
@@ -184,6 +193,8 @@ class Distro(persistence.CloudInitPickleMixin, metaclass=abc.ABCMeta):
             self._dhcp_client = None
         if not hasattr(self, "_fallback_interface"):
             self._fallback_interface = None
+        if not hasattr(self, "is_linux"):
+            self.is_linux = True
 
     def _validate_entry(self, entry):
         if isinstance(entry, str):
@@ -395,7 +406,7 @@ class Distro(persistence.CloudInitPickleMixin, metaclass=abc.ABCMeta):
         # managers.
         raise NotImplementedError()
 
-    def update_package_sources(self):
+    def update_package_sources(self, *, force=False):
         for manager in self.package_managers:
             if not manager.available():
                 LOG.debug(
@@ -404,7 +415,7 @@ class Distro(persistence.CloudInitPickleMixin, metaclass=abc.ABCMeta):
                 )
                 continue
             try:
-                manager.update_package_sources()
+                manager.update_package_sources(force=force)
             except Exception as e:
                 LOG.error(
                     "Failed to update package using %s: %s", manager.name, e
@@ -648,19 +659,21 @@ class Distro(persistence.CloudInitPickleMixin, metaclass=abc.ABCMeta):
     def get_default_user(self):
         return self.get_option("default_user")
 
-    def add_user(self, name, **kwargs):
+    def add_user(self, name, **kwargs) -> bool:
         """
         Add a user to the system using standard GNU tools
 
         This should be overridden on distros where useradd is not desirable or
         not available.
+
+        Returns False if user already exists, otherwise True.
         """
         # XXX need to make add_user idempotent somehow as we
         # still want to add groups or modify SSH keys on pre-existing
         # users in the image.
         if util.is_user(name):
             LOG.info("User %s already exists, skipping.", name)
-            return
+            return False
 
         if "create_groups" in kwargs:
             create_groups = kwargs.pop("create_groups")
@@ -704,7 +717,7 @@ class Distro(persistence.CloudInitPickleMixin, metaclass=abc.ABCMeta):
                 groups = groups.split(",")
 
             if isinstance(groups, dict):
-                util.deprecate(
+                lifecycle.deprecate(
                     deprecated=f"The user {name} has a 'groups' config value "
                     "of type dict",
                     deprecated_version="22.3",
@@ -764,6 +777,9 @@ class Distro(persistence.CloudInitPickleMixin, metaclass=abc.ABCMeta):
             util.logexc(LOG, "Failed to create user %s", name)
             raise e
 
+        # Indicate that a new user was created
+        return True
+
     def add_snap_user(self, name, **kwargs):
         """
         Add a snappy user to the system using snappy tools
@@ -791,6 +807,40 @@ class Distro(persistence.CloudInitPickleMixin, metaclass=abc.ABCMeta):
 
         return username
 
+    def _shadow_file_has_empty_user_password(self, username) -> bool:
+        """
+        Check whether username exists in shadow files with empty password.
+
+        Support reading /var/lib/extrausers/shadow on snappy systems.
+        """
+        if util.system_is_snappy():
+            shadow_files = [self.shadow_extrausers_fn, self.shadow_fn]
+        else:
+            shadow_files = [self.shadow_fn]
+        shadow_empty_passwd_re = "|".join(
+            [
+                pattern.format(username=username)
+                for pattern in self.shadow_empty_locked_passwd_patterns
+            ]
+        )
+        for shadow_file in shadow_files:
+            if not os.path.exists(shadow_file):
+                continue
+            shadow_content = util.load_text_file(shadow_file)
+            if not re.findall(rf"^{username}:", shadow_content, re.MULTILINE):
+                LOG.debug("User %s not found in %s", username, shadow_file)
+                continue
+            LOG.debug(
+                "User %s found in %s. Checking for empty password",
+                username,
+                shadow_file,
+            )
+            if re.findall(
+                shadow_empty_passwd_re, shadow_content, re.MULTILINE
+            ):
+                return True
+        return False
+
     def create_user(self, name, **kwargs):
         """
         Creates or partially updates the ``name`` user in the system.
@@ -817,20 +867,93 @@ class Distro(persistence.CloudInitPickleMixin, metaclass=abc.ABCMeta):
             return self.add_snap_user(name, **kwargs)
 
         # Add the user
-        self.add_user(name, **kwargs)
+        pre_existing_user = not self.add_user(name, **kwargs)
 
-        # Set password if plain-text password provided and non-empty
-        if "plain_text_passwd" in kwargs and kwargs["plain_text_passwd"]:
-            self.set_passwd(name, kwargs["plain_text_passwd"])
+        has_existing_password = False
+        ud_blank_password_specified = False
+        ud_password_specified = False
+        password_key = None
 
-        # Set password if hashed password is provided and non-empty
-        if "hashed_passwd" in kwargs and kwargs["hashed_passwd"]:
-            self.set_passwd(name, kwargs["hashed_passwd"], hashed=True)
+        if "plain_text_passwd" in kwargs:
+            ud_password_specified = True
+            password_key = "plain_text_passwd"
+            if kwargs["plain_text_passwd"]:
+                # Set password if plain-text password provided and non-empty
+                self.set_passwd(name, kwargs["plain_text_passwd"])
+            else:
+                ud_blank_password_specified = True
 
-        # Default locking down the account.  'lock_passwd' defaults to True.
-        # lock account unless lock_password is False.
+        if "hashed_passwd" in kwargs:
+            ud_password_specified = True
+            password_key = "hashed_passwd"
+            if kwargs["hashed_passwd"]:
+                # Set password if hashed password is provided and non-empty
+                self.set_passwd(name, kwargs["hashed_passwd"], hashed=True)
+            else:
+                ud_blank_password_specified = True
+
+        if pre_existing_user:
+            if not ud_password_specified:
+                if "passwd" in kwargs:
+                    password_key = "passwd"
+                    # Only "plain_text_passwd" and "hashed_passwd"
+                    # are valid for an existing user.
+                    LOG.warning(
+                        "'passwd' in user-data is ignored for existing "
+                        "user %s",
+                        name,
+                    )
+
+                # As no password specified for the existing user in user-data
+                # then check if the existing user's hashed password value is
+                # empty (whether locked or not).
+                has_existing_password = not (
+                    self._shadow_file_has_empty_user_password(name)
+                )
+        else:
+            if "passwd" in kwargs:
+                ud_password_specified = True
+                password_key = "passwd"
+                if not kwargs["passwd"]:
+                    ud_blank_password_specified = True
+
+        # Default locking down the account. 'lock_passwd' defaults to True.
+        # Lock account unless lock_password is False in which case unlock
+        # account as long as a password (blank or otherwise) was specified.
         if kwargs.get("lock_passwd", True):
             self.lock_passwd(name)
+        elif has_existing_password or ud_password_specified:
+            # 'lock_passwd: False' and either existing account already with
+            # non-blank password or else existing/new account with password
+            # explicitly set in user-data.
+            if ud_blank_password_specified:
+                LOG.debug(
+                    "Allowing unlocking empty password for %s based on empty"
+                    " '%s' in user-data",
+                    name,
+                    password_key,
+                )
+
+            # Unlock the existing/new account
+            self.unlock_passwd(name)
+        elif pre_existing_user:
+            # Pre-existing user with no existing password and none
+            # explicitly set in user-data.
+            LOG.warning(
+                "Not unlocking blank password for existing user %s."
+                " 'lock_passwd: false' present in user-data but no existing"
+                " password set and no 'plain_text_passwd'/'hashed_passwd'"
+                " provided in user-data",
+                name,
+            )
+        else:
+            # No password (whether blank or otherwise) explicitly set
+            LOG.warning(
+                "Not unlocking password for user %s. 'lock_passwd: false'"
+                " present in user-data but no 'passwd'/'plain_text_passwd'/"
+                "'hashed_passwd' provided in user-data",
+                name,
+            )
 
         # Configure doas access
         if "doas" in kwargs:
@@ -842,10 +965,10 @@ class Distro(persistence.CloudInitPickleMixin, metaclass=abc.ABCMeta):
             if kwargs["sudo"]:
                 self.write_sudo_rules(name, kwargs["sudo"])
             elif kwargs["sudo"] is False:
-                util.deprecate(
+                lifecycle.deprecate(
                     deprecated=f"The value of 'false' in user {name}'s "
                     "'sudo' config",
-                    deprecated_version="22.3",
+                    deprecated_version="22.2",
                     extra_message="Use 'null' instead.",
                 )
 
@@ -907,6 +1030,50 @@ class Distro(persistence.CloudInitPickleMixin, metaclass=abc.ABCMeta):
             util.logexc(LOG, "Failed to disable password for user %s", name)
             raise e
 
+    def unlock_passwd(self, name: str):
+        """
+        Unlock the password of a user, i.e., enable password logins
+        """
+        # passwd must use short '-u' due to SLES11 lacking long form '--unlock'
+        unlock_tools = (["passwd", "-u", name], ["usermod", "--unlock", name])
+        try:
+            cmd = next(tool for tool in unlock_tools if subp.which(tool[0]))
+        except StopIteration as e:
+            raise RuntimeError(
+                "Unable to unlock user account '%s'. No tools available. "
+                "  Tried: %s." % (name, [c[0] for c in unlock_tools])
+            ) from e
+        try:
+            _, err = subp.subp(cmd, rcs=[0, 3])
+        except Exception as e:
+            util.logexc(LOG, "Failed to enable password for user %s", name)
+            raise e
+        if err:
+            # if "passwd" or "usermod" are unable to unlock an account with
+            # an empty password then they display a message on stdout. In
+            # that case then instead set a blank password.
+            passwd_set_tools = (
+                ["passwd", "-d", name],
+                ["usermod", "--password", "''", name],
+            )
+            try:
+                cmd = next(
+                    tool for tool in passwd_set_tools if subp.which(tool[0])
+                )
+            except StopIteration as e:
+                raise RuntimeError(
+                    "Unable to set blank password for user account '%s'. "
+                    "No tools available. "
+                    "  Tried: %s." % (name, [c[0] for c in unlock_tools])
+                ) from e
+            try:
+                subp.subp(cmd)
+            except Exception as e:
+                util.logexc(
+                    LOG, "Failed to set blank password for user %s", name
+                )
+                raise e
+
     def expire_passwd(self, user):
         try:
             subp.subp(["passwd", "--expire", user])
@@ -920,8 +1087,8 @@ class Distro(persistence.CloudInitPickleMixin, metaclass=abc.ABCMeta):
 
         if hashed:
             # Need to use the short option name '-e' instead of '--encrypted'
-            # (which would be more descriptive) since SLES 11 doesn't know
-            # about long names.
+            # (which would be more descriptive) since Busybox and SLES 11
+            # chpasswd don't know about long names.
             cmd.append("-e")
 
         try:
@@ -941,6 +1108,9 @@ class Distro(persistence.CloudInitPickleMixin, metaclass=abc.ABCMeta):
             )
             + "\n"
         )
+        # Need to use the short option name '-e' instead of '--encrypted'
+        # (which would be more descriptive) since Busybox and SLES 11
+        # chpasswd don't know about long names.
         cmd = ["chpasswd"] + (["-e"] if hashed else [])
         subp.subp(cmd, data=payload)
 
@@ -1017,9 +1187,12 @@ class Distro(persistence.CloudInitPickleMixin, metaclass=abc.ABCMeta):
         # it actually exists as a directory
         sudoers_contents = ""
         base_exists = False
+        system_sudo_base = "/usr/etc/sudoers"
         if os.path.exists(sudo_base):
             sudoers_contents = util.load_text_file(sudo_base)
             base_exists = True
+        elif os.path.exists(system_sudo_base):
+            sudoers_contents = util.load_text_file(system_sudo_base)
         found_include = False
         for line in sudoers_contents.splitlines():
             line = line.strip()
@@ -1044,7 +1217,9 @@ class Distro(persistence.CloudInitPickleMixin, metaclass=abc.ABCMeta):
                         "#includedir %s" % (path),
                         "",
                     ]
-                    sudoers_contents = "\n".join(lines)
+                    if sudoers_contents:
+                        LOG.info("Using content from '%s'", system_sudo_base)
+                    sudoers_contents += "\n".join(lines)
                     util.write_file(sudo_base, sudoers_contents, 0o440)
                 else:
                     lines = [
@@ -1134,9 +1309,10 @@ class Distro(persistence.CloudInitPickleMixin, metaclass=abc.ABCMeta):
                 subp.subp(["usermod", "-a", "-G", name, member])
                 LOG.info("Added user '%s' to group '%s'", member, name)
 
-    def shutdown_command(self, *, mode, delay, message):
+    @classmethod
+    def shutdown_command(cls, *, mode, delay, message):
         # called from cc_power_state_change.load_power_state
-        command = ["shutdown", self.shutdown_options_map[mode]]
+        command = ["shutdown", cls.shutdown_options_map[mode]]
         try:
             if delay != "now":
                 delay = "+%d" % int(delay)
@@ -1343,6 +1519,60 @@ class Distro(persistence.CloudInitPickleMixin, metaclass=abc.ABCMeta):
                 reason="neither eject nor /lib/udev/cdrom_id are found",
             )
         subp.subp(cmd)
+
+    @staticmethod
+    def get_mapped_device(blockdev: str) -> Optional[str]:
+        """Returns underlying block device for a mapped device.
+
+        If it is mapped, blockdev will usually take the form of
+        /dev/mapper/some_name
+
+        If blockdev is a symlink pointing to a /dev/dm-* device, return
+        the device pointed to. Otherwise, return None.
+        """
+        realpath = os.path.realpath(blockdev)
+        if realpath.startswith("/dev/dm-"):
+            LOG.debug(
+                "%s is a mapped device pointing to %s", blockdev, realpath
+            )
+            return realpath
+        return None
+
+    @staticmethod
+    def device_part_info(devpath: str) -> tuple:
+        """convert an entry in /dev/ to parent disk and partition number
+
+        input of /dev/vdb or /dev/disk/by-label/foo
+        rpath is hopefully a real-ish path in /dev (vda, sdb..)
+        """
+        rpath = os.path.realpath(devpath)
+
+        bname = os.path.basename(rpath)
+        syspath = "/sys/class/block/%s" % bname
+
+        if not os.path.exists(syspath):
+            raise ValueError("%s had no syspath (%s)" % (devpath, syspath))
+
+        ptpath = os.path.join(syspath, "partition")
+        if not os.path.exists(ptpath):
+            raise TypeError("%s not a partition" % devpath)
+
+        ptnum = util.load_text_file(ptpath).rstrip()
+
+        # for a partition, real syspath is something like:
+        # /sys/devices/pci0000:00/0000:00:04.0/virtio1/block/vda/vda1
+        rsyspath = os.path.realpath(syspath)
+        disksyspath = os.path.dirname(rsyspath)
+
+        diskmajmin = util.load_text_file(
+            os.path.join(disksyspath, "dev")
+        ).rstrip()
+        diskdevpath = os.path.realpath("/dev/block/%s" % diskmajmin)
+
+        # diskdevpath has something like 253:0
+        # and udev has put links in /dev/block/253:0 to the device
+        # name in /dev/
+        return diskdevpath, ptnum
 
 
 def _apply_hostname_transformations_to_url(url: str, transformations: list):

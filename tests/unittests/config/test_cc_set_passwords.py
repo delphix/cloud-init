@@ -1,5 +1,6 @@
 # This file is part of cloud-init. See LICENSE file for license information.
 
+import copy
 import logging
 from unittest import mock
 
@@ -190,6 +191,61 @@ class TestSetPasswordsHandle:
         for i, (name, password) in enumerate(*first_arg):
             assert valid_hashed_pwds[i]["name"] == name
             assert valid_hashed_pwds[i]["password"] == password
+
+    @pytest.mark.parametrize(
+        "user_cfg",
+        [
+            {
+                "list": [
+                    "ubuntu:passw0rd",
+                    "sadegh:$6$cTpht$Z2pSYxleRWK8IrsynFzHcrnPlpUhA7N9AM/",
+                ]
+            },
+            {
+                "users": [
+                    {
+                        "name": "ubuntu",
+                        "password": "passw0rd",
+                        "type": "text",
+                    },
+                    {
+                        "name": "sadegh",
+                        "password": "$6$cTpht$Z2pSYxleRWK8IrsynFzHcrnPlpUhA7N9AM/",  # noqa: E501
+                    },
+                ]
+            },
+        ],
+    )
+    def test_bsd_calls_custom_pw_cmds_to_set_and_expire_passwords(
+        self, user_cfg, mocker
+    ):
+        """BSD don't use chpasswd"""
+        mocker.patch(f"{MODPATH}util.is_BSD", return_value=True)
+        m_subp = mocker.patch(f"{MODPATH}subp.subp")
+        # patch for ifconfig -a
+        with mock.patch(
+            "cloudinit.distros.networking.subp.subp", return_values=("", None)
+        ):
+            cloud = get_cloud(distro="freebsd")
+        cfg = {"chpasswd": user_cfg}
+        with mock.patch.object(
+            cloud.distro, "uses_systemd", return_value=False
+        ):
+            setpass.handle("IGNORED", cfg=cfg, cloud=cloud, args=[])
+        assert [
+            mock.call(
+                ["pw", "usermod", "ubuntu", "-h", "0"],
+                data="passw0rd",
+                logstring="chpasswd for ubuntu",
+            ),
+            mock.call(
+                ["pw", "usermod", "sadegh", "-H", "0"],
+                data="$6$cTpht$Z2pSYxleRWK8IrsynFzHcrnPlpUhA7N9AM/",
+                logstring="chpasswd for sadegh",
+            ),
+            mock.call(["pw", "usermod", "ubuntu", "-p", "01-Jan-1970"]),
+            mock.call(["pw", "usermod", "sadegh", "-p", "01-Jan-1970"]),
+        ] == m_subp.call_args_list
 
     @pytest.mark.parametrize(
         "user_cfg",
@@ -453,7 +509,7 @@ expire_cases = [
 class TestExpire:
     @pytest.mark.parametrize("cfg", expire_cases)
     def test_expire(self, cfg, mocker, caplog):
-        features.EXPIRE_APPLIES_TO_HASHED_USERS = True
+        cfg = copy.deepcopy(cfg)
         cloud = get_cloud()
         mocker.patch(f"{MODPATH}subp.subp")
         mocker.patch.object(cloud.distro, "chpasswd")
@@ -479,7 +535,9 @@ class TestExpire:
     def test_expire_old_behavior(self, cfg, mocker, caplog):
         # Previously expire didn't apply to hashed passwords.
         # Ensure we can preserve that case on older releases
-        features.EXPIRE_APPLIES_TO_HASHED_USERS = False
+        mocker.patch.object(features, "EXPIRE_APPLIES_TO_HASHED_USERS", False)
+
+        cfg = copy.deepcopy(cfg)
         cloud = get_cloud()
         mocker.patch(f"{MODPATH}subp.subp")
         mocker.patch.object(cloud.distro, "chpasswd")

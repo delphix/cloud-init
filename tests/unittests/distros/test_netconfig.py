@@ -7,15 +7,9 @@ from io import StringIO
 from textwrap import dedent
 from unittest import mock
 
-from cloudinit import (
-    distros,
-    features,
-    helpers,
-    safeyaml,
-    settings,
-    subp,
-    util,
-)
+import yaml
+
+from cloudinit import distros, features, helpers, settings, subp, util
 from cloudinit.distros.parsers.sys_conf import SysConf
 from cloudinit.net.activators import IfUpDownActivator
 from tests.unittests.helpers import (
@@ -199,7 +193,7 @@ network:
             addresses:
             - 192.168.1.5/24
             routes:
-            -   to: 0.0.0.0/0
+            -   to: default
                 via: 192.168.1.254
         eth1:
             dhcp4: true
@@ -218,7 +212,7 @@ network:
             addresses:
             - 2607:f0d0:1002:0011::2/64
             routes:
-            -   to: ::/0
+            -   to: default
                 via: 2607:f0d0:1002:0011::1
         eth1:
             dhcp4: true
@@ -303,7 +297,7 @@ class TestNetCfgDistroBase(FilesystemMockingTestCase):
 
     def _get_distro(self, dname, renderers=None, activators=None):
         cls = distros.fetch(dname)
-        cfg = settings.CFG_BUILTIN
+        cfg = copy.deepcopy(settings.CFG_BUILTIN)
         cfg["system_info"]["distro"] = dname
         system_info_network_cfg = {}
         if renderers:
@@ -319,11 +313,11 @@ class TestNetCfgDistroBase(FilesystemMockingTestCase):
         b1 = dict(SysConf(blob1.strip().splitlines()))
         b2 = dict(SysConf(blob2.strip().splitlines()))
         self.assertEqual(b1, b2)
-        for (k, v) in b1.items():
+        for k, v in b1.items():
             self.assertIn(k, b2)
-        for (k, v) in b2.items():
+        for k, v in b2.items():
             self.assertIn(k, b1)
-        for (k, v) in b1.items():
+        for k, v in b1.items():
             self.assertEqual(v, b2[k])
 
 
@@ -608,41 +602,32 @@ class TestNetCfgDistroUbuntuNetplan(TestNetCfgDistroBase):
             (self.netplan_path(), V1_TO_V2_NET_CFG_OUTPUT, 0o600),
         )
 
-        with mock.patch.object(
-            features, "NETPLAN_CONFIG_ROOT_READ_ONLY", True
-        ):
-            self._apply_and_verify_netplan(
-                self.distro.apply_network_config,
-                V1_NET_CFG,
-                expected_cfgs=expected_cfgs,
-            )
+        self._apply_and_verify_netplan(
+            self.distro.apply_network_config,
+            V1_NET_CFG,
+            expected_cfgs=expected_cfgs,
+        )
 
     def test_apply_network_config_v1_ipv6_to_netplan_ub(self):
         expected_cfgs = (
             (self.netplan_path(), V1_TO_V2_NET_CFG_IPV6_OUTPUT, 0o600),
         )
 
-        with mock.patch.object(
-            features, "NETPLAN_CONFIG_ROOT_READ_ONLY", True
-        ):
-            self._apply_and_verify_netplan(
-                self.distro.apply_network_config,
-                V1_NET_CFG_IPV6,
-                expected_cfgs=expected_cfgs,
-            )
+        self._apply_and_verify_netplan(
+            self.distro.apply_network_config,
+            V1_NET_CFG_IPV6,
+            expected_cfgs=expected_cfgs,
+        )
 
     def test_apply_network_config_v2_passthrough_ub(self):
         expected_cfgs = (
             (self.netplan_path(), V2_TO_V2_NET_CFG_OUTPUT, 0o600),
         )
-        with mock.patch.object(
-            features, "NETPLAN_CONFIG_ROOT_READ_ONLY", True
-        ):
-            self._apply_and_verify_netplan(
-                self.distro.apply_network_config,
-                V2_NET_CFG,
-                expected_cfgs=expected_cfgs,
-            )
+        self._apply_and_verify_netplan(
+            self.distro.apply_network_config,
+            V2_NET_CFG,
+            expected_cfgs=expected_cfgs,
+        )
 
     def test_apply_network_config_v2_passthrough_retain_orig_perms(self):
         """Custom permissions on existing netplan is kept when more strict."""
@@ -682,14 +667,11 @@ class TestNetCfgDistroUbuntuNetplan(TestNetCfgDistroBase):
         expected_cfgs = (
             (self.netplan_path(), V2_PASSTHROUGH_NET_CFG_OUTPUT, 0o600),
         )
-        with mock.patch.object(
-            features, "NETPLAN_CONFIG_ROOT_READ_ONLY", True
-        ):
-            self._apply_and_verify_netplan(
-                self.distro.apply_network_config,
-                V2_PASSTHROUGH_NET_CFG,
-                expected_cfgs=expected_cfgs,
-            )
+        self._apply_and_verify_netplan(
+            self.distro.apply_network_config,
+            V2_PASSTHROUGH_NET_CFG,
+            expected_cfgs=expected_cfgs,
+        )
         self.assertIn("Passthrough netplan v2 config", self.logs.getvalue())
         self.assertIn(
             "Selected renderer 'netplan' from priority list: ['netplan']",
@@ -735,7 +717,6 @@ class TestNetCfgDistroRedhat(TestNetCfgDistroBase):
                 GATEWAY=192.168.1.254
                 IPADDR=192.168.1.5
                 NETMASK=255.255.255.0
-                NM_CONTROLLED=no
                 ONBOOT=yes
                 TYPE=Ethernet
                 USERCTL=no
@@ -745,7 +726,6 @@ class TestNetCfgDistroRedhat(TestNetCfgDistroBase):
                 """\
                 BOOTPROTO=dhcp
                 DEVICE=eth1
-                NM_CONTROLLED=no
                 ONBOOT=yes
                 TYPE=Ethernet
                 USERCTL=no
@@ -776,7 +756,6 @@ class TestNetCfgDistroRedhat(TestNetCfgDistroBase):
                 IPV6_AUTOCONF=no
                 IPV6_DEFAULTGW=2607:f0d0:1002:0011::1
                 IPV6_FORCE_ACCEPT_RA=no
-                NM_CONTROLLED=no
                 ONBOOT=yes
                 TYPE=Ethernet
                 USERCTL=no
@@ -786,7 +765,6 @@ class TestNetCfgDistroRedhat(TestNetCfgDistroBase):
                 """\
                 BOOTPROTO=dhcp
                 DEVICE=eth1
-                NM_CONTROLLED=no
                 ONBOOT=yes
                 TYPE=Ethernet
                 USERCTL=no
@@ -833,7 +811,6 @@ class TestNetCfgDistroRedhat(TestNetCfgDistroBase):
                 HWADDR=00:16:3e:60:7c:df
                 IPADDR=192.10.1.2
                 NETMASK=255.255.255.0
-                NM_CONTROLLED=no
                 ONBOOT=yes
                 TYPE=Ethernet
                 USERCTL=no
@@ -845,7 +822,6 @@ class TestNetCfgDistroRedhat(TestNetCfgDistroBase):
                 DEVICE=infra0
                 IPADDR=10.0.1.2
                 NETMASK=255.255.0.0
-                NM_CONTROLLED=no
                 ONBOOT=yes
                 PHYSDEV=eth0
                 USERCTL=no
@@ -881,7 +857,6 @@ class TestNetCfgDistroRedhat(TestNetCfgDistroBase):
                 DEVICE=eth0
                 IPADDR=192.10.1.2
                 NETMASK=255.255.255.0
-                NM_CONTROLLED=no
                 ONBOOT=yes
                 TYPE=Ethernet
                 USERCTL=no
@@ -893,7 +868,6 @@ class TestNetCfgDistroRedhat(TestNetCfgDistroBase):
                 DEVICE=eth0.1001
                 IPADDR=10.0.1.2
                 NETMASK=255.255.0.0
-                NM_CONTROLLED=no
                 ONBOOT=yes
                 PHYSDEV=eth0
                 USERCTL=no
@@ -1036,7 +1010,7 @@ class TestNetCfgDistroArch(TestNetCfgDistroBase):
                             addresses:
                             - 192.168.1.5/24
                             routes:
-                            -   to: 0.0.0.0/0
+                            -   to: default
                                 via: 192.168.1.254
                         eth1:
                             dhcp4: true
@@ -1047,16 +1021,12 @@ class TestNetCfgDistroArch(TestNetCfgDistroBase):
         with mock.patch(
             "cloudinit.net.netplan.get_devicelist", return_value=[]
         ):
-            with mock.patch.object(
-                features, "NETPLAN_CONFIG_ROOT_READ_ONLY"
-            ) as netplan_readonly:
-                netplan_readonly = True
-                self._apply_and_verify(
-                    self.distro.apply_network_config,
-                    V1_NET_CFG,
-                    expected_cfgs=expected_cfgs.copy(),
-                    with_netplan=True,
-                )
+            self._apply_and_verify(
+                self.distro.apply_network_config,
+                V1_NET_CFG,
+                expected_cfgs=expected_cfgs.copy(),
+                with_netplan=True,
+            )
 
 
 class TestNetCfgDistroPhoton(TestNetCfgDistroBase):
@@ -1172,7 +1142,7 @@ class TestNetCfgDistroPhoton(TestNetCfgDistroBase):
         [Address]
         Address=192.168.0.102/24"""
 
-        net_cfg = safeyaml.load(V1_NET_CFG_WITH_DUPS)
+        net_cfg = yaml.safe_load(V1_NET_CFG_WITH_DUPS)
 
         expected = self.create_conf_dict(expected.splitlines())
         expected_cfgs = {
@@ -1297,7 +1267,132 @@ class TestNetCfgDistroMariner(TestNetCfgDistroBase):
         [Address]
         Address=192.168.0.102/24"""
 
-        net_cfg = safeyaml.load(V1_NET_CFG_WITH_DUPS)
+        net_cfg = yaml.safe_load(V1_NET_CFG_WITH_DUPS)
+
+        expected = self.create_conf_dict(expected.splitlines())
+        expected_cfgs = {
+            self.nwk_file_path("eth0"): expected,
+        }
+
+        self._apply_and_verify(
+            self.distro.apply_network_config, net_cfg, expected_cfgs.copy()
+        )
+
+
+class TestNetCfgDistroAzureLinux(TestNetCfgDistroBase):
+    def setUp(self):
+        super().setUp()
+        self.distro = self._get_distro("azurelinux", renderers=["networkd"])
+
+    def create_conf_dict(self, contents):
+        content_dict = {}
+        for line in contents:
+            if line:
+                line = line.strip()
+                if line and re.search(r"^\[(.+)\]$", line):
+                    content_dict[line] = []
+                    key = line
+                elif line:
+                    assert key
+                    content_dict[key].append(line)
+
+        return content_dict
+
+    def compare_dicts(self, actual, expected):
+        for k, v in actual.items():
+            self.assertEqual(sorted(expected[k]), sorted(v))
+
+    def _apply_and_verify(
+        self, apply_fn, config, expected_cfgs=None, bringup=False
+    ):
+        if not expected_cfgs:
+            raise ValueError("expected_cfg must not be None")
+
+        tmpd = None
+        with mock.patch("cloudinit.net.networkd.available") as m_avail:
+            m_avail.return_value = True
+            with self.reRooted(tmpd) as tmpd:
+                apply_fn(config, bringup)
+
+        results = dir2dict(tmpd)
+        for cfgpath, expected in expected_cfgs.items():
+            actual = self.create_conf_dict(results[cfgpath].splitlines())
+            self.compare_dicts(actual, expected)
+            self.assertEqual(0o644, get_mode(cfgpath, tmpd))
+
+    def nwk_file_path(self, ifname):
+        return "/etc/systemd/network/10-cloud-init-%s.network" % ifname
+
+    def net_cfg_1(self, ifname):
+        ret = (
+            """\
+        [Match]
+        Name=%s
+        [Network]
+        DHCP=no
+        [Address]
+        Address=192.168.1.5/24
+        [Route]
+        Gateway=192.168.1.254"""
+            % ifname
+        )
+        return ret
+
+    def net_cfg_2(self, ifname):
+        ret = (
+            """\
+        [Match]
+        Name=%s
+        [Network]
+        DHCP=ipv4"""
+            % ifname
+        )
+        return ret
+
+    def test_azurelinux_network_config_v1(self):
+        tmp = self.net_cfg_1("eth0").splitlines()
+        expected_eth0 = self.create_conf_dict(tmp)
+
+        tmp = self.net_cfg_2("eth1").splitlines()
+        expected_eth1 = self.create_conf_dict(tmp)
+
+        expected_cfgs = {
+            self.nwk_file_path("eth0"): expected_eth0,
+            self.nwk_file_path("eth1"): expected_eth1,
+        }
+
+        self._apply_and_verify(
+            self.distro.apply_network_config, V1_NET_CFG, expected_cfgs.copy()
+        )
+
+    def test_azurelinux_network_config_v2(self):
+        tmp = self.net_cfg_1("eth7").splitlines()
+        expected_eth7 = self.create_conf_dict(tmp)
+
+        tmp = self.net_cfg_2("eth9").splitlines()
+        expected_eth9 = self.create_conf_dict(tmp)
+
+        expected_cfgs = {
+            self.nwk_file_path("eth7"): expected_eth7,
+            self.nwk_file_path("eth9"): expected_eth9,
+        }
+
+        self._apply_and_verify(
+            self.distro.apply_network_config, V2_NET_CFG, expected_cfgs.copy()
+        )
+
+    def test_azurelinux_network_config_v1_with_duplicates(self):
+        expected = """\
+        [Match]
+        Name=eth0
+        [Network]
+        DHCP=no
+        DNS=1.2.3.4
+        Domains=test.com
+        [Address]
+        Address=192.168.0.102/24"""
+
+        net_cfg = yaml.safe_load(V1_NET_CFG_WITH_DUPS)
 
         expected = self.create_conf_dict(expected.splitlines())
         expected_cfgs = {

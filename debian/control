@@ -3,7 +3,7 @@ Section: admin
 Priority: optional
 Homepage: https://cloud-init.io/
 Maintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
-Build-Depends: debhelper (>= 9.20160709),
+Build-Depends: debhelper-compat (= 13),
                dh-python,
                iproute2,
                po-debconf,
@@ -14,7 +14,6 @@ Build-Depends: debhelper (>= 9.20160709),
                python3-jsonpatch,
                python3-jsonschema,
                python3-mock,
-               python3-netifaces,
                python3-oauthlib,
                python3-pytest,
                python3-pytest-mock,
@@ -24,29 +23,27 @@ Build-Depends: debhelper (>= 9.20160709),
                python3-yaml,
                python3-responses,
                python3-passlib
-XS-Python-Version: all
 Vcs-Browser: https://github.com/canonical/cloud-init/tree/ubuntu/devel
 Vcs-Git: https://github.com/canonical/cloud-init -b ubuntu/devel
-Standards-Version: 4.4.1
+Standards-Version: 4.5.0
 Rules-Requires-Root: no
 
 Package: cloud-init
 Architecture: all
 Depends: cloud-guest-utils | cloud-utils,
-         isc-dhcp-client,
+         dhcpcd-base,
          iproute2,
          netplan.io,
          procps,
          python3,
          python3-debconf,
-         python3-netifaces,
          python3-requests,
          python3-serial,
          ${misc:Depends},
          ${python3:Depends}
-Recommends: eatmydata, gdisk, python3-apt, software-properties-common
+Recommends: eatmydata, gdisk, gnupg, python3-apt, software-properties-common
 Suggests: openssh-server, ssh-import-id
-XB-Python-Version: ${python:Versions}
+Breaks: python3-minimal (<< 3.12.3-0ubuntu2~)
 Description: initialization and customization tool for cloud instances
  Cloud-init is the industry standard multi-distribution method for
  cross-platform cloud instance initialization. It is supported across all major

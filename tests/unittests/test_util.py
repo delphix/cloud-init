@@ -22,7 +22,15 @@ from urllib.parse import urlparse
 import pytest
 import yaml
 
-from cloudinit import atomic_helper, features, importer, subp, url_helper, util
+from cloudinit import (
+    atomic_helper,
+    features,
+    importer,
+    lifecycle,
+    subp,
+    url_helper,
+    util,
+)
 from cloudinit.distros import Distro
 from cloudinit.helpers import Paths
 from cloudinit.sources import DataSourceHostname
@@ -397,6 +405,20 @@ OS_RELEASE_MARINER = dedent(
     HOME_URL="https://aka.ms/cbl-mariner"
     BUG_REPORT_URL="https://aka.ms/cbl-mariner"
     SUPPORT_URL="https://aka.ms/cbl-mariner"
+"""
+)
+
+OS_RELEASE_AZURELINUX = dedent(
+    """\
+    NAME="Microsoft Azure Linux"
+    VERSION="3.0.20240206"
+    ID=azurelinux
+    VERSION_ID="3.0"
+    PRETTY_NAME="Microsoft Azure Linux 3.0"
+    ANSI_COLOR="1;34"
+    HOME_URL="https://aka.ms/azurelinux"
+    BUG_REPORT_URL="https://aka.ms/azurelinux"
+    SUPPORT_URL="https://aka.ms/azurelinux"
 """
 )
 
@@ -1249,6 +1271,16 @@ class TestGetLinuxDistro(CiTestCase):
         dist = util.get_linux_distro()
         self.assertEqual(("mariner", "2.0", ""), dist)
 
+    @mock.patch("cloudinit.util.load_text_file")
+    def test_get_linux_azurelinux_os_release(
+        self, m_os_release, m_path_exists
+    ):
+        """Verify we get the correct name and machine arch on Azure Linux"""
+        m_os_release.return_value = OS_RELEASE_AZURELINUX
+        m_path_exists.side_effect = TestGetLinuxDistro.os_release_exists
+        dist = util.get_linux_distro()
+        self.assertEqual(("azurelinux", "3.0", ""), dist)
+
     @mock.patch(M_PATH + "load_text_file")
     def test_get_linux_openmandriva(self, m_os_release, m_path_exists):
         """Verify we get the correct name and machine arch on OpenMandriva"""
@@ -1310,6 +1342,7 @@ class TestGetVariant:
             ({"system": "Linux", "dist": ("almalinux",)}, "almalinux"),
             ({"system": "linux", "dist": ("alpine",)}, "alpine"),
             ({"system": "linux", "dist": ("arch",)}, "arch"),
+            ({"system": "linux", "dist": ("azurelinux",)}, "azurelinux"),
             ({"system": "linux", "dist": ("centos",)}, "centos"),
             ({"system": "linux", "dist": ("cloudlinux",)}, "cloudlinux"),
             ({"system": "linux", "dist": ("debian",)}, "debian"),
@@ -1700,6 +1733,8 @@ class TestRedirectOutputPreexecFn:
             args = (test_string, None)
         elif request.param == "errfmt":
             args = (None, test_string)
+        else:
+            args = (None, None)
         with mock.patch(M_PATH + "subprocess.Popen") as m_popen:
             util.redirect_output(*args)
 
@@ -2421,20 +2456,87 @@ class TestMessageFromString(helpers.TestCase):
         self.assertNotIn("\x00", roundtripped)
 
 
+class TestReadOptionalSeed:
+    @pytest.mark.parametrize(
+        "seed_dir,expected_fill,retval",
+        (
+            ({}, {}, False),
+            ({"meta-data": "md"}, {}, False),
+            (
+                {"meta-data": "md: val", "user-data": "ud"},
+                {
+                    "meta-data": {"md": "val"},
+                    "user-data": b"ud",
+                    "network-config": None,
+                    "vendor-data": None,
+                },
+                True,
+            ),
+            (
+                {
+                    "meta-data": "md: val",
+                    "user-data": "ud",
+                    "network-config": "net: cfg",
+                },
+                {
+                    "meta-data": {"md": "val"},
+                    "user-data": b"ud",
+                    "network-config": None,
+                    "vendor-data": None,
+                },
+                True,
+            ),
+            (
+                {
+                    "meta-data": "md: val",
+                    "user-data": "ud",
+                    "vendor-data": "vd",
+                },
+                {
+                    "meta-data": {"md": "val"},
+                    "user-data": b"ud",
+                    "network-config": None,
+                    "vendor-data": b"vd",
+                },
+                True,
+            ),
+        ),
+    )
+    def test_read_optional_seed_sets_fill_on_success(
+        self, seed_dir, expected_fill, retval, tmpdir
+    ):
+        """Set fill dict values based on seed files present."""
+        if seed_dir is not None:
+            helpers.populate_dir(tmpdir.strpath, seed_dir)
+        fill = {}
+        assert (
+            util.read_optional_seed(fill, tmpdir.strpath + os.path.sep)
+            is retval
+        )
+        assert fill == expected_fill
+
+
 class TestReadSeeded:
     def test_unicode_not_messed_up(self, tmpdir):
         ud = b"userdatablob"
         vd = b"vendordatablob"
+        network = b"test: 'true'"
         helpers.populate_dir(
             tmpdir.strpath,
-            {"meta-data": "key1: val1", "user-data": ud, "vendor-data": vd},
+            {
+                "meta-data": "key1: val1",
+                "user-data": ud,
+                "vendor-data": vd,
+                "network-config": network,
+            },
         )
-        (found_md, found_ud, found_vd) = util.read_seeded(
+        found_md, found_ud, found_vd, found_network = util.read_seeded(
             tmpdir.strpath + os.path.sep
         )
         assert found_md == {"key1": "val1"}
         assert found_ud == ud
         assert found_vd == vd
+        assert found_network is None
 
     @pytest.mark.parametrize(
         "base, feature_flag, req_urls",
@@ -2504,7 +2606,7 @@ class TestReadSeeded:
                 else:
                     _url, _, md_type = parsed_url.netloc.partition("8008")
                 path = f"/{md_type}"
-            return url_helper.StringResponse(f"{path}: 1")
+            return url_helper.StringResponse(f"{path}: 1", "http://url/")
 
         m_read.side_effect = fake_response
 
@@ -2513,12 +2615,15 @@ class TestReadSeeded:
             "NOCLOUD_SEED_URL_APPEND_FORWARD_SLASH",
             feature_flag,
         ):
-            (found_md, found_ud, found_vd) = util.read_seeded(base)
+            found_md, found_ud, found_vd, found_network = util.read_seeded(
+                base
+            )
         # Meta-data treated as YAML
         assert found_md == {"/meta-data": 1}
         # user-data, vendor-data read raw. It could be scripts or other format
         assert found_ud == "/user-data: 1"
         assert found_vd == "/vendor-data: 1"
+        assert found_network is None
         assert [
             mock.call(req_url, timeout=5, retries=10) for req_url in req_urls
         ] == m_read.call_args_list
@@ -2533,15 +2638,22 @@ class TestReadSeededWithoutVendorData(helpers.TestCase):
     def test_unicode_not_messed_up(self):
         ud = b"userdatablob"
         vd = None
+        network = b"test: 'true'"
         helpers.populate_dir(
-            self.tmp, {"meta-data": "key1: val1", "user-data": ud}
+            self.tmp,
+            {
+                "meta-data": "key1: val1",
+                "user-data": ud,
+                "network-config": network,
+            },
         )
         sdir = self.tmp + os.path.sep
-        (found_md, found_ud, found_vd) = util.read_seeded(sdir)
+        found_md, found_ud, found_vd, found_network = util.read_seeded(sdir)
 
         self.assertEqual(found_md, {"key1": "val1"})
         self.assertEqual(found_ud, ud)
         self.assertEqual(found_vd, vd)
+        self.assertIsNone(found_network)
 
 
 class TestEncode(helpers.TestCase):
@@ -2772,19 +2884,6 @@ class TestGetProcEnv(helpers.TestCase):
                 "MIXED": self._val_decoded(self.mixed),
             },
             util.get_proc_env(1),
-        )
-        self.assertEqual(1, m_load_file.call_count)
-
-    @mock.patch(M_PATH + "load_binary_file")
-    def test_encoding_none_returns_bytes(self, m_load_file):
-        """encoding none returns bytes."""
-        lines = (self.bootflag, self.simple1, self.simple2, self.mixed)
-        content = self.null.join(lines)
-        m_load_file.return_value = content
-
-        self.assertEqual(
-            dict([t.split(b"=") for t in lines]),
-            util.get_proc_env(1, encoding=None),
         )
         self.assertEqual(1, m_load_file.call_count)
 
@@ -3059,9 +3158,13 @@ class TestVersion:
     )
     def test_eq(self, v1, v2, eq):
         if eq:
-            assert util.Version.from_str(v1) == util.Version.from_str(v2)
+            assert lifecycle.Version.from_str(
+                v1
+            ) == lifecycle.Version.from_str(v2)
         if not eq:
-            assert util.Version.from_str(v1) != util.Version.from_str(v2)
+            assert lifecycle.Version.from_str(
+                v1
+            ) != lifecycle.Version.from_str(v2)
 
     @pytest.mark.parametrize(
         ("v1", "v2", "gt"),
@@ -3075,11 +3178,15 @@ class TestVersion:
     )
     def test_gt(self, v1, v2, gt):
         if gt:
-            assert util.Version.from_str(v1) > util.Version.from_str(v2)
-        if not gt:
-            assert util.Version.from_str(v1) < util.Version.from_str(
+            assert lifecycle.Version.from_str(v1) > lifecycle.Version.from_str(
                 v2
-            ) or util.Version.from_str(v1) == util.Version.from_str(v2)
+            )
+        if not gt:
+            assert lifecycle.Version.from_str(v1) < lifecycle.Version.from_str(
+                v2
+            ) or lifecycle.Version.from_str(v1) == lifecycle.Version.from_str(
+                v2
+            )
 
     @pytest.mark.parametrize(
         ("version"),
@@ -3093,31 +3200,31 @@ class TestVersion:
     )
     def test_to_version_and_back_to_str(self, version):
         """Verify __str__, __iter__, and Version.from_str()"""
-        assert version == str(util.Version.from_str(version))
+        assert version == str(lifecycle.Version.from_str(version))
 
     @pytest.mark.parametrize(
         ("str_ver", "cls_ver"),
         (
             (
                 "0.0.0.0",
-                util.Version(0, 0, 0, 0),
+                lifecycle.Version(0, 0, 0, 0),
             ),
             (
                 "1.0.0.0",
-                util.Version(1, 0, 0, 0),
+                lifecycle.Version(1, 0, 0, 0),
             ),
             (
                 "1.0.2.0",
-                util.Version(1, 0, 2, 0),
+                lifecycle.Version(1, 0, 2, 0),
             ),
             (
                 "9.8.2.0",
-                util.Version(9, 8, 2, 0),
+                lifecycle.Version(9, 8, 2, 0),
             ),
         ),
     )
     def test_from_str(self, str_ver, cls_ver):
-        assert util.Version.from_str(str_ver) == cls_ver
+        assert lifecycle.Version.from_str(str_ver) == cls_ver
 
 
 @pytest.mark.allow_dns_lookup
@@ -3220,3 +3327,39 @@ class TestReadHotplugEnabledFile:
         assert {"scopes": ["network"]} == util.read_hotplug_enabled_file(
             MockPath(target_file.strpath)
         )
+
+
+class TestLogExc:
+    def test_logexc(self, caplog):
+        try:
+            _ = 1 / 0
+        except Exception as _:
+            util.logexc(LOG, "an error occurred")
+
+        assert caplog.record_tuples == [
+            (
+                "tests.unittests.test_util",
+                logging.WARNING,
+                "an error occurred",
+            ),
+            ("tests.unittests.test_util", logging.DEBUG, "an error occurred"),
+        ]
+
+    @pytest.mark.parametrize(
+        "log_level",
+        [logging.DEBUG, logging.INFO, logging.WARNING, logging.ERROR],
+    )
+    def test_logexc_with_log_level(self, caplog, log_level):
+        try:
+            _ = 1 / 0
+        except Exception as _:
+            util.logexc(LOG, "an error occurred", log_level=log_level)
+
+        assert caplog.record_tuples == [
+            (
+                "tests.unittests.test_util",
+                log_level,
+                "an error occurred",
+            ),
+            ("tests.unittests.test_util", logging.DEBUG, "an error occurred"),
+        ]

@@ -9,7 +9,7 @@
 import logging
 import os
 
-from cloudinit import sources, subp, util
+from cloudinit import lifecycle, sources, subp, util
 from cloudinit.event import EventScope, EventType
 from cloudinit.net import eni
 from cloudinit.sources.DataSourceIBMCloud import get_ibm_platform
@@ -19,7 +19,6 @@ LOG = logging.getLogger(__name__)
 
 # Various defaults/constants...
 DEFAULT_IID = "iid-dsconfigdrive"
-DEFAULT_MODE = "pass"
 DEFAULT_METADATA = {
     "instance-id": DEFAULT_IID,
 }
@@ -142,7 +141,6 @@ class DataSourceConfigDrive(openstack.SourceMixin, sources.DataSource):
         self.files.update(results.get("files", {}))
 
         vd = results.get("vendordata")
-        self.vendordata_pure = vd
         try:
             self.vendordata_raw = sources.convert_vendordata(vd)
         except ValueError as e:
@@ -150,7 +148,6 @@ class DataSourceConfigDrive(openstack.SourceMixin, sources.DataSource):
             self.vendordata_raw = None
 
         vd2 = results.get("vendordata2")
-        self.vendordata2_pure = vd2
         try:
             self.vendordata2_raw = sources.convert_vendordata(vd2)
         except ValueError as e:
@@ -179,6 +176,14 @@ class DataSourceConfigDrive(openstack.SourceMixin, sources.DataSource):
             elif self.network_eni is not None:
                 self._network_config = eni.convert_eni_data(self.network_eni)
                 LOG.debug("network config provided via converted eni data")
+                lifecycle.deprecate(
+                    deprecated="Eni network configuration in ConfigDrive",
+                    deprecated_version="24.3",
+                    extra_message=(
+                        "You can use openstack's network "
+                        "configuration format instead"
+                    ),
+                )
             else:
                 LOG.debug("no network configuration available")
         return self._network_config
@@ -203,7 +208,7 @@ def read_config_drive(source_dir):
         (reader.read_v1, [], {}),
     ]
     excps = []
-    for (functor, args, kwargs) in finders:
+    for functor, args, kwargs in finders:
         try:
             return functor(*args, **kwargs)
         except openstack.NonReadable as e:
@@ -239,7 +244,7 @@ def on_first_boot(data, distro=None, network=True):
 def write_injected_files(files):
     if files:
         LOG.debug("Writing %s injected files", len(files))
-        for (filename, content) in files.items():
+        for filename, content in files.items():
             if not filename.startswith(os.sep):
                 filename = os.sep + filename
             try:

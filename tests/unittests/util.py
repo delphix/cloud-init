@@ -33,7 +33,9 @@ def get_cloud(
         myds.metadata.update(metadata)
     if paths:
         paths.datasource = myds
-    return cloud.Cloud(myds, paths, sys_cfg, mydist, None)
+    return cloud.Cloud(
+        myds, paths, sys_cfg, mydist, runners=helpers.Runners(paths)
+    )
 
 
 def abstract_to_concrete(abclass):
@@ -161,7 +163,7 @@ class MockDistro(distros.Distro):
     def package_command(self, command, args=None, pkgs=None):
         pass
 
-    def update_package_sources(self):
+    def update_package_sources(self, *, force=False):
         return (True, "yay")
 
     def do_as(self, command, args=None, **kwargs):

@@ -4,7 +4,7 @@
 #
 # This file is part of cloud-init. See LICENSE file for license information.
 
-"""Define 'status' utility and handler as part of cloud-init commandline."""
+"""Define 'status' utility and handler as part of cloud-init command line."""
 
 import argparse
 import enum
@@ -48,11 +48,11 @@ class EnabledStatus(enum.Enum):
     """Enum representing user-visible cloud-init boot status codes."""
 
     DISABLED_BY_GENERATOR = "disabled-by-generator"
-    DISABLED_BY_KERNEL_CMDLINE = "disabled-by-kernel-cmdline"
+    DISABLED_BY_KERNEL_CMDLINE = "disabled-by-kernel-command-line"
     DISABLED_BY_MARKER_FILE = "disabled-by-marker-file"
     DISABLED_BY_ENV_VARIABLE = "disabled-by-environment-variable"
     ENABLED_BY_GENERATOR = "enabled-by-generator"
-    ENABLED_BY_KERNEL_CMDLINE = "enabled-by-kernel-cmdline"
+    ENABLED_BY_KERNEL_CMDLINE = "enabled-by-kernel-command-line"
     ENABLED_BY_SYSVINIT = "enabled-by-sysvinit"
     UNKNOWN = "unknown"
 
@@ -178,9 +178,6 @@ def print_status(args, details: StatusDetails):
         "last_update": details.last_update,
         **details.v1,
     }
-    details_dict["schemas"] = {"1": deepcopy(details_dict)}
-    details_dict["_schema_version"] = "1"
-
     if args.format == "tabular":
         prefix = "\n" if args.wait else ""
 
@@ -254,7 +251,7 @@ def handle_status_args(name, args) -> int:
         return 1
     # Recoverable error
     elif details.condition_status == ConditionStatus.DEGRADED:
-        return 0
+        return 2
     return 0
 
 
