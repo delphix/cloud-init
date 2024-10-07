@@ -14,14 +14,14 @@ import os
 import pathlib
 import re
 import shutil
-import signal
-from textwrap import dedent, indent
+from textwrap import indent
 from typing import Dict, Iterable, List, Mapping
 
-from cloudinit import features, gpg, subp, templater, util
+from cloudinit import features, subp, templater, util
 from cloudinit.cloud import Cloud
 from cloudinit.config import Config
-from cloudinit.config.schema import MetaSchema, get_meta_doc
+from cloudinit.config.schema import MetaSchema
+from cloudinit.gpg import GPG
 from cloudinit.settings import PER_INSTANCE
 
 LOG = logging.getLogger(__name__)
@@ -34,9 +34,6 @@ APT_TRUSTED_GPG_DIR = "/etc/apt/trusted.gpg.d/"
 CLOUD_INIT_GPG_DIR = "/etc/apt/cloud-init.gpg.d/"
 DISABLE_SUITES_REDACT_PREFIX = "# cloud-init disable_suites redacted: "
 
-frequency = PER_INSTANCE
-distros = ["ubuntu", "debian"]
-
 PACKAGE_DEPENDENCY_BY_COMMAND: Mapping[str, str] = {
     "add-apt-repository": "software-properties-common",
     "gpg": "gnupg",
@@ -44,122 +41,10 @@ PACKAGE_DEPENDENCY_BY_COMMAND: Mapping[str, str] = {
 
 meta: MetaSchema = {
     "id": "cc_apt_configure",
-    "name": "Apt Configure",
-    "title": "Configure apt for the user",
-    "description": dedent(
-        """\
-        This module handles both configuration of apt options and adding
-        source lists.  There are configuration options such as
-        ``apt_get_wrapper`` and ``apt_get_command`` that control how
-        cloud-init invokes apt-get. These configuration options are
-        handled on a per-distro basis, so consult documentation for
-        cloud-init's distro support for instructions on using
-        these config options.
-
-        By default, cloud-init will generate default
-        apt sources information in deb822 format at
-        :file:`/etc/apt/sources.list.d/<distro>.sources`. When the value
-        of `sources_list` does not appear to be deb822 format, or stable
-        distribution releases disable deb822 format,
-        :file:`/etc/apt/sources.list` will be written instead.
-
-        .. note::
-            To ensure that apt configuration is valid yaml, any strings
-            containing special characters, especially ``:`` should be quoted.
-
-        .. note::
-            For more information about apt configuration, see the
-            ``Additional apt configuration`` example."""
-    ),
-    "distros": distros,
-    "examples": [
-        dedent(
-            """\
-        apt:
-          preserve_sources_list: false
-          disable_suites:
-            - $RELEASE-updates
-            - backports
-            - $RELEASE
-            - mysuite
-          primary:
-            - arches:
-                - amd64
-                - i386
-                - default
-              uri: 'http://us.archive.ubuntu.com/ubuntu'
-              search:
-                - 'http://cool.but-sometimes-unreachable.com/ubuntu'
-                - 'http://us.archive.ubuntu.com/ubuntu'
-              search_dns: false
-            - arches:
-                - s390x
-                - arm64
-              uri: 'http://archive-to-use-for-arm64.example.com/ubuntu'
-
-          security:
-            - arches:
-                - default
-              search_dns: true
-          sources_list: |
-              deb $MIRROR $RELEASE main restricted
-              deb-src $MIRROR $RELEASE main restricted
-              deb $PRIMARY $RELEASE universe restricted
-              deb $SECURITY $RELEASE-security multiverse
-          debconf_selections:
-              set1: the-package the-package/some-flag boolean true
-          conf: |
-              APT {
-                  Get {
-                      Assume-Yes 'true';
-                      Fix-Broken 'true';
-                  }
-              }
-          proxy: 'http://[[user][:pass]@]host[:port]/'
-          http_proxy: 'http://[[user][:pass]@]host[:port]/'
-          ftp_proxy: 'ftp://[[user][:pass]@]host[:port]/'
-          https_proxy: 'https://[[user][:pass]@]host[:port]/'
-          sources:
-              source1:
-                  keyid: 'keyid'
-                  keyserver: 'keyserverurl'
-                  source: 'deb [signed-by=$KEY_FILE] http://<url>/ bionic main'
-              source2:
-                  source: 'ppa:<ppa-name>'
-              source3:
-                  source: 'deb $MIRROR $RELEASE multiverse'
-                  key: |
-                      ------BEGIN PGP PUBLIC KEY BLOCK-------
-                      <key data>
-                      ------END PGP PUBLIC KEY BLOCK-------
-              source4:
-                  source: 'deb $MIRROR $RELEASE multiverse'
-                  append: false
-                  key: |
-                      ------BEGIN PGP PUBLIC KEY BLOCK-------
-                      <key data>
-                      ------END PGP PUBLIC KEY BLOCK-------"""
-        ),
-        dedent(
-            """\
-        # cloud-init version 23.4 will generate a deb822 formatted sources
-        # file at /etc/apt/sources.list.d/<distro>.sources instead of
-        # /etc/apt/sources.list when  `sources_list` content is deb822
-        # format.
-        apt:
-            sources_list: |
-              Types: deb
-              URIs: http://archive.ubuntu.com/ubuntu/
-              Suites: $RELEASE
-              Components: main
-            """
-        ),
-    ],
-    "frequency": frequency,
+    "distros": ["ubuntu", "debian"],
+    "frequency": PER_INSTANCE,
     "activate_by_schema_keys": [],
-}
-
-__doc__ = get_meta_doc(meta)
+}  # type: ignore
 
 
 # place where apt stores cached repository data
@@ -222,13 +107,13 @@ def handle(name: str, cfg: Config, cloud: Cloud, args: list) -> None:
 
     if not isinstance(apt_cfg, dict):
         raise ValueError(
-            "Expected dictionary for 'apt' config, found {config_type}".format(
-                config_type=type(apt_cfg)
-            )
+            "Expected dictionary for 'apt' config, "
+            "found {config_type}".format(config_type=type(apt_cfg))
         )
 
     apply_debconf_selections(apt_cfg)
-    apply_apt(apt_cfg, cloud)
+    with GPG() as gpg_context:
+        apply_apt(apt_cfg, cloud, gpg_context)
 
 
 def _should_configure_on_empty_apt():
@@ -240,7 +125,7 @@ def _should_configure_on_empty_apt():
     return True, "Apt is available."
 
 
-def apply_apt(cfg, cloud):
+def apply_apt(cfg, cloud, gpg):
     # cfg is the 'apt' top level dictionary already in 'v3' format.
     if not cfg:
         should_config, msg = _should_configure_on_empty_apt()
@@ -262,7 +147,7 @@ def apply_apt(cfg, cloud):
     _ensure_dependencies(cfg, matcher, cloud)
 
     if util.is_false(cfg.get("preserve_sources_list", False)):
-        add_mirror_keys(cfg, cloud)
+        add_mirror_keys(cfg, cloud, gpg)
         generate_sources_list(cfg, release, mirrors, cloud)
         rename_apt_lists(mirrors, arch)
 
@@ -280,32 +165,10 @@ def apply_apt(cfg, cloud):
         add_apt_sources(
             cfg["sources"],
             cloud,
+            gpg,
             template_params=params,
             aa_repo_match=matcher,
         )
-    # GH: 4344 - stop gpg-agent/dirmgr daemons spawned by gpg key imports.
-    # Daemons spawned by cloud-config.service on systemd v253 report (running)
-    gpg_process_out, _err = subp.subp(
-        [
-            "ps",
-            "-o",
-            "ppid,pid",
-            "-C",
-            "keyboxd",
-            "-C",
-            "dirmngr",
-            "-C",
-            "gpg-agent",
-        ],
-        capture=True,
-        rcs=[0, 1],
-    )
-    gpg_pids = re.findall(r"(?P<ppid>\d+)\s+(?P<pid>\d+)", gpg_process_out)
-    root_gpg_pids = [int(pid[1]) for pid in gpg_pids if pid[0] == "1"]
-    if root_gpg_pids:
-        LOG.debug("Killing gpg-agent and dirmngr pids: %s", root_gpg_pids)
-    for gpg_pid in root_gpg_pids:
-        os.kill(gpg_pid, signal.SIGKILL)
 
 
 def debconf_set_selections(selections):
@@ -558,11 +421,11 @@ def disable_suites(disabled, src, release) -> str:
     return retsrc
 
 
-def add_mirror_keys(cfg, cloud):
+def add_mirror_keys(cfg, cloud, gpg):
     """Adds any keys included in the primary/security mirror clauses"""
     for key in ("primary", "security"):
         for mirror in cfg.get(key, []):
-            add_apt_key(mirror, cloud, file_name=key)
+            add_apt_key(mirror, cloud, gpg, file_name=key)
 
 
 def is_deb822_sources_format(apt_src_content: str) -> bool:
@@ -722,7 +585,7 @@ def generate_sources_list(cfg, release, mirrors, cloud):
             util.del_file(apt_sources_list)
 
 
-def add_apt_key_raw(key, file_name, hardened=False):
+def add_apt_key_raw(key, file_name, gpg, hardened=False):
     """
     actual adding of a key as defined in key argument
     to the system
@@ -730,7 +593,9 @@ def add_apt_key_raw(key, file_name, hardened=False):
     LOG.debug("Adding key:\n'%s'", key)
     try:
         name = pathlib.Path(file_name).stem
-        return apt_key("add", output_file=name, data=key, hardened=hardened)
+        return apt_key(
+            "add", gpg, output_file=name, data=key, hardened=hardened
+        )
     except subp.ProcessExecutionError:
         LOG.exception("failed to add apt GPG Key to apt keyring")
         raise
@@ -770,7 +635,7 @@ def _ensure_dependencies(cfg, aa_repo_match, cloud):
         cloud.distro.install_packages(sorted(missing_packages))
 
 
-def add_apt_key(ent, cloud, hardened=False, file_name=None):
+def add_apt_key(ent, cloud, gpg, hardened=False, file_name=None):
     """
     Add key to the system as defined in ent (if any).
     Supports raw keys or keyid's
@@ -785,15 +650,13 @@ def add_apt_key(ent, cloud, hardened=False, file_name=None):
 
     if "key" in ent:
         return add_apt_key_raw(
-            ent["key"], file_name or ent["filename"], hardened=hardened
+            ent["key"], file_name or ent["filename"], gpg, hardened=hardened
         )
 
 
-def update_packages(cloud):
-    cloud.distro.update_package_sources()
-
-
-def add_apt_sources(srcdict, cloud, template_params=None, aa_repo_match=None):
+def add_apt_sources(
+    srcdict, cloud, gpg, template_params=None, aa_repo_match=None
+):
     """
     install keys and repo source .list files defined in 'sources'
 
@@ -834,10 +697,10 @@ def add_apt_sources(srcdict, cloud, template_params=None, aa_repo_match=None):
             ent["filename"] = filename
 
         if "source" in ent and "$KEY_FILE" in ent["source"]:
-            key_file = add_apt_key(ent, cloud, hardened=True)
+            key_file = add_apt_key(ent, cloud, gpg, hardened=True)
             template_params["KEY_FILE"] = key_file
         else:
-            add_apt_key(ent, cloud)
+            add_apt_key(ent, cloud, gpg)
 
         if "source" not in ent:
             continue
@@ -874,7 +737,7 @@ def add_apt_sources(srcdict, cloud, template_params=None, aa_repo_match=None):
             LOG.exception("failed write to file %s: %s", sourcefn, detail)
             raise
 
-    update_packages(cloud)
+    cloud.distro.update_package_sources(force=True)
 
     return
 
@@ -1187,7 +1050,12 @@ def apply_apt_config(cfg, proxy_fname, config_fname):
 
 
 def apt_key(
-    command, output_file=None, data=None, hardened=False, human_output=True
+    command,
+    gpg,
+    output_file=None,
+    data=None,
+    hardened=False,
+    human_output=True,
 ):
     """apt-key replacement
 
@@ -1215,7 +1083,7 @@ def apt_key(
                 key_files.append(APT_TRUSTED_GPG_DIR + file)
         return key_files if key_files else ""
 
-    def apt_key_add():
+    def apt_key_add(gpg_context):
         """apt-key add <file>
 
         returns filepath to new keyring, or '/dev/null' when an error occurs
@@ -1230,7 +1098,7 @@ def apt_key(
                 key_dir = (
                     CLOUD_INIT_GPG_DIR if hardened else APT_TRUSTED_GPG_DIR
                 )
-                stdout = gpg.dearmor(data)
+                stdout = gpg_context.dearmor(data)
                 file_name = "{}{}.gpg".format(key_dir, output_file)
                 util.write_file(file_name, stdout)
             except subp.ProcessExecutionError:
@@ -1243,7 +1111,7 @@ def apt_key(
                 )
         return file_name
 
-    def apt_key_list():
+    def apt_key_list(gpg_context):
         """apt-key list
 
         returns string of all trusted keys (in /etc/apt/trusted.gpg and
@@ -1252,15 +1120,17 @@ def apt_key(
         key_list = []
         for key_file in _get_key_files():
             try:
-                key_list.append(gpg.list(key_file, human_output=human_output))
+                key_list.append(
+                    gpg_context.list_keys(key_file, human_output=human_output)
+                )
             except subp.ProcessExecutionError as error:
                 LOG.warning('Failed to list key "%s": %s', key_file, error)
         return "\n".join(key_list)
 
     if command == "add":
-        return apt_key_add()
+        return apt_key_add(gpg)
     elif command == "finger" or command == "list":
-        return apt_key_list()
+        return apt_key_list(gpg)
     else:
         raise ValueError(
             "apt_key() commands add, list, and finger are currently supported"
