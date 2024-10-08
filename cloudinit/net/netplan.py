@@ -120,7 +120,7 @@ def _extract_addresses(config: dict, entry: dict, ifname, features: Callable):
             if subnet.get("gateway"):
                 new_route = {
                     "via": subnet.get("gateway"),
-                    "to": "::/0" if ":" in subnet["gateway"] else "0.0.0.0/0",
+                    "to": "default",
                 }
                 # If the gateway is not contained within the subnet's
                 # network, mark it as on-link so that it can still be

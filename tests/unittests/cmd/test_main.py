@@ -14,7 +14,7 @@ from cloudinit.util import ensure_dir, load_text_file, write_file
 from tests.unittests.helpers import FilesystemMockingTestCase, wrap_and_call
 
 MyArgs = namedtuple(
-    "MyArgs", "debug main_files files force local reporter subcommand"
+    "MyArgs", "debug files force local reporter subcommand skip_log_setup"
 )
 
 
@@ -73,12 +73,12 @@ class TestMain(FilesystemMockingTestCase):
         """Modules like write_files are run in 'net' mode."""
         cmdargs = MyArgs(
             debug=False,
-            main_files=None,
             files=None,
             force=False,
             local=False,
             reporter=None,
             subcommand="init",
+            skip_log_setup=False,
         )
         (_item1, item2) = wrap_and_call(
             "cloudinit.cmd.main",
@@ -120,12 +120,12 @@ class TestMain(FilesystemMockingTestCase):
         write_file(self.cloud_cfg_file, cloud_cfg)
         cmdargs = MyArgs(
             debug=False,
-            main_files=None,
             files=None,
             force=False,
             local=False,
             reporter=None,
             subcommand="init",
+            skip_log_setup=False,
         )
 
         def set_hostname(name, cfg, cloud, args):
