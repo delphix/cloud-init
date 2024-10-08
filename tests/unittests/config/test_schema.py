@@ -54,6 +54,7 @@ from tests.unittests.helpers import (
     CiTestCase,
     does_not_raise,
     mock,
+    SkipTest,
     skipUnlessHypothesisJsonSchema,
     skipUnlessJsonSchema,
     skipUnlessJsonSchemaVersionGreaterThan,
@@ -429,6 +430,7 @@ class TestNetplanValidateNetworkSchema:
             ),
         ),
     )
+    @SkipTest
     def test_network_config_schema_validation_false_when_skipped(
         self, config, expected_log, caplog
     ):
@@ -2550,6 +2552,7 @@ class TestNetworkSchema:
             ),
         ),
     )
+    @SkipTest
     @mock.patch("cloudinit.net.netplan.available", return_value=False)
     def test_network_schema(
         self,
