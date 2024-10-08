@@ -67,8 +67,8 @@ config/cloud.cfg:
 	$(PYTHON) ./tools/render-template --is-yaml config/cloud.cfg.tmpl config/cloud.cfg
 
 clean_pyc:
-	@find . -type f -name "*.pyc" -delete
-	@find . -type d -name __pycache__ -delete
+	@sudo find . -type f -name "*.pyc" -delete
+	@sudo find . -type d -name __pycache__ -delete
 
 clean_pytest:
 	rm -rf .cache htmlcov

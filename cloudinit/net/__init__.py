@@ -573,7 +573,6 @@ def generate_fallback_config(config_driver=None) -> Optional[dict]:
         driver = device_driver(target_name)
         if driver:
             match["driver"] = driver
-
     cfg = {
         "dhcp4": True,
         "dhcp6": True,
