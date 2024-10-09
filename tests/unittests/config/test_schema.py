@@ -52,9 +52,9 @@ from tests.hypothesis import given
 from tests.hypothesis_jsonschema import from_schema
 from tests.unittests.helpers import (
     CiTestCase,
+    SkipTest,
     does_not_raise,
     mock,
-    SkipTest,
     skipUnlessHypothesisJsonSchema,
     skipUnlessJsonSchema,
     skipUnlessJsonSchemaVersionGreaterThan,
