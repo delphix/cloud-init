@@ -6,7 +6,6 @@ build-backend = "setuptools.build_meta"
 line-length = 79
 include = '(brpm|bddeb|\.py)$'
 
-
 [tool.isort]
 profile = "black"
 line_length = 79
@@ -32,6 +31,7 @@ module = [
     "paramiko.*",
     "pip.*",
     "pycloudlib.*",
+    "responses",
     "serial",
     "tests.integration_tests.user_settings",
     "uaclient.*",
@@ -39,6 +39,7 @@ module = [
 ignore_missing_imports = true
 no_implicit_optional = true
 
+# See GH-5445
 [[tool.mypy.overrides]]
 module = [
     "cloudinit.analyze",
@@ -68,7 +69,6 @@ module = [
     "cloudinit.distros.ubuntu",
     "cloudinit.distros.ug_util",
     "cloudinit.helpers",
-    "cloudinit.log",
     "cloudinit.mergers",
     "cloudinit.net",
     "cloudinit.net.cmdline",
@@ -94,7 +94,6 @@ module = [
     "cloudinit.sources.DataSourceExoscale",
     "cloudinit.sources.DataSourceGCE",
     "cloudinit.sources.DataSourceHetzner",
-    "cloudinit.sources.DataSourceIBMCloud",
     "cloudinit.sources.DataSourceMAAS",
     "cloudinit.sources.DataSourceNoCloud",
     "cloudinit.sources.DataSourceOVF",
@@ -118,7 +117,6 @@ module = [
     "cloudinit.temp_utils",
     "cloudinit.templater",
     "cloudinit.user_data",
-    "cloudinit.util",
     "tests.integration_tests.instances",
     "tests.unittests.analyze.test_show",
     "tests.unittests.cmd.devel.test_hotplug_hook",

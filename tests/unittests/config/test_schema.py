@@ -52,6 +52,7 @@ from tests.hypothesis import given
 from tests.hypothesis_jsonschema import from_schema
 from tests.unittests.helpers import (
     CiTestCase,
+    SkipTest,
     does_not_raise,
     mock,
     skipUnlessHypothesisJsonSchema,
@@ -429,6 +430,7 @@ class TestNetplanValidateNetworkSchema:
             ),
         ),
     )
+    @SkipTest
     def test_network_config_schema_validation_false_when_skipped(
         self, config, expected_log, caplog
     ):
@@ -2550,6 +2552,7 @@ class TestNetworkSchema:
             ),
         ),
     )
+    @SkipTest
     @mock.patch("cloudinit.net.netplan.available", return_value=False)
     def test_network_schema(
         self,
@@ -2751,9 +2754,9 @@ class TestHandleSchemaArgs:
                     apt_reboot_if_required: true            # D3
 
                     # Deprecations: -------------
-                    # D1: Deprecated in version 22.2. Use ``package_update`` instead.
-                    # D2: Deprecated in version 22.2. Use ``package_upgrade`` instead.
-                    # D3: Deprecated in version 22.2. Use ``package_reboot_if_required`` instead.
+                    # D1: Deprecated in version 22.2. Use **package_update** instead.
+                    # D2: Deprecated in version 22.2. Use **package_upgrade** instead.
+                    # D3: Deprecated in version 22.2. Use **package_reboot_if_required** instead.
 
                     Valid schema {cfg_file}
                     """  # noqa: E501
@@ -2773,9 +2776,9 @@ class TestHandleSchemaArgs:
                     apt_reboot_if_required: true            # D3
 
                     # Deprecations: -------------
-                    # D1: Deprecated in version 22.2. Use ``package_update`` instead.
-                    # D2: Deprecated in version 22.2. Use ``package_upgrade`` instead.
-                    # D3: Deprecated in version 22.2. Use ``package_reboot_if_required`` instead.
+                    # D1: Deprecated in version 22.2. Use **package_update** instead.
+                    # D2: Deprecated in version 22.2. Use **package_upgrade** instead.
+                    # D3: Deprecated in version 22.2. Use **package_reboot_if_required** instead.
 
                     Valid schema {cfg_file}
                     """  # noqa: E501
@@ -2789,9 +2792,9 @@ class TestHandleSchemaArgs:
                     """\
                     Cloud config schema deprecations: \
 apt_reboot_if_required: Deprecated in version 22.2. Use\
- ``package_reboot_if_required`` instead., apt_update: Deprecated in version\
- 22.2. Use ``package_update`` instead., apt_upgrade: Deprecated in version\
- 22.2. Use ``package_upgrade`` instead.\
+ **package_reboot_if_required** instead., apt_update: Deprecated in version\
+ 22.2. Use **package_update** instead., apt_upgrade: Deprecated in version\
+ 22.2. Use **package_upgrade** instead.\
                     Valid schema {cfg_file}
                     """  # noqa: E501
                 ),

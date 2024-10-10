@@ -106,6 +106,13 @@ class DataSourceEc2(sources.DataSource):
         }
     }
 
+    default_update_events = {
+        EventScope.NETWORK: {
+            EventType.BOOT_NEW_INSTANCE,
+            EventType.HOTPLUG,
+        }
+    }
+
     extra_hotplug_udev_rules = _EXTRA_HOTPLUG_UDEV_RULES
 
     def __init__(self, sys_cfg, distro, paths):
@@ -936,9 +943,11 @@ def _build_nic_order(
                     _get_key_as_int_or(
                         mmd[1], "device-number", float("infinity")
                     ),
-                    mmd[2]
-                    if fallback_nic_order == NicOrder.NIC_NAME
-                    else mmd[0],
+                    (
+                        mmd[2]
+                        if fallback_nic_order == NicOrder.NIC_NAME
+                        else mmd[0]
+                    ),
                 ),
             )
         )

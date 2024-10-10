@@ -1,363 +1,424 @@
-cloud-init (24.2-0ubuntu1~20.04.1) focal; urgency=medium
+cloud-init (24.3.1-0ubuntu0~24.04.2) noble; urgency=medium
 
-  * d/control: remove netifaces due to GH-4634
-  * drop d/p/do-not-block-user-login.patch:
-    Upstream now has "Before=systemd-user-sessions" in cloud-init.service
-  * d/p/drop-unsupported-systemd-condition-environment.patch:
-    drop ConditionEnvironment from unit files because systemd 245.4 ignores
-    those keys and emits warnings at systemctl status
-  * d/p/add-deprecation-info-boundary.patch: Update
-    DEPRECATION_INFO_BOUNDARY to ensure new deprecations don't trigger
-    warnings.
-  * refresh patches:
-    - d/p/cli-retain-file-argument-as-main-cmd-arg.patch
-    - d/p/keep-dhclient-as-priority-client.patch
-    - d/p/netplan99-cannot-use-default.patch
-    - d/p/retain-ec2-default-net-update-events.patch
-    - d/p/retain-netplan-world-readable.patch
-    - d/p/retain-old-groups.patch
-    - d/p/status-do-not-remove-duplicated-data.patch
-    - d/p/status-retain-recoverable-error-exit-code.patch
-    - d/p/revert-551f560d-cloud-config-after-snap-seeding.patch
+  * Bug fix release (LP: #2081124):
+    d/p/cpick-hotplugd-systemd-ordering-fix.patch: fix systemd ordering cycle
+    issues with network cloud-init-hotplugd.socket, NetworkManager and
+    dbus.socket by adding DefaultDependencies=no to cloud-init-hotplugd.socket.
+
+ -- Chad Smith <chad.smith@canonical.com>  Fri, 20 Sep 2024 16:07:14 -0600
+
+cloud-init (24.3.1-0ubuntu0~24.04.1) noble; urgency=medium
+
+  * d/p/no-single-process.patch: Remove single process optimization
+  * d/p/no-nocloud-network.patch: Remove nocloud network feature
+  * Upstream snapshot based on upstream/main at acf04d61.
+  * Upstream snapshot based on 24.3.1. (LP: #2079224).
+    List of changes from upstream can be found at
+    https://raw.githubusercontent.com/canonical/cloud-init/24.3.1/ChangeLog
+
+ -- Chad Smith <chad.smith@canonical.com>  Thu, 05 Sep 2024 12:30:45 -0600
+
+cloud-init (24.2-0ubuntu1~24.04.2) noble; urgency=medium
+
+  * Declare breaks on the python3-minimal version that is affected by the
+    py3clean failure when using alternate character set (LP: #2075337)
+
+ -- Benjamin Drung <bdrung@ubuntu.com>  Wed, 07 Aug 2024 20:54:01 +0200
+
+cloud-init (24.2-0ubuntu1~24.04.1) noble; urgency=medium
+
+  * d/control: Remove netifaces
+  * d/p/deprecation-version-boundary.patch: Pin deprecation version to 24.1
   * Upstream snapshot based on 24.2. (LP: #2071762).
     List of changes from upstream can be found at
     https://raw.githubusercontent.com/canonical/cloud-init/24.2/ChangeLog
   * drop all d/p/cpick-* files as they are included in upstream snapshot
 
- -- James Falcon <james.falcon@canonical.com>  Thu, 11 Jul 2024 16:36:14 -0500
+ -- Chad Smith <chad.smith@canonical.com>  Wed, 03 Jul 2024 06:02:13 -0600
 
-cloud-init (24.1.3-0ubuntu1~20.04.5) focal; urgency=medium
+cloud-init (24.1.3-0ubuntu3.3) noble; urgency=medium
 
   * Upstream bug fix release based on 24.1.7
     + functional fixes in debian/patches:
       - cpick-417ee551: fix(ec2): Ensure metadata exists before configuring PBR.
         (LP: #2066979)
       - cpick-d6776632: fix: Check renderer for netplan-specific code (#5321)
-        (LP: #2066985)
       - cpick d771d1f4: fix(ec2): Correctly identify netplan renderer (#5361)
         (LP: #2066985)
     + test fixes in debian/patches:
       - cpick-74dc7cce: test: Fix failing test_ec2.py test (#5324)
 
- -- James Falcon <james.falcon@canonical.com>  Wed, 05 Jun 2024 12:40:38 -0500
+ -- James Falcon <james.falcon@canonical.com>  Wed, 05 Jun 2024 12:37:32 -0500
 
-cloud-init (24.1.3-0ubuntu1~20.04.4) focal; urgency=medium
+cloud-init (24.1.3-0ubuntu3.2) noble; urgency=medium
 
   * cherry-pick 51c6569f: fix(snapd): ubuntu do not snap refresh when
     snap absent (LP: #2064132)
-    - fix in 24.1.3-0ubuntu1~20.04.2 did not handle package_upgrade case
+    - fix in 24.1.3-0ubuntu3.1did not handle package_upgrade case
 
- -- Chad Smith <chad.smith@canonical.com>  Fri, 03 May 2024 15:38:58 -0600
+ -- Chad Smith <chad.smith@canonical.com>  Mon, 06 May 2024 12:17:34 -0600
 
-cloud-init (24.1.3-0ubuntu1~20.04.3) focal; urgency=medium
-
-  * d/p/cli-retain-file-argument-as-main-cmd-arg.patch: retain ability to
-    provide -f or --file on the command line before cloud-init subcommands
-    init, modules or single (LP: #2064300)
-
- -- Chad Smith <chad.smith@canonical.com>  Tue, 30 Apr 2024 15:49:35 -0600
-
-cloud-init (24.1.3-0ubuntu1~20.04.2) focal; urgency=medium
+cloud-init (24.1.3-0ubuntu3.1) noble; urgency=medium
 
   * cherry-pick a6f7577d: bug(package_update): avoid snap refresh in
     images without (LP: #2064132)
 
- -- Chad Smith <chad.smith@canonical.com>  Mon, 29 Apr 2024 10:02:56 -0600
+ -- Chad Smith <chad.smith@canonical.com>  Mon, 29 Apr 2024 09:45:39 -0600
 
-cloud-init (24.1.3-0ubuntu1~20.04.1) focal; urgency=medium
+cloud-init (24.1.3-0ubuntu3) noble; urgency=medium
 
-  * Upstream snapshot based on 24.1.3. (LP: #2056100).
+  * cherry-pick 516fad6d: fix(url_helper): fix TCP connection leak on
+    readurl() retries
+
+ -- Brett Holman <brett.holman@canonical.com>  Fri, 05 Apr 2024 17:18:48 -0600
+
+cloud-init (24.1.3-0ubuntu2) noble; urgency=medium
+
+  * Upstream bug fix release based on 24.1.4.
+    + functional fixes in debian/patches:
+      - cpick-f74b61ea-ephemeral-dhcpcd-Set-dhcpcd-interface-down
+        When dhcpcd client sets up a device to discover IMDS, ensure
+        link is set back down to avoid interface rename failures (GH-5019)
+      - cpick-372e80f8-net-dhcp-bump-dhcpcd-timeout-to-300s-5127
+        Extend default timeout of dhcpcd command to 300 seconds
+      - cpick-77771023-net-dhcp-raise-InvalidDHCPLeaseFileError-on-error
+        Raise any dhcpcd lease parse failures as InvalidDHCPLeaseFileError
+        (GH-5128)
+      - cpick-f6ac6ee8-fix-dhcpcd-Make-lease-parsing-more-robust-5129
+        Avoid tracebacks on empty invalid lease content from dhcpcd
+        and raise InvalidDHCPLeaseFileError with full lease parsed when errors
+        occur. (GH-5128)
+    + test fixes in debian/patches:
+      - d/p/cpick-accdfe6a-refactor-Import-log-module-rather-than-functions-5074
+        Avoid mock failures in unit tests by module-level import of log
+      - cpick-144782a8-test-Remove-side-effects-from-tests-5074
+
+ -- Chad Smith <chad.smith@canonical.com>  Wed, 03 Apr 2024 12:26:52 -0600
+
+cloud-init (24.1.3-0ubuntu1) noble; urgency=medium
+
+  * Upstream snapshot based on 24.1.3.
     List of changes from upstream can be found at
     https://raw.githubusercontent.com/canonical/cloud-init/24.1.3/ChangeLog
 
- -- James Falcon <james.falcon@canonical.com>  Wed, 27 Mar 2024 08:35:43 -0500
+ -- James Falcon <james.falcon@canonical.com>  Wed, 27 Mar 2024 08:27:29 -0500
 
-cloud-init (24.1.2-0ubuntu1~20.04.1) focal; urgency=medium
+cloud-init (24.1.2-0ubuntu1) noble; urgency=medium
 
-  * refresh patches:
-    - d/p/retain-ec2-default-net-update-events.patch
-  * Upstream snapshot based on 24.1.2. (LP: #2056100).
+  * Upstream snapshot based on 24.1.2.
     List of changes from upstream can be found at
     https://raw.githubusercontent.com/canonical/cloud-init/24.1.2/ChangeLog
+    - Bugs fixed in this snapshot: (LP: #2057763)
 
- -- Chad Smith <chad.smith@canonical.com>  Thu, 21 Mar 2024 09:12:50 -0600
+ -- Chad Smith <chad.smith@canonical.com>  Thu, 21 Mar 2024 07:53:15 -0600
 
-cloud-init (24.1.1-0ubuntu1~20.04.1) focal; urgency=medium
+cloud-init (24.1.1-0ubuntu1) noble; urgency=medium
 
-  * d/apport-general-hook.py: Move apport hook to main branch
-  * d/cloud-init.maintscript: remove /etc/cloud/clean.d/README
-  * d/cloud-init.logrotate: add logrotate config for cloud-init
-  * d/cloud-init.templates: enable WSL datasource by default
-  * d/p/keep-dhclient-as-priority-client.patch:
-    - Upstream switched to dhcpcd, keep isc-dhclient as the client
-  * d/p/revert-551f560d-cloud-config-after-snap-seeding.patch
-    - Retain systemd ordering cloud-config.service After=snapd.seeded.service
-  * d/p/retain-ec2-default-net-update-events.patch:
-    Reverts 4dbb08f5f0cc4f41cf9dd1474f0600a11510a3c9 to not change behavior
-    on stable releases.
-  * d/po/templates.pot: update for wsl
+  * Upstream snapshot based on 24.1.1.
+    List of changes from upstream can be found at
+    https://raw.githubusercontent.com/canonical/cloud-init/24.1.1/ChangeLog
+    - Bugs fixed in this snapshot: (LP: #2056439, #2056460, #2055077)
+      (LP: #2056194)
+
+ -- Brett Holman <brett.holman@canonical.com>  Mon, 11 Mar 2024 21:09:37 -0600
+
+cloud-init (24.1-0ubuntu1) noble; urgency=medium
+
+  * Upstream snapshot based on 24.1.
+    List of changes from upstream can be found at
+    https://raw.githubusercontent.com/canonical/cloud-init/24.1/ChangeLog
+
+ -- Brett Holman <brett.holman@canonical.com>  Thu, 29 Feb 2024 19:57:05 -0700
+
+cloud-init (24.1~7g54599148-0ubuntu1) noble; urgency=medium
+
+  * d/cloud-init.templates: enable WSL datasource by default.
+  * Restore upstream ChangeLog without any merges.
+    We have been merging an upstream ChangeLog spelling difference
+    downstream for no good reason.
+  * Upstream snapshot based on upstream/main at 54599148.
+    - Bugs fixed in this snapshot: (LP: #2055081, #2055219)
+
+ -- James Falcon <james.falcon@canonical.com>  Tue, 27 Feb 2024 17:42:55 -0600
+
+cloud-init (24.1~6ga4140119-0ubuntu1) noble; urgency=medium
+
+  * d/control: Replace isc-dhcp-client with dhcpcd-base
+  * d/p/do-not-block-user-login.patch:
+    - Remove patch, snapd no longer blocks ssh
+  * d/s/: Move apport hook to main branch
   * d/cloud-init.postinst: change priority of hotplug rules.
     Avoids LP #1946003 on upgraded systems. References:
     [0] https://github.com/canonical/cloud-init/pull/4799
     [1] commit/b519d861aff8b44a0610c176cb34adcbe28df144
-  * refresh patches:
-    - d/p/netplan99-cannot-use-default.patch
-    - d/p/retain-netplan-world-readable.patch
-    - d/p/status-do-not-remove-duplicated-data.patch
-    - d/p/status-retain-recoverable-error-exit-code.patch
-  * Upstream snapshot based on 24.1.1. (LP: #2056100).
-    List of changes from upstream can be found at
-    https://raw.githubusercontent.com/canonical/cloud-init/24.1.1/ChangeLog
+  * Upstream snapshot based on upstream/main at a4140119.
 
- -- Brett Holman <brett.holman@canonical.com>  Wed, 13 Mar 2024 16:12:22 -0600
+ -- Brett Holman <brett.holman@canonical.com>  Fri, 16 Feb 2024 08:18:39 -0500
 
-cloud-init (23.4.4-0ubuntu0~20.04.1) focal; urgency=medium
+cloud-init (24.1~5g1f6eddd5-0ubuntu1) noble; urgency=medium
 
-  * Upstream snapshot based on 23.4.4. (LP: #2055081).
-    List of changes from upstream can be found at
-    https://raw.githubusercontent.com/canonical/cloud-init/23.4.4/ChangeLog
+  * Upstream snapshot based on upstream/main at 1f6eddd5.
+    - Bugs fixed in this snapshot: (LP: #2046483)
 
- -- Chad Smith <chad.smith@canonical.com>  Tue, 27 Feb 2024 08:13:27 -0700
+ -- Chad Smith <chad.smith@canonical.com>  Fri, 02 Feb 2024 14:39:53 -0700
 
-cloud-init (23.4.3-0ubuntu0~20.04.1) focal; urgency=medium
+cloud-init (24.1~4gd9677655-0ubuntu1) noble; urgency=medium
 
-  * Upstream snapshot based on 23.4.3. (LP: #2046483).
-    List of changes from upstream can be found at
-    https://raw.githubusercontent.com/canonical/cloud-init/23.4.3/ChangeLog
-
- -- James Falcon <james.falcon@canonical.com>  Fri, 02 Feb 2024 16:00:45 -0600
-
-cloud-init (23.4.2-0ubuntu0~20.04.1) focal; urgency=medium
-
-  * Upstream snapshot based on 23.4.2. (LP: #2045582).
-     List of changes from upstream can be found at
-     https://raw.githubusercontent.com/canonical/cloud-init/23.4.2/ChangeLog
+  * d/cloud-init.maintscript: remove /etc/cloud/clean.d/README
+  * d/cloud-init.logrotate: add logrotate config for cloud-init
+  * Upstream snapshot based on upstream/main at d9677655.
     - Bugs fixed in this snapshot: (LP: #2051147)
 
- -- Alberto Contreras <alberto.contreras@canonical.com>  Wed, 24 Jan 2024 19:19:59 +0100
+ -- Alberto Contreras <alberto.contreras@canonical.com>  Wed, 24 Jan 2024 18:45:19 +0100
 
-cloud-init (23.4.1-0ubuntu1~20.04.2) focal; urgency=medium
+cloud-init (24.1~3gb729a4c4-0ubuntu1) noble; urgency=medium
 
-  * d/p/status-retain-recoverable-error-exit-code.patch:
-    Retain exit code in cloud-init status for recoverable errors.
-    (LP: #2048522).
+  * Upstream snapshot based on upstream/main at b729a4c4.
 
- -- Alberto Contreras <alberto.contreras@canonical.com>  Mon, 08 Jan 2024 17:12:57 +0100
+ -- Chad Smith <chad.smith@canonical.com>  Tue, 09 Jan 2024 15:38:50 -0700
 
-cloud-init (23.4.1-0ubuntu1~20.04.1) focal; urgency=medium
+cloud-init (24.1~2gb6a1c635-0ubuntu1) noble; urgency=medium
 
-  * d/p/retain-apt-pre-deb822.patch:
-    - Disable apt source list generation with DEB822 style
-  * refresh patches:
-    - d/p/status-do-not-remove-duplicated-data.patch
-  * d/changelog: amend 23.4-0 refresh patches entry
-  * Upstream snapshot based on 23.4.1. (LP: #2045582).
-    List of changes from upstream can be found at
-    https://raw.githubusercontent.com/canonical/cloud-init/23.4.1/ChangeLog
+  * Upstream snapshot based on upstream/main at b6a1c635.
+    - Bugs fixed in this snapshot: (LP: #2045086, #1951639)
 
- -- Alberto Contreras <alberto.contreras@canonical.com>  Fri, 15 Dec 2023 13:27:06 +0100
+ -- Alberto Contreras <alberto.contreras@canonical.com>  Thu, 04 Jan 2024 10:16:55 +0100
 
-cloud-init (23.4-0ubuntu1~20.04.1) focal; urgency=medium
+cloud-init (24.1~1g1003d438-0ubuntu1) noble; urgency=medium
 
-  * d/p/status-do-not-remove-duplicated-data.patch:
-    - Revert behavior downstream, leave duplicate data
-  * d/control: add python3-apt as Recommends to read APT config from apt_pkg
-  * refresh patches:
-    - d/p/do-not-block-user-login.patch
-    - d/p/netplan99-cannot-use-default.patch
-  * Upstream snapshot based on 23.4. (LP: #2045582).
+  * Upstream snapshot based on upstream/main at 1003d438.
+    - Bugs fixed in this snapshot: (LP: #2040325)
+
+ -- Alberto Contreras <alberto.contreras@canonical.com>  Fri, 15 Dec 2023 11:34:16 +0100
+
+cloud-init (23.4-0ubuntu1) noble; urgency=medium
+
+  * Upstream snapshot based on 23.4.
     List of changes from upstream can be found at
     https://raw.githubusercontent.com/canonical/cloud-init/23.4/ChangeLog
 
- -- Alberto Contreras <alberto.contreras@canonical.com>  Tue, 05 Dec 2023 14:00:12 +0100
+ -- Alberto Contreras <alberto.contreras@canonical.com>  Mon, 04 Dec 2023 18:51:25 +0100
 
-cloud-init (23.3.3-0ubuntu0~20.04.1) focal; urgency=medium
-
-  * Upstream snapshot based on 23.3.3. (LP: #2040291).
-    List of changes from upstream can be found at
-    https://raw.githubusercontent.com/canonical/cloud-init/23.3.3/ChangeLog
-
- -- James Falcon <james.falcon@canonical.com>  Tue, 24 Oct 2023 10:59:56 -0500
-
-cloud-init (23.3.2-0ubuntu0~20.04.1) focal; urgency=medium
+cloud-init (23.4~3g0cb0b80f-0ubuntu1) noble; urgency=medium
 
   * d/p/do-not-block-user-login.patch:
     - Revert behavior, allow user login after cloud-init stage (LP: #2039505)
-  * Upstream snapshot based on 23.3.2. (LP: #2039453).
-    List of changes from upstream can be found at
-    https://raw.githubusercontent.com/canonical/cloud-init/23.3.2/ChangeLog
+  * d/control: add python3-apt as Recommends to read APT config from apt_pkg
+  * drop the following cherry-picks now included:
+    + d/p/cpick-0d9f149a-Pytestify-apt-config-test-modules-4424
+    + d/p/cpick-5023e9f9-Refactor-test_apt_source_v1.py-to-use-pytest-4427
+    + d/p/cpick-e9cdd7e3-Install-gnupg-if-gpg-not-found-4431
+    + d/p/cpick-015543d3-apt-install-software-properties-common-when-absent-but
+  * Upstream snapshot based on upstream/main at 0cb0b80f.
+    - Bugs fixed in this snapshot: (LP: #2034273, #2030729)
+      (LP: #2038945, #2039453)
 
- -- Brett Holman <brett.holman@canonical.com>  Mon, 17 Oct 2023 15:51:22 -0600
+ -- Chad Smith <chad.smith@canonical.com>  Wed, 08 Nov 2023 22:24:09 -0700
 
-cloud-init (23.3.1-0ubuntu1~20.04.1) focal; urgency=medium
+cloud-init (23.3.1-0ubuntu2) mantic; urgency=medium
 
-  * Upstream snapshot based on upstream/main at ee9078a7.
-  * d/cloud-init.maintscript: Remove the unused hook-network-manager
-    conffile. (LP: #2027861)
-  * d/patches/retain-old-groups.patch:
-    - Retain original groups in cloud.cfg.tmpl
-  * d/control: Add python3-passlib as needed for testing
-  * d/cloud-init.templates: enable Akamai by default.
-    Add Akamai to the default templates to allow datasource discovery.
-  * d/po/templates.pot: refresh with debconf-updatepo
-  * Upstream snapshot based on 23.3.1. (LP: #2033310).
+  * New upstream bug fix release based on 23.3.1.
+    + Install missing dependencies in apt module if required for minimal images.
+      - d/p/cpick-0d9f149a-Pytestify-apt-config-test-modules-4424
+      - d/p/cpick-5023e9f9-Refactor-test_apt_source_v1.py-to-use-pytest-4427
+      - d/p/cpick-e9cdd7e3-Install-gnupg-if-gpg-not-found-4431
+      - d/p/cpick-015543d3-apt-install-software-properties-common-when-absent-but
+
+ -- Brett Holman <brett.holman@canonical.com>  Thu, 28 Sep 2023 12:00:23 -0500
+
+cloud-init (23.3.1-0ubuntu1) mantic; urgency=medium
+
+  * New upstream bug fix release based on 23.3.1.
     List of changes from upstream can be found at
     https://raw.githubusercontent.com/canonical/cloud-init/23.3.1/ChangeLog
+    - Bugs fixed in this snapshot: (LP: #2034273)
 
- -- James Falcon <james.falcon@canonical.com>  Wed, 06 Sep 2023 12:11:17 -0500
+ -- Chad Smith <chad.smith@canonical.com>  Tue, 05 Sep 2023 17:03:59 -0600
 
-cloud-init (23.2.2-0ubuntu0~20.04.1) focal; urgency=medium
+cloud-init (23.3-0ubuntu1) mantic; urgency=medium
 
-  * Upstream snapshot based on 23.2.2.
+  * d/po/templates.pot: refresh with debconf-updatepo
+  * d/cloud-init.templates: enable Akamai by default.
+    Add Akamai to the default templates to allow datasource discovery.
+  * Upstream snapshot based on 23.3.
     List of changes from upstream can be found at
-    https://raw.githubusercontent.com/canonical/cloud-init/23.2.2/ChangeLog
-    - Bugs fixed in this snapshot: (LP: #2028562, #2028784)
+    https://raw.githubusercontent.com/canonical/cloud-init/23.3/ChangeLog
+    - Bugs fixed in this snapshot: (LP: #2030788, #1980150, #1884127)
+      (LP: #1998539)
 
- -- Alberto Contreras <alberto.contreras@canonical.com>  Tue, 01 Aug 2023 14:18:47 +0200
+ -- Chad Smith <chad.smith@canonical.com>  Mon, 28 Aug 2023 12:33:17 -0600
 
-cloud-init (23.2.1-0ubuntu0~20.04.2) focal; urgency=medium
+cloud-init (23.3~4ga31370af-0ubuntu1) mantic; urgency=medium
 
-  * d/apport-general-hook: correct type hints on Dict for py3.8
-    (LP: #2025376)
+  * Upstream snapshot based on upstream/main at a31370af.
+    - Bugs fixed in this snapshot: (LP: #1923363, #2028562, #2028784)
+  * d/cloud-init.maintscript: Remove the unused hook-network-manager
+    conffile. (LP: #2027861)
+  * d/control: Add python3-passlib as needed for testing
 
- -- Chad Smith <chad.smith@canonical.com>  Thu, 29 Jun 2023 09:41:13 -0600
+ -- James Falcon <james.falcon@canonical.com>  Mon, 31 Jul 2023 11:38:42 -0500
 
-cloud-init (23.2-0ubuntu0~20.04.1) focal; urgency=medium
+cloud-init (23.3~3gebd7b2b6-0ubuntu1) mantic; urgency=medium
 
-  * d/control: Remove pep8 dependency. It is no longer used
-  * d/patches/netplan99-cannot-use-default.patch:
-    - Retain routes' definitions compatible with netplan 0.99 (Fixes: #4133)
+  * Upstream snapshot based on upstream/main at ebd7b2b6.
+
+ -- Alberto Contreras <alberto.contreras@canonical.com>  Tue, 18 Jul 2023 17:37:07 +0200
+
+cloud-init (23.3~2gcf474da7-0ubuntu1) mantic; urgency=medium
+
+  * Upstream snapshot based on upstream/main at cf474da7.
+    - Bugs fixed in this snapshot: (LP: #2013403)
+
+ -- Alberto Contreras <alberto.contreras@canonical.com>  Tue, 11 Jul 2023 10:22:04 +0200
+
+cloud-init (23.3~1ge5a617fe-0ubuntu1) mantic; urgency=medium
+
+  * Upstream snapshot based on upstream/main at e5a617fe.
+    - Bugs fixed in this snapshot: (LP: #2025180, #2025180, #1999952)
+      (LP: #1798055)
+
+ -- Chad Smith <chad.smith@canonical.com>  Wed, 28 Jun 2023 09:57:55 -0600
+
+cloud-init (23.2-0ubuntu1) mantic; urgency=medium
+
+  * d/control: Remove pep8 dependency. It is no longer used.
+  * Upstream snapshot based on 23.2.
+    List of changes from upstream can be found at
+    https://raw.githubusercontent.com/canonical/cloud-init/23.2/ChangeLog
+    - Bugs fixed in this snapshot: (LP: #2011783, #2008888, #1854594, #2016350)
+      (LP: #1881925, #2013967, #2011291)
+
+ -- Alberto Contreras <alberto.contreras@canonical.com>  Wed, 24 May 2023 19:06:03 +0200
+
+cloud-init (23.1.1-0ubuntu2) lunar; urgency=medium
+
   * d/apport-general-hook.py: Add general apport hook to append cloud type,
     image and instance size information to bug reports (LP: #1724623)
+  * d/cloud-init.postinst: MAAS prefer yaml.safe_load over yaml.load
+    (LP: #2009746)
   * d/cloud-init.preinst: Oracle to remove vestigial /etc/cloud.cloud.cfg.d/
     99-disable-network-config.cfg because system config is now honored before
     datasource config (LP: #1956788)
-  * d/cloud-init.preinst: Clean up vestigial
-    /etc/cloud/cloud.cfg.d/99-disable-network-activation.cfg on GCE instances
-    after fix in upstream google-guest-agent.
-  * Refresh patches against upstream/main:
-    - d/p/expire-on-hashed-users.patch
-    - d/p/retain-netplan-world-readable.patch
-  * Upstream snapshot based on 23.2. (LP: #2023110).
+  * Upstream snapshot based on upstream/main at 85b2fbc2.
+    - Bugs fixed in this snapshot: (LP: #1956788)
+
+ -- Chad Smith <chad.smith@canonical.com>  Tue, 21 Mar 2023 14:43:55 -0600
+
+cloud-init (23.1.1-0ubuntu1) lunar; urgency=medium
+
+  * Upstream snapshot based on main at 4896402b.
+
+ -- James Falcon <james.falcon@canonical.com>  Thu, 02 Mar 2023 16:46:05 -0600
+
+cloud-init (23.1-0ubuntu2) lunar; urgency=medium
+
+  * Upstream snapshot based on main at d1ffbea5.
+    - Bugs fixed in this snapshot: (LP: #2008727)
+
+ -- James Falcon <james.falcon@canonical.com>  Thu, 02 Mar 2023 14:05:48 -0600
+
+cloud-init (23.1-0ubuntu1) lunar; urgency=medium
+
+  * Upstream snapshot based on 23.1.
     List of changes from upstream can be found at
-    https://raw.githubusercontent.com/canonical/cloud-init/23.2/ChangeLog
+    https://raw.githubusercontent.com/canonical/cloud-init/23.1/ChangeLog
+    - Bugs fixed in this snapshot: (LP: #1990513, #1999164, #1931174)
+      (LP: #1815990)
 
- -- Chad Smith <chad.smith@canonical.com>  Tue, 06 Jun 2023 16:07:04 -0600
+ -- Alberto Contreras <alberto.contreras@canonical.com>  Wed, 22 Feb 2023 18:15:10 +0100
 
-cloud-init (23.1.2-0ubuntu0~20.04.2) focal; urgency=medium
+cloud-init (22.4.2-0ubuntu3) lunar; urgency=medium
 
-  * d/patches/netplan99-cannot-use-default.patch:
-    - Retain routes' definitions compatible with netplan 0.99 (Fixes: #4133)
+  * Upstream snapshot based on upstream/main at bdc7b040.
+    - Bugs fixed in this snapshot: (LP: #2001737, #1998526, #2000596)
+      (LP: #1851438)
+  * Upstream snapshot based on upstream/main at 3b8b4692.
+    - Bugs fixed in this snapshot: (LP: #1998998, #1997922, #2002969)
+      (LP: #2003562, #1999680)
 
- -- James Falcon <james.falcon@canonical.com>  Fri, 19 May 2023 12:57:02 -0500
+ -- James Falcon <james.falcon@canonical.com>  Fri, 03 Feb 2023 15:36:12 -0600
 
-cloud-init (23.1.2-0ubuntu0~20.04.1) focal; urgency=medium
+cloud-init (22.4.2-0ubuntu2) lunar; urgency=medium
 
-  * SECURITY UPDATE: Make user/vendor data sensitive and remove log permissions
-    Because user data and vendor data may contain sensitive information,
-    this commit ensures that any user data or vendor data written to
-    instance-data.json gets redacted and is only available to root user.
+  * Upstream snapshot based on upstream/main at 040090a3.
+    - Bugs fixed in this snapshot: (LP: #1994980, #1998655, #1999042)
+      (LP: #1997559)
 
-    Also, modify the permissions of cloud-init.log to be 640, so that
-    sensitive data leaked to the log isn't world readable.
-    Additionally, remove the logging of user data and vendor data to
-    cloud-init.log from the Vultr datasource.
+ -- Chad Smith <chad.smith@canonical.com>  Thu, 15 Dec 2022 16:11:37 -0700
 
-    This is based on upstream snapshot of 23.1.2 [(LP: #2013967)]
+cloud-init (22.4.2-0ubuntu1) lunar; urgency=medium
 
-    - d/cloud-init.postinst: postinst fixes for LP: #2013967
-      Redact sensitive keys from world-readable instance-data.json on upgrade.
-      Set perms 640 for /var/log/cloud-init.log on pkg upgrade.
-      Redact sensitive Vultr messages from /var/log/cloud-init.log
-    - (CVE-2023-1786)
+  * Upstream snapshot based on upstream commit 893df0d6.
+    - Bugs fixed in this snapshot: (LP: #1997559)
 
- -- James Falcon <james.falcon@canonical.com>  Fri, 21 Apr 2023 14:28:19 -0500
+ -- Alberto Contreras <alberto.contreras@canonical.com>  Thu, 24 Nov 2022 08:39:08 +0100
 
-cloud-init (23.1.1-0ubuntu0~20.04.1) focal; urgency=medium
+cloud-init (22.4.1-0ubuntu1) lunar; urgency=medium
 
-  * d/patches/retain-netplan-world-readable.patch:
-    - Retain original world-readable perms of /etc/netplan/50-cloud-init.yaml.
-      Lunar made the config root read-only.
-  * refresh patches:
-    + debian/patches/expire-on-hashed-users.patch
-  * Upstream snapshot based on 23.1.1. (LP: #2008230).
-    List of changes from upstream can be found at
-    https://raw.githubusercontent.com/canonical/cloud-init/23.1.1/ChangeLog
+  * Upstream snapshot based on upstream commit c038808e.
 
- -- Alberto Contreras <alberto.contreras@canonical.com>  Fri, 03 Mar 2023 09:48:54 +0100
+ -- James Falcon <james.falcon@canonical.com>  Mon, 21 Nov 2022 15:02:34 -0600
 
-cloud-init (22.4.2-0ubuntu0~20.04.2) focal; urgency=medium
+cloud-init (22.4-0ubuntu4) lunar; urgency=medium
 
-  * d/compat & d/control: revert bump debhelper-comat to v10. Avoid
-    service restarts across package upgrade (LP: #1999159)
-    - d/compat: replaced with compat level 9
-    - d/control: Build-Depends: revert to debhelper >= 9
+  * Upstream snapshot based on upstream commit 74ed1387.
+    - Bugs fixed in this snapshot: (LP: #1844191, #1906849, #1992512)
 
- -- Chad Smith <chad.smith@canonical.com>  Thu, 08 Dec 2022 09:45:11 -0700
+ -- James Falcon <james.falcon@canonical.com>  Fri, 18 Nov 2022 16:41:49 -0600
 
-cloud-init (22.4.2-0ubuntu0~20.04.1) focal; urgency=medium
+cloud-init (22.4-0ubuntu3) lunar; urgency=medium
 
-  * Upstream snapshot based on 22.4.2 upstream release. (LP: #1996645)
-    - List of changes from upstream can be found at
-      https://raw.githubusercontent.com/canonical/cloud-init/22.4.2/ChangeLog
-    - Includes (LP: #1997559, #1844191) not present in 22.4.0.
+  * d/changelog: Sync released d/changelog entries
+    - 22.3.4-0ubuntu1 and 22.3.3-0ubuntu1~22.10.1
+  * Changelog: Sync release entries in Changlog:
+    - 22.3.1, 22.3.2, 22.3.3 and 22.3.4
 
- -- James Falcon <james.falcon@canonical.com>  Mon, 28 Nov 2022 10:48:49 -0600
+ -- Chad Smith <chad.smith@canonical.com>  Tue, 15 Nov 2022 19:08:24 -0700
 
-cloud-init (22.4-0ubuntu0~20.04.1) focal; urgency=medium
+cloud-init (22.4-0ubuntu2) lunar; urgency=medium
+
+  * d/changelog: account for closed bugs released in 22.4-0ubuntu1
+
+ -- Chad Smith <chad.smith@canonical.com>  Tue, 15 Nov 2022 16:34:07 -0700
+
+cloud-init (22.4-0ubuntu1) lunar; urgency=medium
 
   * d/control: drop python3-httpretty from Build-Depends
   * d/cloud-init.templates: Add NWCS to datasource list
-  * refresh patches:
-    + debian/patches/expire-on-hashed-users.patch
-  * Upstream snapshot based on 22.4 upstream release. (LP: #1996645)
-    List of changes from upstream can be found at
+  * Upstream snapshot based on 22.4 upstream release. List of changes
+    from upstream can be found at
     https://raw.githubusercontent.com/canonical/cloud-init/22.4/ChangeLog
+  * Bugs fixed in this snapshot:
+    (LP: #1962343, #1913461, #1883122, #1989686, #1307667, #1990070, #1991567)
+    (LP: #1991024, #1990041, #1993836)
 
- -- James Falcon <james.falcon@canonical.com>  Tue, 15 Nov 2022 16:17:27 -0600
+ -- James Falcon <james.falcon@canonical.com>  Tue, 15 Nov 2022 14:23:44 -0600
 
-cloud-init (22.3.4-0ubuntu1~20.04.1) focal; urgency=medium
+cloud-init (22.3.4-0ubuntu1) kinetic; urgency=medium
 
-  * New upstream bugfix release. (LP: #1987318)
+  * New upstream bug fix release.
     + Release 22.3.4 (LP: #1986703)
     + Fix Oracle DS primary interface when using IMDS (#1757)
       (LP: #1989686)
 
- -- Brett Holman <brett.holman@canonical.com>  Mon, 03 Oct 2022 10:57:17 -0600
+ -- Brett Holman <brett.holman@canonical.com>  Fri, 30 Sep 2022 16:07:44 -0600
 
-cloud-init (22.3.3-0ubuntu1~20.04.1) focal; urgency=medium
+cloud-init (22.3.3-0ubuntu1~22.10.1) kinetic; urgency=medium
 
-  * New upstream bugfix release. (LP: #1987318)
-    + Release 22.3.3
+  * New upstream bug fix release.
+    + Release 22.3.3 (LP: #1986703)
     + Fix Oracle DS not setting subnet when using IMDS (#1735)
+      (LP: #1989686)
     + azure: define new attribute for pre-22.3 pickles (#1725)
     + sources/azure: ensure instance id is always correct (#1727)
       [Chris Patterson]
 
- -- Brett Holman <brett.holman@canonical.com>  Wed, 21 Sep 2022 14:16:25 -0600
+ -- Brett Holman <brett.holman@canonical.com>  Mon, 19 Sep 2022 13:13:06 -0600
 
-cloud-init (22.3-13-g70ce6442-0ubuntu1~20.04.1) focal; urgency=medium
+cloud-init (22.3-13-g70ce6442-0ubuntu1~22.10.1) kinetic; urgency=medium
 
-  * d/control:
-    - add python3-debconf to Depends and Build-Depends
-    - Build-Depends: bump debhelper-compat to v10
-  * d/control: lintian fixes:
-    + upgrade debhelper-compat to 10 and move it to d/control
-    + d/compat: removed in favor of d/control
-  * d/cloud-init.postinst:
-    + Lintian: Disable uses-dpkg-database-directly on legit use of it in
-      distros/debian.py
-  * d/cloud-init.postinst: lintian fixes:
-    + Fix command-with-path-in-maintainer-script for grub-install
-  * d/p/expire-on-hashed-users.patch:
-    Add patch to ensure password expire doesn't apply to hashed users
-  * d/source/lintian-overrides: lintian fixes:
-    + silence binary-nmu-debian-revision-in-source bug:
-      https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1014584
-  * drop the following cherry-picks now included:
-    + cpick-a2e62738-Fix-cc_phone_home-requiring-tries-1500
-  * New upstream snapshot. (LP: #1987318)
-    + Fix v2 interface matching when no MAC
+  * New upstream snapshot.
+    + Fix v2 interface matching when no MAC (LP: #1986551)
     + test: reduce number of network dependencies in flaky test (#1702)
     + docs: publish cc_ubuntu_autoinstall docs to rtd (#1696)
     + net: Fix EphemeraIPNetwork (#1697)
@@ -365,14 +426,29 @@ cloud-init (22.3-13-g70ce6442-0ubuntu1~20.04.1) focal; urgency=medium
     + Networkd multi-address support/fix (#1685) [Teodor Garzdin]
     + make: drop broken targets (#1688)
     + net: Passthough v2 netconfigs in netplan systems (#1650)
+      (LP: #1978543)
     + NM ipv6 connection does not work on Azure and Openstack (#1616)
       [Emanuele Giuseppe Esposito]
     + Fix check_format_tip (#1679)
-    + DataSourceVMware: fix var use before init (#1674) [Andrew Kutz]
+
+ -- Brett Holman <brett.holman@canonical.com>  Tue, 30 Aug 2022 14:28:27 -0600
+
+cloud-init (22.3-3-g9f0efc47-0ubuntu1~22.10.1) kinetic; urgency=medium
+
+  * New upstream snapshot.
+    + DataSourceVMware: fix var use before init (#1674) (LP: #1987005)
+      [Andrew Kutz]
     + rpm/copr: ensure RPM represents new clean.d dir artifacts (#1680)
     + test: avoid centos leaked check of /etc/yum.repos.d/epel-testing.repo
       (#1676)
-    + Release 22.3 (#1662)
+    + typo correction in Changelog
+
+ -- Chad Smith <chad.smith@canonical.com>  Tue, 23 Aug 2022 14:30:10 -0600
+
+cloud-init (22.3-0ubuntu1~22.10.1) kinetic; urgency=medium
+
+  * New upstream release.
+    + Release 22.3 (#1662) (LP: #1986703)
     + sources: obj.pkl cache should be written anyime get_data is run
       (#1669)
     + schema: drop release number from version file (#1664)
@@ -382,156 +458,136 @@ cloud-init (22.3-13-g70ce6442-0ubuntu1~20.04.1) focal; urgency=medium
     + integration tests: Ensure one setup for all tests (#1661)
     + tests: ansible test fixes (#1660)
     + Prevent concurrency issue in test_webhook_hander.py (#1658)
-    + Workaround net_setup_link race with udev (#1655)
+    + Workaround net_setup_link race with udev (#1655) (LP: #1983516)
     + test: drop erroneous lxd assertion, verify command succeeded (#1657)
-    + Fix Chrony usage on Centos Stream (#1648)
+    + Fix Chrony usage on Centos Stream (#1648) (LP: #1885952)
       [Sven Haardiek]
-    + sources/azure: handle network unreachable errors for saveable PPS
+    + sources/azure: handle network unreachable errors for savable PPS
       (#1642) [Chris Patterson]
     + Return cc_set_hostname to PER_INSTANCE frequency (#1651)
+      (LP: #1983811)
     + test: Collect integration test time by default (#1638)
-    + test: Drop forced package install hack in lxd integration test
-      (#1649)
-    + schema: Resolve user-data if --system given (#1644)
-      [Alberto Contreras]
+    + test: Drop forced package install hack in lxd integration test (#1649)
+    + schema: Resolve user-data if --system given (#1644) (LP: #1983306)
+
+ -- Brett Holman <brett.holman@canonical.com>  Fri, 19 Aug 2022 10:49:08 -0600
+
+cloud-init (22.2-139-gb64ba456-0ubuntu1~22.10.1) kinetic; urgency=medium
+
+  * New upstream snapshot.
     + test: use fake filesystem to avoid file removal (#1647)
-      [Alberto Contreras]
-    + tox: Fix tip-flake8 and tip-mypy (#1635) [Alberto Contreras]
+    + tox: Fix tip-flake8 and tip-mypy (#1635)
     + config: Add wireguard config module (#1570)
       [Fabian Lichtenegger-Lukas]
     + tests: can run without azure-cli, tests expect inactive ansible
       (#1643)
-    + typing: Type UrlResponse.contents (#1633) [Alberto Contreras]
+    + typing: Type UrlResponse.contents (#1633)
     + testing: fix references to `DEPRECATED.` (#1641)
-      [Alberto Contreras]
-    + ssh_util: Handle sshd_config.d folder
-      [Alberto Contreras]
+    + ssh_util: Handle sshd_config.d folder (LP: #1968873)
     + schema: Enable deprecations in cc_update_etc_hosts (#1631)
-      [Alberto Contreras]
     + Add Ansible Config Module (#1579)
     + util: Support Idle process state in get_proc_ppid() (#1637)
     + schema: Enable deprecations in cc_growpart (#1628)
-      [Alberto Contreras]
     + schema: Enable deprecations in cc_users_groups (#1627)
-      [Alberto Contreras]
     + util: Fix error path and parsing in get_proc_ppid()
     + main: avoid downloading full contents cmdline urls (#1606)
+      (LP: #1937319)
     + schema: Enable deprecations in cc_scripts_vendor (#1629)
-      [Alberto Contreras]
     + schema: Enable deprecations in cc_set_passwords (#1630)
-      [Alberto Contreras]
     + sources/azure: add experimental support for preprovisioned os disks
       (#1622) [Chris Patterson]
     + Remove configobj a_to_u calls (#1632) [Stefano Rivera]
-    + cc_debug: Drop this module (#1614) [Alberto Contreras]
+    + cc_debug: Drop this module (#1614)
     + schema: add aggregate descriptions in anyOf/oneOf (#1636)
-    + testing: migrate test_sshutil to pytest (#1617) [Alberto Contreras]
+    + testing: migrate test_sshutil to pytest (#1617)
     + testing: Fix test_ca_certs integration test (#1626)
-      [Alberto Contreras]
     + testing: add support for pycloudlib's pro images (#1604)
-      [Alberto Contreras]
     + testing: migrate test_cc_set_passwords to pytest (#1615)
-      [Alberto Contreras]
-    + network: add system_info network activator cloud.cfg overrides
-      (#1619)
-    + docs: Align git remotes with uss-tableflip setup (#1624)
-      [Alberto Contreras]
-    + testing: cover active config module checks (#1609)
-      [Alberto Contreras]
+
+ -- Alberto Contreras <alberto.contreras@canonical.com>  Wed, 10 Aug 2022 22:23:47 +0200
+
+cloud-init (22.2-115-g6e498773-0ubuntu1~22.10.1) kinetic; urgency=medium
+
+  * d/control: lintian fixes:
+    + Drop deprecated keys: XS-Python-Version and XB-Python-Version.
+  * d/cloud-init.lintian-overrides: lintian fixes:
+    + Fix systemd-service-file-refers-to-unusual-wantedby-target format.
+  * d/cloud-init.postinst: lintian fixes:
+    + Fix command-with-path-in-maintainer-script for grub-install.
+  * d/source/lintian-overrides: lintian fixes:
+    + silence binary-nmu-debian-revision-in-source bug:
+      https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1014584
+  * d/gbp_format_changelog: add alberto as filtered contributor
+  * New upstream snapshot.
+    + network: add system_info network activator cloud.cfg overrides (#1619)
+      (LP: #1982857)
     + lxd: lvm avoid thinpool when kernel module absent
     + lxd: enable MTU configuration in cloud-init
-    + doc: pin doc8 to last passing version
     + cc_set_passwords fixes (#1590)
     + Modernise importer.py and type ModuleDetails (#1605)
-      [Alberto Contreras]
     + config: Def activate_by_schema_keys for t-z (#1613)
-      [Alberto Contreras]
     + config: define activate_by_schema_keys for p-r mods (#1611)
-      [Alberto Contreras]
-    + clean: add param to remove /etc/machine-id for golden image
-      creation
+    + clean: add param to remove /etc/machine-id for golden image creation
     + config: define `activate_by_schema_keys` for a-f mods (#1608)
-      [Alberto Contreras]
     + config: define activate_by_schema_keys for s mods (#1612)
-      [Alberto Contreras]
-    + sources/azure: reorganize tests for network config (#1586)
-      [Chris Patterson]
     + config: Define activate_by_schema_keys for g-n mods (#1610)
-      [Alberto Contreras]
     + meta-schema: add infra to skip inapplicable modules
-      [Alberto Contreras]
-    + sources/azure: don't set cfg["password"] for default user pw
-      (#1592) [Chris Patterson]
-    + schema: activate grub-dpkg deprecations (#1600) [Alberto Contreras]
-    + docs: clarify user password purposes (#1593)
+    + sources/azure: don't set cfg["password"] for default user pw (#1592)
+      [Chris Patterson]
+    + schema: activate grub-dpkg deprecations (#1600)
     + cc_lxd: Add btrfs and lvm lxd storage options (SC-1026) (#1585)
-    + archlinux: Fix distro naming[1] (#1601) [Kristian Klausen]
     + cc_ubuntu_autoinstall: support live-installer autoinstall config
-    + clean: allow third party cleanup scripts in /etc/cloud/clean.d
-      (#1581)
+    + clean: allow third party cleanup scripts in /etc/cloud/clean.d (#1581)
     + sources/azure: refactor chassis asset tag handling (#1574)
       [Chris Patterson]
-    + Add "netcho" as contributor (#1591) [Kaloyan Kotlarski]
-    + testing: drop impish support (#1596) [Alberto Contreras]
-    + black: fix missed formatting issue which landed in main (#1594)
     + bsd: Don't assume that root user is in root group (#1587)
-    + docs: Fix comment typo regarding use of packages (#1582)
-      [Peter Mescalchin]
     + Update govc command in VMWare walkthrough (#1576) [manioo8]
-    + Update .github-cla-signers (#1588) [Daniel Mullins]
-    + Rename the openmandriva user to omv (#1575)
-      [Bernhard Rosenkraenzer]
     + sources/azure: increase read-timeout to 60 seconds for wireserver
       (#1571) [Chris Patterson]
     + Resource leak cleanup (#1556)
-    + testing: remove appereances of FakeCloud (#1584)
-      [Alberto Contreras]
-    + Fix expire passwords for hashed passwords (#1577)
+    + Fix expire passwords for hashed passwords (#1577) (LP: #1979065)
       [Sadegh Hayeri]
     + mounts: fix suggested_swapsize for > 64GB hosts (#1569)
       [Steven Stallion]
     + Update chpasswd schema to deprecate password parsing (#1517)
-    + tox: Remove entries from default envlist (#1578)
-    + tests: add test for parsing static dns for existing devices (#1557)
-      [Jonas Konrad]
-    + testing: port cc_ubuntu_advantage test to pytest (#1559)
-      [Alberto Contreras]
-    + Schema deprecation handling (#1549) [Alberto Contreras]
-    + Enable pytest to run in parallel (#1568)
-    + sources/azure: refactor ovf-env.xml parsing (#1550)
-      [Chris Patterson]
+    + Schema deprecation handling (#1549)
+    + sources/azure: refactor ovf-env.xml parsing (#1550) [Chris Patterson]
     + schema: Force stricter validation (#1547)
     + ubuntu advantage config: http_proxy, https_proxy (#1512)
       [Fabian Lichtenegger-Lukas]
-    + travis: Upgrade dist to focal [Alberto Contreras]
-    + net: fix interface matching support (#1552)
-    + Fuzz testing jsonchema (#1499) [Alberto Contreras]
-    + testing: Wait for changed boot-id in test_status.py (#1548)
-    + CI: Fix GH pinned-format jobs (#1558) [Alberto Contreras]
-    + Typo fix (#1560) [Jaime Hablutzel]
+    + net: fix interface matching support (#1552) (LP: #1979877)
+
+ -- Alberto Contreras <alberto.contreras@canonical.com>  Fri, 29 Jul 2022 18:51:43 +0200
+
+cloud-init (22.2-64-g1fcd55d6-0ubuntu1~22.10.1) kinetic; urgency=medium
+
+  * d/control: add python3-debconf as Depends and Build-Depends
+  * d/gbp.conf d/gbp_format_changelog:
+    + git-buildpackage customization for debian/changelog generation
+  * New upstream snapshot.
     + tests: mock dns lookup that causes long timeouts (#1555)
     + tox: add unpinned env for do_format and check_format (#1554)
     + cc_ssh_import_id: Substitute deprecated warn (#1553)
       [Alberto Contreras]
-    + Remove schema errors from log (#1551)
+    + Remove schema errors from log (#1551) (LP: #1978422) (CVE-2022-2084)
     + Update WebHookHandler to run as background thread (SC-456) (#1491)
+      (LP: #1910552)
     + testing: Don't run custom cloud dir test on Bionic (#1542)
-    + bash completion: update schema command (#1543)
+    + bash completion: update schema command (#1543) (LP: #1979547)
     + CI: add non-blocking run against the linters tip versions (#1531)
       [Paride Legovini]
     + Change groups within the users schema to support lists and strings
       (#1545) [RedKrieg]
-    + make it clear which username should go in the contributing doc
-      (#1546)
+    + make it clear which username should go in the contributing doc (#1546)
     + Pin setuptools for Travis (SC-1136) (#1540)
     + Fix LXD datasource crawl when BOOT enabled (#1537)
     + testing: Fix wrong path in dual stack test (#1538)
-    + cloud-config: honor cloud_dir setting (#1523)
+    + cloud-config: honor cloud_dir setting (#1523) (LP: #1976564)
       [Alberto Contreras]
     + Add python3-debconf to pkg-deps.json Build-Depends (#1535)
       [Alberto Contreras]
-    + redhat spec: udev/rules.d lives under /usr/lib on rhel-based
-      systems (#1536)
+    + redhat spec: udev/rules.d lives under /usr/lib on rhel-based systems
+      (#1536)
     + tests/azure: add test coverage for DisableSshPasswordAuthentication
       (#1534) [Chris Patterson]
     + summary: Add david-caro to the cla signers (#1527) [David Caro]
@@ -544,15 +600,15 @@ cloud-init (22.3-13-g70ce6442-0ubuntu1~20.04.1) focal; urgency=medium
       (#1528) [Paride Legovini]
     + CI: drop linters from Travis CI (moved to GH Actions) (#1530)
       [Paride Legovini]
-    + sources/azure: remove unused encoding support for customdata
-      (#1526) [Chris Patterson]
+    + sources/azure: remove unused encoding support for customdata (#1526)
+      [Chris Patterson]
     + sources/azure: remove unused metadata captured when parsing ovf
       (#1524) [Chris Patterson]
     + sources/azure: remove dscfg parsing from ovf-env.xml (#1522)
       [Chris Patterson]
     + Remove extra space from ec2 dual stack crawl message (#1521)
-    + tests/azure: use namespaces in generated ovf-env.xml documents
-      (#1519) [Chris Patterson]
+    + tests/azure: use namespaces in generated ovf-env.xml documents (#1519)
+      [Chris Patterson]
     + setup.py: adjust udev/rules default path (#1513)
       [Emanuele Giuseppe Esposito]
     + Add python3-deconf dependency (#1506) [Alberto Contreras]
@@ -560,26 +616,26 @@ cloud-init (22.3-13-g70ce6442-0ubuntu1~20.04.1) focal; urgency=medium
       [Henrique Caricatti Capozzi]
     + sources/azure: remove unused userdata property from ovf (#1516)
       [Chris Patterson]
-    + sources/azure: minor refactoring to network config generation
-      (#1497) [Chris Patterson]
+    + sources/azure: minor refactoring to network config generation (#1497)
+      [Chris Patterson]
     + net: Implement link-local ephemeral ipv6
     + Rename function to avoid confusion (#1501)
-    + Fix cc_phone_home requiring 'tries' (#1500)
+    + Fix cc_phone_home requiring 'tries' (#1500) (LP: #1977952)
     + datasources: replace networking functions with stdlib and
-      cloudinit.net code
+    cloudinit.net code
     + Remove xenial references (#1472) [Alberto Contreras]
-    + Oracle ds changes (#1474)
+    + Oracle ds changes (#1474) (LP: #1967942) [Alberto Contreras]
     + improve runcmd docs (#1498)
     + add 3.11-dev to Travis CI (#1493)
     + Only run github actions on pull request (#1496)
     + Fix integration test client creation (#1494) [Alberto Contreras]
     + tox: add link checker environment, fix links (#1480)
     + cc_ubuntu_advantage: Fix doc (#1487) [Alberto Contreras]
-    + cc_yum_add_repo: Fix repo id canonicalization (#1489)
+    + cc_yum_add_repo: Fix repo id canonicalization (#1489) (LP: #1975818)
       [Alberto Contreras]
     + Add linitio as contributor in the project (#1488) [Kevin Allioli]
     + net-convert: use yaml.dump for debugging python NetworkState obj
-      (#1484)
+      (#1484) (LP: #1975907)
     + test_schema: no relative $ref URLs, replace $ref with local path
       (#1486)
     + cc_set_hostname: do not write "localhost" when no hostname is given
@@ -601,37 +657,23 @@ cloud-init (22.3-13-g70ce6442-0ubuntu1~20.04.1) focal; urgency=medium
     + Use Network-Manager and Netplan as default renderers for RHEL and
       Fedora (#1465) [Emanuele Giuseppe Esposito]
 
- -- Brett Holman <brett.holman@canonical.com>  Tue, 30 Aug 2022 15:14:08 -0600
+ -- James Falcon <james.falcon@canonical.com>  Fri, 01 Jul 2022 10:07:15 -0500
 
-cloud-init (22.2-0ubuntu1~20.04.3) focal; urgency=medium
-
-  * d/cloud-init.postinst: redact previously leaked schema errors from logs
-  * Remove schema errors from log (LP: #1978422) (CVE-2022-2084)
-
- -- James Falcon <james.falcon@canonical.com>  Wed, 15 Jun 2022 11:34:44 -0500
-
-cloud-init (22.2-0ubuntu1~20.04.2) focal; urgency=medium
-
-  * cherry-pick a2e62738: Fix cc_phone_home requiring 'tries' (#1500)
-    (LP: #1977952)
-
- -- James Falcon <james.falcon@canonical.com>  Thu, 09 Jun 2022 16:53:07 -0500
-
-cloud-init (22.2-0ubuntu1~20.04.1) focal; urgency=medium
+cloud-init (22.2-0ubuntu1~22.10.1) kinetic; urgency=medium
 
   * d/control:
     - Build-Depends: add python3-responses and python3-pytest-mock for unittests
     - Suggests: add openssh-server and ssh-import-id
-  * refresh patches:
-   + debian/patches/retain-apt-partner-pocket.patch
-  * New upstream release. (LP: #1974235)
-    - Release 22.2 (#1462)
+  * d/cloud-init.postinst:
+    - remove deprecated emit_upstart from cloud.cfg on upgrade
+  * New upstream release.
+    - Release 22.2 (LP: #1960939)
     - Fix test due to caplog incompatibility (#1461) [Alberto Contreras]
     - Align rhel custom files with upstream (#1431)
       [Emanuele Giuseppe Esposito]
     - cc_write_files: Improve schema. (#1460) [Alberto Contreras]
     - cli: Redact files with permission errors in commands (#1440)
-      [Alberto Contreras]
+      [Alberto Contreras] (LP: #1953430)
     - Improve cc_set_passwords. (#1456) [Alberto Contreras]
     - testing: make fake cloud-init wait actually wait (#1459)
     - Scaleway: Fix network configuration for netplan 0.102 and later (#1455)
@@ -649,13 +691,14 @@ cloud-init (22.2-0ubuntu1~20.04.1) focal; urgency=medium
     - Fix bug in url_helper/dual_stack() logging (#1426)
     - schema: render schema paths from _CustomSafeLoaderWithMarks (#1391)
     - testing: Make integration tests kinetic friendly (#1441)
-    - Handle error if SSH service no present. (#1422) [Alberto Contreras]
+    - Handle error if SSH service no present. (#1422)
+      [Alberto Contreras] (LP: #1969526)
     - Fix network-manager activator availability and order (#1438)
     - sources/azure: remove reprovisioning marker (#1414) [Chris Patterson]
     - upstart: drop vestigial support for upstart (#1421)
     - testing: Ensure NoCloud detected in test (#1439)
     - Update .github-cla-signers kallioli [Kevin Allioli]
-    - Consistently strip top-level network key (#1417)
+    - Consistently strip top-level network key (#1417) (LP: #1906187)
     - testing: Fix LXD VM metadata test (#1430)
     - testing: Add NoCloud setup for NoCloud test (#1425)
     - Update linters and adapt code for compatibility (#1434) [Paride Legovini]
@@ -667,11 +710,12 @@ cloud-init (22.2-0ubuntu1~20.04.1) focal; urgency=medium
     - Remove cheetah from templater (#1416)
     - tests: verify_ordered_items fallback to re.escape if needed (#1420)
     - Misc module cleanup (#1418)
-    - docs: Fix doc warnings and enable errors (#1419) [Alberto Contreras]
+    - docs: Fix doc warnings and enable errors (#1419)
+      [Alberto Contreras] (LP: #1876341)
     - Refactor cloudinit.sources.NetworkConfigSource to enum (#1413)
-      [Alberto Contreras]
+      [Alberto Contreras] (LP: #1874875)
     - Don't fail if IB and Ethernet devices 'collide' (#1411)
-    - Use cc_* module meta definition over hardcoded vars (SC-888) (#1385)
+    - Use cc_* module meta defintion over hardcoded vars (SC-888) (#1385)
     - Fix cc_rsyslog.py initialization (#1404) [Alberto Contreras]
     - Promote cloud-init schema from devel to top level subcommand (#1402)
     - mypy: disable missing imports warning for httpretty (#1412)
@@ -681,12 +725,13 @@ cloud-init (22.2-0ubuntu1~20.04.1) focal; urgency=medium
     - Allow growpart to resize encrypted partitions (#1316)
     - Fix typo in integration_test.rst (#1405) [Alberto Contreras]
     - cloudinit.net refactor: apply_network_config_names (#1388)
-      [Alberto Contreras]
+      [Alberto Contreras] (LP: #1884602)
     - tests/azure: add fixtures for hardcoded paths (markers and data_dir)
       (#1399) [Chris Patterson]
     - testing: Add responses workaround for focal/impish (#1403)
     - cc_ssh_import_id: fix is_key_in_nested_dict to avoid early False
     - Fix ds-identify not detecting NoCloud seed in config (#1381)
+      (LP: #1876375)
     - sources/azure: retry dhcp for failed processes (#1401) [Chris Patterson]
     - Move notes about refactorization out of CONTRIBUTING.rst (#1389)
     - Shave ~8ms off generator runtime (#1387)
@@ -702,24 +747,25 @@ cloud-init (22.2-0ubuntu1~20.04.1) focal; urgency=medium
       (#1378) [Anh Vo]
     - cc_ntp: migrated legacy schema to cloud-init-schema.json (#1384)
     - Network functions refactor and bugfixes (#1383)
-    - schema: add JSON defs for modules cc_users_groups (#1379)
+    - schema: add JSON defs for modules cc_users_groups (#1379) (LP: #1858930)
     - Fix doc typo (#1382) [Alberto Contreras]
     - Add support for dual stack IPv6/IPv4 IMDS to Ec2 (#1160)
-    - Fix KeyError when rendering sysconfig IPv6 routes (#1380)
+    - Fix KeyError when rendering sysconfig IPv6 routes (#1380) (LP: #1958506)
     - Return a namedtuple from subp() (#1376)
     - Mypy stubs and other tox maintenance (SC-920) (#1374)
     - Distro Compatibility Fixes (#1375)
     - Pull in Gentoo patches (#1372)
     - schema: add json defs for modules U-Z (#1360)
+      (LP: #1858928, #1858929, #1858931, #1858932)
     - util: atomically update sym links to avoid Suppress FileNotFoundError
-      when reading status (#1298) [Adam Collard]
+      when reading status (#1298) [Adam Collard] (LP: LP:1962150)
     - schema: add json defs for modules scripts-timezone (SC-801) (#1365)
     - docs: Add first tutorial (SC-900) (#1368)
     - BUG 1473527: module ssh-authkey-fingerprints fails Input/output error…
-      (#1340) [Andrew Lee]
+      (#1340) [Andrew Lee] (LP: #1473527)
     - add arch hosts template (#1371)
     - ds-identify: detect LXD for VMs launched from host with > 5.10 kernel
-      (#1370)
+      (#1370) (LP: #1968085)
     - Support EC2 tags in instance metadata (#1309) [Eduardo Dobay]
     - schema: add json defs for modules e-install (SC-651) (#1366)
     - Improve "(no_create_home|system): true" test (#1367) [Jeffrey 'jf' Lim]
@@ -742,6 +788,7 @@ cloud-init (22.2-0ubuntu1~20.04.1) focal; urgency=medium
     - testing: Add missing is_FreeBSD mock to networking test (#1353)
     - Add --no-update to add-apt-repostory call (SC-880) (#1337)
     - schema: add json defs for modules K-L (#1321)
+      (LP: #1858899, #1858900, #1858901, #1858902)
     - docs: Re-order readthedocs install (#1354)
     - Stop cc_ssh_authkey_fingerprints from ALWAYS creating home (#1343)
       [Jeffrey 'jf' Lim]
@@ -750,18 +797,20 @@ cloud-init (22.2-0ubuntu1~20.04.1) focal; urgency=medium
     - sources/azure: move get_ip_from_lease_value out of shim (#1324)
       [Chris Patterson]
     - Fix cloud-init status --wait when no datasource found (#1349)
+      (LP: #1966085)
     - schema: add JSON defs for modules resize-salt (SC-654) (#1341)
     - Add myself as a future contributor (#1345) [Neal Gompa (ニール・ゴンパ)]
     - Update .github-cla-signers (#1342) [Jeffrey 'jf' Lim]
     - add Requires=cloud-init-hotplugd.socket in cloud-init-hotplugd.service
       file (#1335) [yangzz-97]
-    - Fix sysconfig render when set-name is missing (#1327) [Andrew Kutz]
+    - Fix sysconfig render when set-name is missing (#1327)
+      [Andrew Kutz] (LP: #1855945)
     - Refactoring helper funcs out of NetworkState (#1336) [Andrew Kutz]
     - url_helper: add tuple support for readurl timeout (#1328)
       [Chris Patterson]
-    - Make fs labels match for ds-identify and docs (#1329) [Brett Holman]
-    - Work around bug in LXD VM detection (#1325) [Brett Holman]
-    - Remove redundant generator logs (#1318) [Brett Holman]
+    - Make fs labels match for ds-identify and docs (#1329)
+    - Work around bug in LXD VM detection (#1325)
+    - Remove redundant generator logs (#1318)
     - tox: set verbose flags for integration tests (#1323) [Chris Patterson]
     - net: introduce find_candidate_nics() (#1313) [Chris Patterson]
     - Revert "Ensure system_cfg read before ds net config on Oracle (#1174)"
@@ -771,20 +820,21 @@ cloud-init (22.2-0ubuntu1~20.04.1) focal; urgency=medium
       [Robert Schweikert]
     - Add json schemas for modules starting with P
     - sources/azure: remove lease file parsing (#1302) [Chris Patterson]
-    - remove flaky test from ci (#1322) [Brett Holman]
-    - ci: Switch to python 3.10 in Travis CI (#1320) [Brett Holman]
+    - remove flaky test from ci (#1322)
+    - ci: Switch to python 3.10 in Travis CI (#1320)
     - Better interface handling for Vultr, expect unexpected DHCP servers
       (#1297) [eb3095]
-    - Remove unused init local artifact (#1315) [Brett Holman]
-    - Doc cleanups (#1317) [Brett Holman]
-    - docs improvements (#1312) [Brett Holman]
-    - add support for jinja do statements, add unit test (#1314) [Paul Bruno]
+    - Remove unused init local artifact (#1315)
+    - Doc cleanups (#1317)
+    - docs improvements (#1312)
+    - add support for jinja do statements, add unit test (#1314)
+      [Paul Bruno] (LP: #1962759)
     - sources/azure: prevent tight loops for DHCP retries (#1285)
       [Chris Patterson]
     - net/dhcp: surface type of DHCP lease failure to caller (#1276)
       [Chris Patterson]
     - Stop hardcoding systemctl location (#1278) [Robert Schweikert]
-    - Remove python2 syntax from docs (#1310) [Brett Holman]
+    - Remove python2 syntax from docs (#1310)
     - [tools/migrate-lp-user-to-github] Rename master branch to main (#1301)
       [Adam Collard]
     - redhat: Depend on "hostname" package (#1288) [Lubomir Rintel]
@@ -792,34 +842,50 @@ cloud-init (22.2-0ubuntu1~20.04.1) focal; urgency=medium
     - Fix link in CLA check to point to contribution guide. (#1299)
       [Adam Collard]
 
- -- James Falcon <james.falcon@canonical.com>  Thu, 19 May 2022 17:08:07 -0500
+ -- Brett Holman <brett.holman@canonical.com>  Wed, 18 May 2022 11:23:42 -0600
 
-cloud-init (22.1-14-g2e17a0d6-0ubuntu1~20.04.3) focal; urgency=medium
+cloud-init (22.1-14-g2e17a0d6-0ubuntu1~22.04.5) jammy; urgency=medium
+
+  * d/p/cpick-be9389c6-Work-around-bug-in-LXD-VM-detection-1325:
+    cherry-pick be9389c6: Work around bug in LXD VM detection (#1325)
+  * d/p/cpick-30ccd51a-ds-identify-also-discover-LXD-by-presence-from-DMI:
+    cherry-pick 30ccd51a: ds-identify: also discover LXD by presence
+    from DMI
+  * d/p/pick-e3307e4d-ds-identify-detect-LXD-for-VMs-launched-from-host-with:
+    cherry-pick e3307e4d: ds-identify: detect LXD for VMs launched from
+    host with > 5.10 kernel (LP: #1968085)
+
+ -- James Falcon <james.falcon@canonical.com>  Wed, 06 Apr 2022 16:48:16 -0500
+
+cloud-init (22.1-14-g2e17a0d6-0ubuntu1~22.04.4) jammy; urgency=medium
 
   * d/p/cpick-eee60329-Fix-cloud-init-status-wait-when-no-datasource-found:
     cherry-pick eee60329: Fix cloud-init status --wait when no datasource
-    found (#1349) (LP: #1966085)
+    found (#1349)
 
- -- James Falcon <james.falcon@canonical.com>  Thu, 24 Mar 2022 10:35:21 -0500
+ -- Chad Smith <chad.smith@canonical.com>  Wed, 23 Mar 2022 20:10:41 -0600
 
-cloud-init (22.1-14-g2e17a0d6-0ubuntu1~20.04.2) focal; urgency=medium
+cloud-init (22.1-14-g2e17a0d6-0ubuntu1~22.04.3) jammy; urgency=medium
 
-  * cherry-pick 5e347d25: Revert "Ensure system_cfg read before ds net
-    config on Oracle
+  * d/patches: include the missing quilt patch from v. 22.04.2 upload
+    - cpick-5e347d25-Revert-Ensure-system_cfg-read-before-ds-net-config-on
 
- -- James Falcon <james.falcon@canonical.com>  Fri, 11 Mar 2022 15:54:26 -0600
+ -- James Falcon <james.falcon@canonical.com>  Fri, 11 Mar 2022 15:19:52 -0600
 
-cloud-init (22.1-14-g2e17a0d6-0ubuntu1~20.04.1) focal; urgency=medium
+cloud-init (22.1-14-g2e17a0d6-0ubuntu1~22.04.2) jammy; urgency=medium
 
-  * d/patches/retain-apt-partner-pocket.patch:
-    - Jammy dropped commented APT partner pocket. Retain this comment on
-      stable releases.
-  * d/apport-launcher.py fix format for unittests
-  * d/cloud-init.templates: Move LXD to back of datasource_list
-  * New upstream snapshot. (LP: #1961446)
+  * cherry-pick 156b927e: Revert "Ensure system_cfg read before ds
+    net config on Oracle (#1174)" (#1326)
+
+ -- James Falcon <james.falcon@canonical.com>  Fri, 11 Mar 2022 11:55:37 -0600
+
+cloud-init (22.1-14-g2e17a0d6-0ubuntu1~22.04.1) jammy; urgency=medium
+
+  * debian/apport-launcher.py: Fix string and whitespace formatting
+  * New upstream snapshot.
     - check for existing symlink while force creating symlink (#1281)
       [Shreenidhi Shedi]
-    - Do not silently ignore integer uid (#1280)
+    - Do not silently ignore integer uid (#1280) (LP: #1875772)
     - tests: create a IPv4/IPv6 VPC in Ec2 integration tests (#1291)
     - Integration test fix ppa  (#1296)
     - tests: on official EC2. cloud-id actually startswith aws not ec2 (#1289)
@@ -835,8 +901,14 @@ cloud-init (22.1-14-g2e17a0d6-0ubuntu1~20.04.1) focal; urgency=medium
       [Chris Patterson]
     - sources/azure: removed unused saveable PPS paths (#1268)
       [Chris Patterson]
+
+ -- Brett Holman <brett.holman@canonical.com>  Thu, 24 Feb 2022 16:40:00 -0700
+
+cloud-init (22.1-1-gb3d9acdd-0ubuntu1~22.04.1) jammy; urgency=medium
+
+  * New upstream snapshot.
     - integration tests: fix Azure failures (#1269)
-    - Release 22.1 (#1267)
+    - Release 22.1 (#1267) (LP: #1960939)
     - sources/azure: report ready in local phase (#1265) [Chris Patterson]
     - sources/azure: validate IMDS network configuration metadata (#1257)
       [Chris Patterson]
@@ -850,6 +922,13 @@ cloud-init (22.1-14-g2e17a0d6-0ubuntu1~20.04.1) focal; urgency=medium
     - Docs for x-shellscript* userdata (#1260)
     - test_apt_security: azure platform has specific security URL overrides
       (#1263)
+
+ -- Brett Holman <brett.holman@canonical.com>  Wed, 16 Feb 2022 13:39:11 -0700
+
+cloud-init (21.4-119-gdeb3ae82-0ubuntu1~22.04.1) jammy; urgency=medium
+
+  * d/cloud-init.templates: Move LXD to back of datasource_list
+  * New upstream snapshot.
     - tests: lsblk --json output changes mountpoint key to mountpoinst []
       (#1261)
     - mounts: fix mount opts string for ephemeral disk (#1250)
@@ -862,37 +941,39 @@ cloud-init (22.1-14-g2e17a0d6-0ubuntu1~20.04.1) focal; urgency=medium
     - bump pycloudlib (#1256)
     - sources/hetzner: Use EphemeralDHCPv4 instead of static configuration
       (#1251) [Markus Schade]
-    - bump pycloudlib version (#1255)
-    - Fix IPv6 netmask format for sysconfig (#1215) [Harald]
+    - bump pycloudlib version (#1255) [Brett Holman]
+    - Fix IPv6 netmask format for sysconfig (#1215) [Harald] (LP: #1959148)
     - sources/azure: drop debug print (#1249) [Chris Patterson]
     - tests: do not check instance.pull_file().ok() (#1246)
     - sources/azure: consolidate ephemeral DHCP configuration (#1229)
       [Chris Patterson]
-    - cc_salt_minion freebsd fix for rc.conf (#1236)
+    - cc_salt_minion freebsd fix for rc.conf (#1236) [Brett Holman]
     - sources/azure: fix metadata check in _check_if_nic_is_primary() (#1232)
       [Chris Patterson]
     - Add _netdev option to mount Azure ephemeral disk (#1213) [Eduardo Otubo]
     - testing: stop universally overwriting /etc/cloud/cloud.cfg.d (#1237)
     - Integration test changes (#1240)
-    - Fix Gentoo Locales (#1205)
+    - Fix Gentoo Locales (#1205) [Brett Holman]
     - Add "slingamn" as contributor (#1235) [Shivaram Lingamneni]
     - integration: do not LXD bind mount /etc/cloud/cloud.cfg.d (#1234)
     - Integration testing docs and refactor (#1231)
     - vultr: Return metadata immediately when found (#1233) [eb3095]
-    - spell check docs with spellintian (#1223)
+    - spell check docs with spellintian (#1223) [Brett Holman]
     - docs: include upstream python version info (#1230)
     - Schema a d (#1211)
-    - Move LXD to end ds-identify DSLIST (#1228)
-    - fix parallel tox execution (#1214)
+    - Move LXD to end ds-identify DSLIST (#1228) (LP: #1959118)
+    - fix parallel tox execution (#1214) [Brett Holman]
     - sources/azure: refactor _report_ready_if_needed and _poll_imds (#1222)
       [Chris Patterson]
+    - Do not support setting up archive.canonical.com as a source (#1219)
+      [Steve Langasek] (LP: #1959343)
     - Vultr: Fix lo being used for DHCP, try next on cmd fail (#1208) [eb3095]
     - sources/azure: refactor _should_reprovision[_after_nic_attach]() logic
       (#1206) [Chris Patterson]
     - update ssh logs to show ssh private key gens pub and simplify code
       (#1221) [Steve Weber]
     - Remove mitechie from stale PR github action (#1217)
-    - Include POST format in cc_phone_home docs (#1218)
+    - Include POST format in cc_phone_home docs (#1218) (LP: #1959149)
     - Add json parsing of ip addr show (SC-723) (#1210)
     - cc_rsyslog: fix typo in docstring (#1207) [Louis Sautier]
     - Update .github-cla-signers (#1204) [Chris Lalos]
@@ -917,17 +998,19 @@ cloud-init (22.1-14-g2e17a0d6-0ubuntu1~20.04.1) focal; urgency=medium
     - sources/azure: consolidate DHCP variants to EphemeralDHCPv4WithReporting
       (#1190) [Chris Patterson]
     - Single JSON schema validation in early boot (#1175)
-    - Add DatasourceOVF network-config property to Ubuntu OVF example (#1184)
+    - Add DatasourceOVF network-config propery to Ubuntu OVF example (#1184)
       [Megian]
     - testing: support pycloudlib config file (#1189)
     - Ensure system_cfg read before ds net config on Oracle (SC-720) (#1174)
-    - Test Optimization Proposal (SC-736) (#1188)
+      (LP: #1956788)
+    - Test Optimization Proposal (SC-736) (#1188) [Brett Holman]
     - cli: cloud-id report not-run or disabled state as cloud-id (#1162)
     - Remove distutils usage (#1177) [Shreenidhi Shedi]
-    - add .python-version to gitignore (#1186)
+    - add .python-version to gitignore (#1186) [Brett Holman]
     - print error if datasource import fails (#1170)
       [Emanuele Giuseppe Esposito]
-    - Add new config module to set keyboard layout (#1176) [maxnet]
+    - Add new config module to set keyboard layout (#1176)
+      [maxnet] (LP: #1951593)
     - sources/azure: rename metadata_type -> MetadataType (#1181)
       [Chris Patterson]
     - Remove 3.5 and xenial support (SC-711) (#1167)
@@ -935,42 +1018,54 @@ cloud-init (22.1-14-g2e17a0d6-0ubuntu1~20.04.1) focal; urgency=medium
       (#1178)
     - pylint: silence errors on compat code for old jsonschema (#1172)
       [Paride Legovini]
-    - testing: Add 3.10 Test Coverage (#1173)
+    - testing: Add 3.10 Test Coverage (#1173) [Brett Holman]
     - Remove unittests from integration test job in travis (#1141)
-    - Don't throw exceptions for empty cloud config (#1130)
+      [Brett Holman]
+    - Don't throw exceptions for empty cloud config (#1130) [Brett Holman]
     - bsd/resolv.d/ avoid duplicated entries (#1163) [Gonéri Le Bouder]
     - sources/azure: do not persist failed_desired_api_version flag (#1159)
       [Chris Patterson]
-    - Update cc_ubuntu_advantage calls to assume-yes (#1158) [John Chittum]
+    - Update cc_ubuntu_advantage calls to assume-yes (#1158)
+      [John Chittum] (LP: #1954842)
     - openbsd: properly restart the network on 7.0 (#1150) [Gonéri Le Bouder]
     - Add .git-blame-ignore-revs (#1161)
     - Adopt Black and isort (SC-700) (#1157)
     - Include dpkg frontend lock in APT_LOCK_FILES (#1153)
     - tests/cmd/query: fix test run as root and add coverage for defaults
-      (#1156) [Chris Patterson]
+      (#1156) [Chris Patterson] (LP: #1825027)
     - Schema processing changes (SC-676) (#1144)
-    - Add dependency workaround for impish in bddeb (#1148)
+    - Add dependency workaround for impish in bddeb (#1148) [Brett Holman]
     - netbsd: install new dep packages (#1151) [Gonéri Le Bouder]
     - find_devs_with_openbsd: ensure we return the last entry (#1149)
       [Gonéri Le Bouder]
     - sources/azure: remove unnecessary hostname bounce (#1143)
       [Chris Patterson]
-    - find_devs/openbsd: accept ISO on disk (#1132) [Gonéri Le Bouder]
+    - find_devs/openbsd: accept ISO on disk (#1132)
+      [Gonéri Le Bouder] (GH:
+      https://github.com/ContainerCraft/kmi/issues/12)
     - Improve error log message when mount failed (#1140) [Ksenija Stanojevic]
     - add KsenijaS as a contributor (#1145) [Ksenija Stanojevic]
-    - travis - don't run integration tests if no deb (#1139)
+    - travis - don't run integration tests if no deb (#1139) [Brett Holman]
     - factor out function for getting top level directory of cloudinit (#1136)
-    - testing: Add deterministic test id (#1138)
-    - mock sleep() in azure test (#1137)
+      [Brett Holman]
+    - testing: Add deterministic test id (#1138) [Brett Holman]
+    - mock sleep() in azure test (#1137) [Brett Holman]
     - Add miraclelinux support (#1128) [Haruki TSURUMOTO]
-    - docs: Make MACs lowercase in network config (#1135)
-    - Add Strict Metaschema Validation (#1101)
-    - update dead link (#1133)
+    - docs: Make MACs lowercase in network config (#1135) (GH: #1876941)
+    - Add Strict Metaschema Validation (#1101) [Brett Holman]
+    - update dead link (#1133) [Brett Holman]
     - cloudinit/net: handle two different routes for the same ip (#1124)
       [Emanuele Giuseppe Esposito]
     - docs: pin mistune dependency (#1134)
+
+ -- Chad Smith <chad.smith@canonical.com>  Thu, 10 Feb 2022 16:02:56 -0700
+
+cloud-init (21.4-25-g039c40f9-0ubuntu1~22.04.1) jammy; urgency=medium
+
+  * New upstream snapshot.
     - Reorganize unit test locations under tests/unittests (#1126)
-    - Fix exception when no activator found (#1129)
+      [Brett Holman]
+    - Fix exception when no activator found (#1129) (LP: #1948681)
     - jinja: provide and document jinja-safe key aliases in instance-data
       (SC-622) (#1123)
     - testing: Remove date from final_message test (SC-638) (#1127)
@@ -986,23 +1081,25 @@ cloud-init (22.1-14-g2e17a0d6-0ubuntu1~20.04.1) focal; urgency=medium
     - Fix Vultr timeout and wait values (#1113) [eb3095]
     - lxd: add preference for LXD cloud-init.* config keys over user keys
       (#1108)
-    - VMware: source /etc/network/interfaces.d/* on Debian [chengcheng-chcheng]
+    - VMware: source /etc/network/interfaces.d/* on Debian
+      [chengcheng-chcheng] (LP: #1950136)
     - Add cjp256 as contributor (#1109) [Chris Patterson]
     - integration_tests: Ensure log directory exists before symlinking to it
       (#1110)
-    - testing: add growpart integration test (#1104)
+    - testing: add growpart integration test (#1104) [Brett Holman]
     - integration_test: Speed up CI run time (#1111)
     - Some miscellaneous integration test fixes (SC-606) (#1103)
     - tests: specialize lxd_discovery test for lxd_vm vendordata (#1106)
-    - Add convenience symlink to integration test output (#1105)
-    - Fix for set-name bug in networkd renderer (#1100) [Andrew Kutz]
-    - Wait for apt lock (#1034)
+    - Add convenience symlink to integration test output (#1105) [Brett Holman]
+    - Fix for set-name bug in networkd renderer (#1100)
+      [Andrew Kutz] (LP: #1949407)
+    - Wait for apt lock (#1034) (LP: #1944611)
     - testing: stop chef test from running on openstack (#1102)
     - alpine.py: add options to the apk upgrade command (#1089) [dermotbradley]
 
- -- Brett Holman <brett.holman@canonical.com>  Fri, 25 Feb 2022 11:12:52 -0700
+ -- Chad Smith <chad.smith@canonical.com>  Fri, 03 Dec 2021 15:44:06 -0700
 
-cloud-init (21.4-0ubuntu1~20.04.1) focal; urgency=medium
+cloud-init (21.4-0ubuntu1~22.04.1) jammy; urgency=medium
 
   * d/upstream/metadata: Change contact to James Falcon
   * d/cloud-init.templates: Add LXD to default datasource_list with
@@ -1013,8 +1110,8 @@ cloud-init (21.4-0ubuntu1~20.04.1) focal; urgency=medium
     + cpick-612e3908-Add-connectivity_url-to-Oracle-s-EphemeralDHCPv4-988
     + cpick-dc227869-Set-Azure-to-apply-networking-config-every-BOOT-1023
     + cpick-9c147e83-Allow-disabling-of-network-activation-SC-307-1048
-  * New upstream release. (LP: #1949521)
-    - Release 21.4 (#1091)
+  * New upstream release.
+    - Release 21.4 (#1091) (LP: #1949405)
     - Azure: fallback nic needs to be reevaluated during reprovisioning
       (#1094) [Anh Vo]
     - azure: pps imds (#1093) [Anh Vo]
@@ -1023,11 +1120,11 @@ cloud-init (21.4-0ubuntu1~20.04.1) focal; urgency=medium
     - Fix unhandled apt_configure case. (#1065) [Brett Holman]
     - Allow libexec for hotplug (#1088)
     - Add necessary mocks to test_ovf unit tests (#1087)
-    - Remove (deprecated) apt-key (#1068) [Brett Holman]
+    - Remove (deprecated) apt-key (#1068) [Brett Holman] (LP: #1836336)
     - distros: Remove a completed "TODO" comment (#1086)
     - cc_ssh.py: Add configuration for controlling ssh-keygen output (#1083)
       [dermotbradley]
-    - Add "install hotplug" module (SC-476) (#1069)
+    - Add "install hotplug" module (SC-476) (#1069) (LP: #1946003)
     - hosts.alpine.tmpl: rearrange the order of short and long hostnames
       (#1084) [dermotbradley]
     - Add max version to docutils
@@ -1045,26 +1142,27 @@ cloud-init (21.4-0ubuntu1~20.04.1) focal; urgency=medium
     - Leave the details of service management to the distro (#1074)
       [Andy Fiddaman]
     - Fix typos in setup.py (#1059) [Christian Clauss]
-    - Update Azure _unpickle (SC-500) (#1067)
+    - Update Azure _unpickle (SC-500) (#1067) (LP: #1946644)
     - cc_ssh.py: fix private key group owner and permissions (#1070)
       [Emanuele Giuseppe Esposito]
     - VMware: read network-config from ISO (#1066) [Thomas Weißschuh]
     - testing: mock sleep in gce unit tests (#1072)
-    - CloudStack: fix data-server DNS resolution (#1004) [Olivier Lemasle]
+    - CloudStack: fix data-server DNS resolution (#1004)
+      [Olivier Lemasle] (LP: #1942232)
     - Fix unit test broken by pyyaml upgrade (#1071)
     - testing: add get_cloud function (SC-461) (#1038)
     - Inhibit sshd-keygen@.service if cloud-init is active (#1028)
       [Ryan Harper]
     - VMWARE: search the deployPkg plugin in multiarch dir (#1061)
-      [xiaofengw-vmware]
-    - Fix set-name/interface DNS bug (#1058) [Andrew Kutz]
+      [xiaofengw-vmware] (LP: #1944946)
+    - Fix set-name/interface DNS bug (#1058) [Andrew Kutz] (LP: #1946493)
     - Use specified tmp location for growpart (#1046) [jshen28]
     - .gitignore: ignore tags file for ctags users (#1057) [Brett Holman]
     - Allow comments in runcmd and report failed commands correctly (#1049)
-      [Brett Holman]
+      [Brett Holman] (LP: #1853146)
     - tox integration: pass the *_proxy, GOOGLE_*, GCP_* env vars (#1050)
       [Paride Legovini]
-    - Allow disabling of network activation (SC-307) (#1048)
+    - Allow disabling of network activation (SC-307) (#1048) (LP: #1938299)
     - renderer: convert relative imports to absolute (#1052) [Paride Legovini]
     - Support ETHx_IP6_GATEWAY, SET_HOSTNAME on OpenNebula (#1045)
       [Vlastimil Holer]
@@ -1082,15 +1180,16 @@ cloud-init (21.4-0ubuntu1~20.04.1) focal; urgency=medium
     - Cleanup Vultr support (#987) [eb3095]
     - docs: update cc_disk_setup for fs to raw disk (#1017)
     - HACKING.rst: change contact info to James Falcon (#1030)
-    - tox: bump the pinned flake8 and pylint version (#1029) [Paride Legovini]
+    - tox: bump the pinned flake8 and pylint version (#1029)
+      [Paride Legovini] (LP: #1944414)
     - Add retries to DataSourceGCE.py when connecting to GCE (#1005)
       [vteratipally]
     - Set Azure to apply networking config every BOOT (#1023)
-    - Add connectivity_url to Oracle's EphemeralDHCPv4 (#988)
+    - Add connectivity_url to Oracle's EphemeralDHCPv4 (#988) (LP: #1939603)
     - docs: fix typo and include sudo for report bugs commands (#1022)
-      [Renan Rodrigo]
+      [Renan Rodrigo] (LP: #1940236)
     - VMware: Fix typo introduced in #947 and add test (#1019) [PengpengSun]
-    - Update IPv6 entries in /etc/hosts (#1021) [Richard Hansen]
+    - Update IPv6 entries in /etc/hosts (#1021) [Richard Hansen] (LP: #1943798)
     - Integration test upgrades for the 21.3-1 SRU (#1001)
     - Add Jille to tools/.github-cla-signers (#1016) [Jille Timmermans]
     - Improve ug_util.py (#1013) [Shreenidhi Shedi]
@@ -1109,51 +1208,53 @@ cloud-init (21.4-0ubuntu1~20.04.1) focal; urgency=medium
     - Azure: Retry dhcp on timeouts when polling reprovisiondata (#998)
       [aswinrajamannar]
 
- -- James Falcon <james.falcon@canonical.com>  Wed, 03 Nov 2021 08:58:21 -0500
+ -- James Falcon <james.falcon@canonical.com>  Tue, 02 Nov 2021 18:07:49 -0500
 
-cloud-init (21.3-1-g6803368d-0ubuntu1~20.04.4) focal; urgency=medium
+cloud-init (21.3-1-g6803368d-0ubuntu3) impish; urgency=medium
 
   * cherry-pick 9c147e83: Allow disabling of network activation (SC-307)
     (#1048) (LP: #1938299)
-
- -- James Falcon <james.falcon@canonical.com>  Thu, 07 Oct 2021 11:51:28 -0500
-
-cloud-init (21.3-1-g6803368d-0ubuntu1~20.04.3) focal; urgency=medium
-
   * cherry-pick 612e3908: Add connectivity_url to Oracle's
     EphemeralDHCPv4 (#988) (LP: #1939603)
   * cherry-pick dc227869: Set Azure to apply networking config every BOOT
     (#1023)
 
- -- James Falcon <james.falcon@canonical.com>  Mon, 20 Sep 2021 11:09:19 -0500
+ -- James Falcon <james.falcon@canonical.com>  Thu, 07 Oct 2021 11:43:55 -0500
 
-cloud-init (21.3-1-g6803368d-0ubuntu1~20.04.2) focal; urgency=medium
+cloud-init (21.3-1-g6803368d-0ubuntu2) impish; urgency=medium
 
   * cherry-pick 28e56d99: Azure: Retry dhcp on timeouts when polling
     reprovisiondata
   * cherry-pick e69a8874: Set Azure to only update metadata on
     BOOT_NEW_INSTANCE
 
- -- James Falcon <james.falcon@canonical.com>  Fri, 03 Sep 2021 13:25:40 -0500
+ -- James Falcon <james.falcon@canonical.com>  Fri, 03 Sep 2021 14:36:41 -0500
 
-cloud-init (21.3-1-g6803368d-0ubuntu1~20.04.1) focal; urgency=medium
+cloud-init (21.3-1-g6803368d-0ubuntu1) impish; urgency=medium
 
-  * d/cloud-init.templates: Add VMware datasource support
-  * d/control: Add dependencies on python3-netifaces for VMware ds
-  * New upstream snapshot. (LP: #1940871)
+  * New upstream snapshot.
     - testing: Fix ssh keys integration test (#992)
-    - Release 21.3 (#993)
+    - Release 21.3 (#993) (LP: #1940839)
     - Azure: During primary nic detection, check interface status continuously
       before rebinding again (#990) [aswinrajamannar]
     - Fix home permissions modified by ssh module (SC-338) (#984)
+      (LP: #1940233)
     - Add integration test for sensitive jinja substitution (#986)
-    - Ignore hotplug socket when collecting logs (#985)
+    - Ignore hotplug socket when collecting logs (#985) (LP: #1940235)
     - testing: Add missing mocks to test_vmware.py (#982)
     - add Zadara Edge Cloud Platform to the supported clouds list (#963)
       [sarahwzadara]
     - testing: skip upgrade tests on LXD VMs (#980)
+
+ -- James Falcon <james.falcon@canonical.com>  Mon, 23 Aug 2021 16:53:23 -0500
+
+cloud-init (21.2-69-g65607405-0ubuntu1) impish; urgency=medium
+
+  * d/cloud-init.templates: Add VMware to default datasource_list
+  * d/control: Add dependencies on python3-netifaces for vmware ds
+  * New upstream snapshot.
     - Only invoke hotplug socket when functionality is enabled (#952)
-    - Revert unnecessary lcase in ds-identify (#978) [Andrew Kutz]
+    - Revert unnecesary lcase in ds-identify (#978) [Andrew Kutz]
     - cc_resolv_conf: fix typos (#969) [Shreenidhi Shedi]
     - Replace broken httpretty tests with mock (SC-324) (#973)
     - Azure: Check if interface is up after sleep when trying to bring it up
@@ -1176,7 +1277,8 @@ cloud-init (21.3-1-g6803368d-0ubuntu1~20.04.1) focal; urgency=medium
     - generate contents for ovf-env.xml when provisioning via IMDS (#959)
       [Anh Vo]
     - Add support for EuroLinux 7 && EuroLinux 8 (#957) [Aleksander Baranowski]
-    - Implementing device_aliases as described in docs (#945) [Mal Graty]
+    - Implementing device_aliases as described in docs (#945)
+      [Mal Graty] (LP: #1867532)
     - testing: fix test_ssh_import_id.py (#954)
     - Add ability to manage fallback network config on PhotonOS (#941) [sshedi]
     - Add VZLinux support (#951) [eb3095]
@@ -1186,20 +1288,27 @@ cloud-init (21.3-1-g6803368d-0ubuntu1~20.04.1) focal; urgency=medium
     - Azure: mount default provisioning iso before try device listing (#870)
       [Anh Vo]
     - Document known hotplug limitations (#950)
+
+ -- James Falcon <james.falcon@canonical.com>  Fri, 13 Aug 2021 15:37:31 -0500
+
+cloud-init (21.2-43-g184c836a-0ubuntu1) impish; urgency=medium
+
+  * New upstream snapshot.
     - Initial hotplug support (#936)
     - Fix MIME policy failure on python version upgrade (#934)
     - run-container: fixup the centos repos baseurls when using http_proxy
       (#944) [Paride Legovini]
     - tools: add support for building rpms on rocky linux (#940)
-    - ssh-util: allow cloudinit to merge all ssh keys into a custom user file,
-      defined in AuthorizedKeysFile (#937) [Emanuele Giuseppe Esposito]
+    - ssh-util: allow cloudinit to merge all ssh keys into a custom user
+      file, defined in AuthorizedKeysFile (#937) [Emanuele Giuseppe Esposito]
+      (LP: #1911680)
     - VMware: new "allow_raw_data" switch (#939) [xiaofengw-vmware]
     - bump pycloudlib version (#935)
     - add renanrodrigo as a contributor (#938) [Renan Rodrigo]
     - testing: simplify test_upgrade.py (#932)
     - freebsd/net_v1 format: read MTU from root (#930) [Gonéri Le Bouder]
     - Add new network activators to bring up interfaces (#919)
-    - - Detect a Python version change and clear the cache (#857)
+    - Detect a Python version change and clear the cache (#857)
       [Robert Schweikert]
     - cloud_tests: fix the Impish release name (#931) [Paride Legovini]
     - Removed distro specific network code from Photon (#929) [sshedi]
@@ -1211,10 +1320,12 @@ cloud-init (21.3-1-g6803368d-0ubuntu1~20.04.1) focal; urgency=medium
     - Fix the spelling of "DigitalOcean" (#924) [Mark Mercado]
     - Small Doc Update for ReportEventStack and Test (#920) [Mike Russell]
     - Replace deprecated collections.Iterable with abc replacement (#922)
+      (LP: #1932048)
     - testing: OCI availability domain is now required (SC-59) (#910)
     - add DragonFlyBSD support (#904) [Gonéri Le Bouder]
     - Use instance-data-sensitive.json in jinja templates (SC-117) (#917)
-    - doc: Update NoCloud docs stating required files (#918)
+      (LP: #1931392)
+    - doc: Update NoCloud docs stating required files (#918) (LP: #1931577)
     - build-on-netbsd: don't pin a specific py3 version (#913)
       [Gonéri Le Bouder]
     - - Create the log file with 640 permissions (#858) [Robert Schweikert]
@@ -1226,7 +1337,7 @@ cloud-init (21.3-1-g6803368d-0ubuntu1~20.04.1) focal; urgency=medium
     - Add "esposem" as contributor (#907) [Emanuele Giuseppe Esposito]
     - Add integration test for #868 (#901)
     - Added support for importing keys via primary/security mirror clauses
-      (#882) [Paul Goins]
+      (#882) [Paul Goins] (LP: #1925395)
     - [examples] config-user-groups expire in the future (#902)
       [Geert Stappers]
     - BSD: static network, set the mtu (#894) [Gonéri Le Bouder]
@@ -1234,22 +1345,28 @@ cloud-init (21.3-1-g6803368d-0ubuntu1~20.04.1) focal; urgency=medium
     - Fix unit tests breaking from new httpretty version (#903)
     - Allow user control over update events (#834)
 
- -- James Falcon <james.falcon@canonical.com>  Mon, 23 Aug 2021 17:26:19 -0500
+ -- James Falcon <james.falcon@canonical.com>  Mon, 19 Jul 2021 14:23:12 -0500
 
-cloud-init (21.2-3-g899bfaa9-0ubuntu2~20.04.1) focal; urgency=medium
+cloud-init (21.2-3-g899bfaa9-0ubuntu2) impish; urgency=medium
 
-  * d/cloud-init.templates: Add Vultr datasource support
+  * d/po/templates.pot: refresh with debconf-updatepo
+
+ -- Daniel Watkins <oddbloke@ubuntu.com>  Wed, 12 May 2021 12:23:42 -0400
+
+cloud-init (21.2-3-g899bfaa9-0ubuntu1) impish; urgency=medium
+
   * drop the following cherry-picks now included:
     + cpick-83f6bbfb-Fix-unpickle-for-source-paths-missing-run_dir-863
     + cpick-d132356c-fix-error-on-upgrade-caused-by-new-vendordata2
-  * New upstream snapshot. (LP: #1927491)
+  * New upstream snapshot.
     - Update test characters in substitution unit test (#893)
     - cc_disk_setup.py: remove UDEVADM_CMD definition as not used (#886)
       [dermotbradley]
     - Add AlmaLinux OS support (#872) [Andrew Lukoshko]
-    - Release 21.2 (#890)
+    - Release 21.2 (#890) (LP: #1927254)
     - Add \r\n check for SSH keys in Azure (#889)
     - Revert "Add support to resize rootfs if using LVM (#721)" (#887)
+      (LP: #1922742)
     - Add Vultaire as contributor (#881) [Paul Goins]
     - Azure: adding support for consuming userdata from IMDS (#884) [Anh Vo]
     - test_upgrade: modify test_upgrade_package to run for more sources (#883)
@@ -1259,75 +1376,91 @@ cloud-init (21.2-3-g899bfaa9-0ubuntu2~20.04.1) focal; urgency=medium
     - Azure: Retrieve username and hostname from IMDS (#865) [Thomas Stringer]
     - Azure: eject the provisioning iso before reporting ready (#861) [Anh Vo]
     - Use `partprobe` to re-read partition table if available (#856)
-      [Nicolas Bock]
+      [Nicolas Bock] (LP: #1920939)
     - fix error on upgrade caused by new vendordata2 attributes (#869)
-    - add prefer_fqdn_over_hostname config option (#859) [hamalq]
+      (LP: #1922739)
+    - add prefer_fqdn_over_hostname config option (#859)
+      [hamalq] (LP: #1921004)
     - Emit dots on travis to avoid timeout (#867)
     - doc: Replace remaining references to user-scripts as a config module
       (#866) [Ryan Harper]
     - azure: Removing ability to invoke walinuxagent (#799) [Anh Vo]
     - Add Vultr support (#827) [David Dymko]
-    - Fix unpickle for source paths missing run_dir (#863) [lucasmoura]
+    - Fix unpickle for source paths missing run_dir (#863)
+      [lucasmoura] (LP: #1899299)
     - sysconfig: use BONDING_MODULE_OPTS on SUSE (#831) [Jens Sandmann]
     - bringup_static_routes: fix gateway check (#850) [Petr Fedchenkov]
     - add hamalq user (#860) [hamalq]
-    - Add support to resize rootfs if using LVM (#721) [Eduardo Otubo]
+    - Add support to resize rootfs if using LVM (#721)
+      [Eduardo Otubo] (LP: #1799953)
     - Fix mis-detecting network configuration in initramfs cmdline (#844)
+      (LP: #1919188)
     - tools/write-ssh-key-fingerprints: do not display empty header/footer
       (#817) [dermotbradley]
     - Azure helper: Ensure Azure http handler sleeps between retries (#842)
       [Johnson Shi]
     - Fix chef apt source example (#826) [timothegenzmer]
 
- -- James Falcon <james.falcon@canonical.com>  Tue, 11 May 2021 12:22:24 -0500
+ -- James Falcon <james.falcon@canonical.com>  Tue, 11 May 2021 11:52:54 -0500
 
-cloud-init (21.1-19-gbad84ad4-0ubuntu1~20.04.2) focal; urgency=medium
+cloud-init (21.1-19-gbad84ad4-0ubuntu3) hirsute; urgency=medium
 
   * cherry-pick 83f6bbfb: Fix unpickle for source paths missing run_dir
     (#863) (LP: #1899299)
   * cherry-pick d132356c: fix error on upgrade caused by new vendordata2
     attributes (LP: #1922739)
 
- -- James Falcon <james.falcon@canonical.com>  Mon, 19 Apr 2021 14:00:12 -0500
+ -- James Falcon <james.falcon@canonical.com>  Mon, 19 Apr 2021 13:41:21 -0500
 
-cloud-init (21.1-19-gbad84ad4-0ubuntu1~20.04.1) focal; urgency=medium
+cloud-init (21.1-19-gbad84ad4-0ubuntu2) hirsute; urgency=medium
+
+  * debian/cloud-init.templates: enable UpCloud by default
+
+ -- James Falcon <james.falcon@canonical.com>  Mon, 22 Mar 2021 14:08:51 -0500
+
+cloud-init (21.1-19-gbad84ad4-0ubuntu1) hirsute; urgency=medium
   * d/cloud-init.postinst: Change output log permissions on upgrade
     (LP: #1918303)
-  * d/cloud-init.manpages: include upstream manpages in package (LP: #1908548)
-  * drop the following cherry-picks now included:
-    + cpick-4f62ae8d-Fix-regression-with-handling-of-IMDS-ssh-keys-760
-  * New upstream snapshot. (LP: #1920272)
+  * New upstream snapshot.
     - .travis.yml: generate an SSH key before running tests (#848)
     - write passwords only to serial console, lock down cloud-init-output.log
-      (#847)
+      (#847) (LP: #1918303)
     - Fix apt default integration test (#845)
     - integration_tests: bump pycloudlib dependency (#846)
     - commit f35181fa970453ba6c7c14575b12185533391b97 [eb3095]
-    - archlinux: Fix broken locale logic (#841) [Kristian Klausen]
+    - archlinux: Fix broken locale logic (#841)
+      [Kristian Klausen] (LP: #1402406)
     - Integration test for #783 (#832)
     - integration_tests: mount more paths IN_PLACE (#838)
-    - Fix requiring device-number on EC2 derivatives (#836)
+    - Fix requiring device-number on EC2 derivatives (#836) (LP: #1917875)
     - Remove the vi comment from the part-handler example (#835)
     - net: exclude OVS internal interfaces in get_interfaces (#829)
+      (LP: #1912844)
     - tox.ini: pass OS_* environment variables to integration tests (#830)
     - integration_tests: add OpenStack as a platform (#804)
     - Add flexibility to IMDS api-version (#793) [Thomas Stringer]
     - Fix the TestApt tests using apt-key on Xenial and Hirsute (#823)
-      [Paride Legovini]
+      [Paride Legovini] (LP: #1916629)
     - doc: remove duplicate "it" from nocloud.rst (#825) [V.I. Wood]
     - archlinux: Use hostnamectl to set the transient hostname (#797)
       [Kristian Klausen]
     - cc_keys_to_console.py: Add documentation for recently added config key
       (#824) [dermotbradley]
     - Update cc_set_hostname documentation (#818) [Toshi Aoyama]
-    - Release 21.1 (#820)
+
+ -- James Falcon <james.falcon@canonical.com>  Fri, 19 Mar 2021 14:32:13 -0500
+
+cloud-init (21.1-0ubuntu1) hirsute; urgency=medium
+
+  * New upstream release.
+    - Release 21.1 (#820) (LP: #1916540)
     - Azure: Support for VMs without ephemeral resource disks. (#800)
-      [Johnson Shi]
+      [Johnson Shi] (LP: #1901011)
     - cc_keys_to_console: add option to disable key emission (#811)
-      [Michael Hudson-Doyle]
+      [Michael Hudson-Doyle] (LP: #1915460)
     - integration_tests: introduce lxd_use_exec mark (#802)
     - azure: case-insensitive UUID to avoid new IID during kernel upgrade
-      (#798)
+      (#798) (LP: #1835584)
     - stale.yml: don't ask submitters to reopen PRs (#816)
     - integration_tests: fix use of SSH agent within tox (#815)
     - integration_tests: add UPGRADE CloudInitSource (#812)
@@ -1340,10 +1473,16 @@ cloud-init (21.1-19-gbad84ad4-0ubuntu1~20.04.1) focal; urgency=medium
     - Datasource for UpCloud (#743) [Antti Myyrä]
     - test_gh668: fix failure on LXD VMs (#801)
     - openstack: read the dynamic metadata group vendor_data2.json (#777)
-      [Andrew Bogott]
+      [Andrew Bogott] (LP: #1841104)
     - includedir in suoders can be prefixed by "arroba" (#783)
       [Jordi Massaguer Pla]
-    - Merge upstream/20.4.1 into master
+
+ -- James Falcon <james.falcon@canonical.com>  Tue, 23 Feb 2021 10:06:10 -0500
+
+cloud-init (20.4.1-79-g71564dce-0ubuntu1) hirsute; urgency=medium
+
+  * New upstream snapshot.
+    - Release 20.4.1 (LP: #1911680)
     - [VMware] change default max wait time to 15s (#774) [xiaofengw-vmware]
     - Revert integration test associated with reverted #586 (#784)
     - Add jordimassaguerpla as contributor (#787) [Jordi Massaguer Pla]
@@ -1356,18 +1495,31 @@ cloud-init (21.1-19-gbad84ad4-0ubuntu1~20.04.1) focal; urgency=medium
     - Adding self to cla signers (#776) [Andrew Bogott]
     - doc: avoid two warnings (#781) [Dan Kenigsberg]
     - Use proper spelling for Red Hat (#778) [Dan Kenigsberg]
+
+ -- Daniel Watkins <oddbloke@ubuntu.com>  Thu, 28 Jan 2021 10:50:23 -0500
+
+cloud-init (20.4-66-gad23441d-0ubuntu1) hirsute; urgency=medium
+
+  * New upstream snapshot.
     - Add antonyc to .github-cla-signers (#747) [Anton Chaporgin]
     - integration_tests: log image serial if available (#772)
     - Revert "ssh_util: handle non-default AuthorizedKeysFile config (#586)"
-      (#775)
+      (#775) (LP: #1911680)
     - [VMware] Support cloudinit raw data feature (#691) [xiaofengw-vmware]
     - net: Fix static routes to host in eni renderer (#668) [Pavel Abalikhin]
     - .travis.yml: don't run cloud_tests in CI (#756)
     - test_upgrade: add some missing commas (#769)
     - cc_seed_random: update documentation and fix integration test (#771)
-    - Fix test gh-632 test to only run on NoCloud (#770)
+      (LP: #1911227)
+    - Fix test gh-632 test to only run on NoCloud (#770) (LP: #1911230)
     - archlinux: fix package upgrade command handling (#768) [Bao Trinh]
-    - integration_tests: add integration test for LP:1910835 (#761)
+    - integration_tests: add integration test for LP: #1910835 (#761)
+
+ -- Daniel Watkins <oddbloke@ubuntu.com>  Wed, 20 Jan 2021 13:15:55 -0500
+
+cloud-init (20.4-55-g4f62ae8d-0ubuntu1) hirsute; urgency=medium
+
+  * New upstream snapshot.
     - Fix regression with handling of IMDS ssh keys (#760) [Thomas Stringer]
     - integration_tests: log cloud-init version in SUT (#758)
     - Add ajmyyra as contributor (#742) [Antti Myyrä]
@@ -1405,9 +1557,9 @@ cloud-init (21.1-19-gbad84ad4-0ubuntu1~20.04.1) focal; urgency=medium
     - Integration test for gh-671 (#724)
     - integration-requirements.txt: bump pycloudlib commit (#723)
     - Drop unnecessary shebang from cmd/main.py (#722) [Eduardo Otubo]
-    - Integration test for LP:1813396 and #669 (#719)
+    - Integration test for LP: #1813396 and #669 (#719)
     - integration_tests: include timestamp in log output (#720)
-    - integration_tests: add test for LP:1898997 (#713)
+    - integration_tests: add test for LP: #1898997 (#713)
     - Add integration test for power_state_change module (#717)
     - Update documentation for network-config-format-v2 (#701) [ggiesen]
     - sandbox CA Cert tests to not require ca-certificates (#715)
@@ -1429,27 +1581,20 @@ cloud-init (21.1-19-gbad84ad4-0ubuntu1~20.04.1) focal; urgency=medium
     - cla: add xnox (#692) [Dimitri John Ledkov]
     - Collect logs from integration test runs (#675)
 
- -- James Falcon <james.falcon@canonical.com>  Mon, 22 Mar 2021 10:01:10 -0500
+ -- Daniel Watkins <oddbloke@ubuntu.com>  Mon, 11 Jan 2021 16:57:30 -0500
 
-cloud-init (20.4.1-0ubuntu1~20.04.1) focal; urgency=medium
+cloud-init (20.4-0ubuntu2) hirsute; urgency=medium
 
-  * New upstream release. (LP: #1911680)
-    - Release 20.4.1
-    - Revert "ssh_util: handle non-default AuthorizedKeysFile config (#586)"
+  * d/cloud-init.manpages: include upstream manpages in package (LP: #1908548)
 
- -- Daniel Watkins <oddbloke@ubuntu.com>  Mon, 18 Jan 2021 10:40:33 -0500
+ -- Daniel Watkins <oddbloke@ubuntu.com>  Mon, 04 Jan 2021 10:44:13 -0500
 
-cloud-init (20.4-0ubuntu1~20.04.2) focal; urgency=medium
+cloud-init (20.4-0ubuntu1) hirsute; urgency=medium
 
-  * cherry-pick 4f62ae8d: Fix regression with handling of IMDS ssh keys
-    (#760) (LP: #1910835)
-
- -- Chad Smith <chad.smith@canonical.com>  Mon, 11 Jan 2021 15:25:31 -0700
-
-cloud-init (20.4-0ubuntu1~20.04.1) focal; urgency=medium
-
-  * New upstream release. (LP: #1905599)
-    - Release 20.4 (#686) [James Falcon]
+  * d/control: add gnupg to Recommends as cc_apt_configure requires it to be
+    installed for some operations.
+  * New upstream release.
+    - Release 20.4 (#686) [James Falcon] (LP: #1905440)
     - tox: avoid tox testenv subsvars for xenial support (#684)
     - Ensure proper root permissions in integration tests (#664) [James Falcon]
     - LXD VM support in integration tests (#678) [James Falcon]
@@ -1458,8 +1603,9 @@ cloud-init (20.4-0ubuntu1~20.04.1) focal; urgency=medium
     - Ability to hot-attach NICs to preprovisioned VMs before reprovisioning
       (#613) [aswinrajamannar]
     - Support configuring SSH host certificates. (#660) [Jonathan Lung]
-    - add integration test for #1900837 (#679)
-    - cc_resizefs on FreeBSD: Fix _can_skip_ufs_resize (#655) [Mina Galić]
+    - add integration test for LP: #1900837 (#679)
+    - cc_resizefs on FreeBSD: Fix _can_skip_ufs_resize (#655)
+      [Mina Galić] (LP: #1901958, #1901958)
     - DataSourceAzure: push dmesg log to KVP (#670) [Anh Vo]
     - Make mount in place for tests work (#667) [James Falcon]
     - integration_tests: restore emission of settings to log (#657)
@@ -1474,7 +1620,7 @@ cloud-init (20.4-0ubuntu1~20.04.1) focal; urgency=medium
       machine (#575)
     - test_persistence: add VersionIsPoppedFromState test (#673)
     - introduce an upgrade framework and related testing (#659)
-    - add --no-tty option to gpg (#669) [Till Riedel]
+    - add --no-tty option to gpg (#669) [Till Riedel] (LP: #1813396)
     - Pin pycloudlib to a working commit (#666) [James Falcon]
     - DataSourceOpenNebula: exclude SRANDOM from context output (#665)
     - cloud_tests: add hirsute release definition (#662)
@@ -1513,21 +1659,24 @@ cloud-init (20.4-0ubuntu1~20.04.1) focal; urgency=medium
     - tools/build-on-freebsd: fix comment explaining purpose of the script
       (#635) [Mina Galić]
     - Hetzner: initialize instance_id from system-serial-number (#630)
-      [Markus Schade]
+      [Markus Schade] (LP: #1885527)
     - Explicit set IPV6_AUTOCONF and IPV6_FORCE_ACCEPT_RA on static6 (#634)
       [Eduardo Otubo]
     - get_interfaces: don't exclude Open vSwitch bridge/bond members (#608)
-      [Lukas Märdian]
-    - Add config modules for controlling IBM PowerVM RMC. (#584) [Aman306]
+      [Lukas Märdian] (LP: #1898997)
+    - Add config modules for controlling IBM PowerVM RMC. (#584)
+      [Aman306] (LP: #1895979)
     - Update network config docs to clarify MAC address quoting (#623)
       [dermotbradley]
     - gentoo: fix hostname rendering when value has a comment (#611)
       [Manuel Aguilera]
     - refactor integration testing infrastructure (#610) [James Falcon]
     - stages: don't reset permissions of cloud-init.log every boot (#624)
+      (LP: #1900837)
     - docs: Add how to use cloud-localds to boot qemu (#617) [Joshua Powers]
     - Drop vestigial update_resolve_conf_file function (#620) [Scott Moser]
     - cc_mounts: correctly fallback to dd if fallocate fails (#585)
+      (LP: #1897099)
     - .travis.yml: add integration-tests to Travis matrix (#600)
     - ssh_util: handle non-default AuthorizedKeysFile config (#586)
       [Eduardo Otubo]
@@ -1541,7 +1690,7 @@ cloud-init (20.4-0ubuntu1~20.04.1) focal; urgency=medium
     - integration_tests: implement citest tests run in Travis (#605)
     - Add Azure support to integration test framework (#604) [James Falcon]
     - openstack: consider product_name as valid chassis tag (#580)
-      [Adrian Vladu]
+      [Adrian Vladu] (LP: #1895976)
     - azure: clean up and refactor report_diagnostic_event (#563) [Johnson Shi]
     - net: add the ability to blacklist network interfaces based on driver
       during enumeration of physical network devices (#591) [Anh Vo]
@@ -1550,11 +1699,11 @@ cloud-init (20.4-0ubuntu1~20.04.1) focal; urgency=medium
     - conftest.py: remove top-level import of httpretty (#599)
     - tox.ini: add integration-tests testenv definition (#595)
     - PULL_REQUEST_TEMPLATE.md: empty checkboxes need a space (#597)
-    - add integration test for #1886531 (#592)
+    - add integration test for LP: #1886531 (#592)
     - Initial implementation of integration testing infrastructure (#581)
       [James Falcon]
     - Fix name of ntp and chrony service on CentOS and RHEL. (#589)
-      [Scott Moser]
+      [Scott Moser] (LP: #1897915)
     - Adding a PR template (#587) [James Falcon]
     - Azure parse_network_config uses fallback cfg when generate IMDS network
       cfg fails (#549) [Johnson Shi]
@@ -1564,14 +1713,30 @@ cloud-init (20.4-0ubuntu1~20.04.1) focal; urgency=medium
     - Fix typo in disk_setup module's description (#579) [Wacław Schiller]
     - Add vendor-data support to seedfrom parameter for NoCloud and OVF (#570)
       [Johann Queuniet]
-    - boot.rst: add First Boot Determination section (#568)
+    - boot.rst: add First Boot Determination section (#568) (LP: #1888858)
     - opennebula.rst: minor readability improvements (#573) [Mina Galić]
     - cloudinit: remove unused LOG variables (#574)
+
+ -- James Falcon <james.falcon@canonical.com>  Tue, 24 Nov 2020 12:32:00 -0600
+
+cloud-init (20.3-15-g6d332e5c-0ubuntu1) groovy; urgency=medium
+
+  * d/cloud-init.postinst: fix the grub install device for NVMe-rooted
+    instances on upgrade.  (LP: #1889555)
+  * d/cloud-init.templates: add RbxCloud to Choices-C.
+  * Add d/clean to fully clean the build artifacts.
+  * d/control:
+    - Bump Standards-Version to 4.5.0, no changes needed.
+    - B-D on debhelper-compat; drop d/compat.
+  * Bump the debhelper compat level to 13. Required changes:
+    - Stop including the dh systemd plugin.
+    - Switch from dh_systemd_start to dh_installsystemd
+  * New upstream snapshot.
     - create a shutdown_command method in distro classes (#567)
       [Emmanuel Thomé]
     - user_data: remove unused constant (#566)
     - network: Fix type and respect name when rendering vlan in
-      sysconfig. (#541) [Eduardo Otubo]
+      sysconfig. (#541) [Eduardo Otubo] (LP: #1788915, #1826608)
     - Retrieve SSH keys from IMDS first with OVF as a fallback (#509)
       [Thomas Stringer]
     - Add jqueuniet as contributor (#569) [Johann Queuniet]
@@ -1586,33 +1751,38 @@ cloud-init (20.4-0ubuntu1~20.04.1) focal; urgency=medium
     - systemd: add Before=shutdown.target when Conflicts=shutdown.target is
       used (#546) [Paride Legovini]
     - LXD: detach network from profile before deleting it (#542)
-      [Paride Legovini]
+      [Paride Legovini] (LP: #1776958)
     - redhat spec: add missing BuildRequires (#552) [Paride Legovini]
 
- -- James Falcon <james.falcon@canonical.com>  Wed, 25 Nov 2020 11:25:17 -0600
+ -- Chad Smith <chad.smith@canonical.com>  Tue, 15 Sep 2020 20:19:10 -0600
 
-cloud-init (20.3-2-g371b392c-0ubuntu1~20.04.1) focal; urgency=medium
+cloud-init (20.3-2-g371b392c-0ubuntu1) groovy; urgency=medium
 
-  * d/cloud-init.postinst: fix the grub install device for NVMe-rooted
-    instances on upgrade.  (LP: #1889555)
-  * New upstream snapshot. (LP: #1893064)
+  * New upstream snapshot.
     - util: remove debug statement (#556) [Joshua Powers]
     - Fix cloud config on chef example (#551) [lucasmoura]
-    - Release 20.3 (#547) [James Falcon]
+
+ -- James Falcon <james.falcon@canonical.com>  Wed, 26 Aug 2020 12:49:05 -0500
+
+cloud-init (20.3-0ubuntu1) groovy; urgency=medium
+
+  * New upstream release.
+    - Release 20.3 (#547) [James Falcon] (LP: #1892878)
     - tox: bump the pylint version to 2.6.0 in the default run (#544)
       [Paride Legovini]
     - Azure: Add netplan driver filter when using hv_netvsc driver (#539)
-      [James Falcon]
+      [James Falcon] (LP: #1830740)
     - query: do not handle non-decodable non-gzipped content (#543)
     - DHCP sandboxing failing on noexec mounted /var/tmp (#521) [Eduardo Otubo]
-    - Update the list of valid ssh keys. (#487) [Ole-Martin Bratteng]
-    - cmd: cloud-init query to handle compressed userdata (#516)
+    - Update the list of valid ssh keys. (#487)
+      [Ole-Martin Bratteng] (LP: #1877869)
+    - cmd: cloud-init query to handle compressed userdata (#516) (LP: #1889938)
     - Pushing cloud-init log to the KVP (#529) [Moustafa Moustafa]
     - Add Alpine Linux support. (#535) [dermotbradley]
     - Detect kernel version before swap file creation (#428) [Eduardo Otubo]
     - cli: add devel make-mime subcommand (#518)
     - user-data: only verify mime-types for TYPE_NEEDED and x-shellscript
-      (#511)
+      (#511) (LP: #1888822)
     - DataSourceOracle: retry twice (and document why we retry at all) (#536)
     - Refactor Azure report ready code (#468) [Johnson Shi]
     - tox.ini: pin correct version of httpretty in xenial{,-dev} envs (#531)
@@ -1628,12 +1798,12 @@ cloud-init (20.3-2-g371b392c-0ubuntu1~20.04.1) focal; urgency=medium
     - .github/workflows/stale.yml: s/Josh/Rick/ (#526)
     - Fix a typo in apt pipelining module (#525) [Xiao Liang]
     - test_util: parametrize devlist tests (#523) [James Falcon]
-    - Recognize LABEL_FATBOOT labels (#513) [James Falcon]
+    - Recognize LABEL_FATBOOT labels (#513) [James Falcon] (LP: #1841466)
     - Handle additional identifier for SLES For HPC (#520) [Robert Schweikert]
     - Revert "test-requirements.txt: pin pytest to <6 (#512)" (#515)
     - test-requirements.txt: pin pytest to <6 (#512)
     - Add "tsanghan" as contributor (#504) [tsanghan]
-    - fix brpm building
+    - fix brpm building (LP: #1886107)
     - Adding eandersson as a contributor (#502) [Erik Olof Gunnar Andersson]
     - azure: disable bouncing hostname when setting hostname fails (#494)
       [Anh Vo]
@@ -1644,14 +1814,22 @@ cloud-init (20.3-2-g371b392c-0ubuntu1~20.04.1) focal; urgency=medium
     - cc_ca_certs.py: fix blank line problem when removing CAs and adding
       new one (#483) [dermotbradley]
     - freebsd: py37-serial is now py37-pyserial (#492) [Gonéri Le Bouder]
-    - ssh exit with non-zero status on disabled user (#472) [Eduardo Otubo]
+    - ssh exit with non-zero status on disabled user (#472)
+      [Eduardo Otubo] (LP: #1170059)
     - cloudinit: remove global disable of pylint W0107 and fix errors (#489)
     - networking: refactor wait_for_physdevs from cloudinit.net (#466)
+      (LP: #1884626)
     - HACKING.rst: add pytest.param pytest gotcha (#481)
     - cloudinit: remove global disable of pylint W0105 and fix errors (#480)
     - Fix two minor warnings (#475)
     - test_data: fix faulty patch (#476)
-    - cc_mounts: handle missing fstab (#484)
+
+ -- James Falcon <james.falcon@canonical.com>  Tue, 25 Aug 2020 15:27:53 -0500
+
+cloud-init (20.2-94-g3d06abc2-0ubuntu1) groovy; urgency=medium
+
+  * New upstream snapshot.
+    - cc_mounts: handle missing fstab (#484) (LP: #1886531)
     - LXD cloud_tests: support more lxd image formats (#482) [Paride Legovini]
     - Add update_etc_hosts as default module on *BSD (#479) [Adam Dobrawy]
     - cloudinit: fix tip-pylint failures and bump pinned pylint version (#478)
@@ -1663,13 +1841,14 @@ cloud-init (20.3-2-g371b392c-0ubuntu1~20.04.1) focal; urgency=medium
       [Landon Kirk]
     - Fix broken link to OpenStack metadata service docs (#467)
       [Matt Riedemann]
-    - Disable ec2 mirror for non aws instances (#390) [lucasmoura]
+    - Disable ec2 mirror for non aws instances (#390)
+      [lucasmoura] (LP: #1456277)
     - cloud_tests: don't pass --python-version to read-dependencies (#465)
-    - networking: refactor is_physical from cloudinit.net (#457)
+    - networking: refactor is_physical from cloudinit.net (#457) (LP: #1884619)
     - Enable use of the caplog fixture in pytest tests, and add a
       cc_final_message test using it (#461)
     - RbxCloud: Add support for FreeBSD (#464) [Adam Dobrawy]
-    - Add schema for cc_chef module (#375) [lucasmoura]
+    - Add schema for cc_chef module (#375) [lucasmoura] (LP: #1858888)
     - test_util: add (partial) testing for util.mount_cb (#463)
     - .travis.yml: revert to installing ubuntu-dev-tools (#460)
     - HACKING.rst: add details of net refactor tracking (#456)
@@ -1681,15 +1860,16 @@ cloud-init (20.3-2-g371b392c-0ubuntu1~20.04.1) focal; urgency=medium
     - Change from redhat to rhel in systemd generator tmpl (#450)
       [Eduardo Otubo]
     - Hetzner: support reading user-data that is base64 encoded. (#448)
-      [Scott Moser]
+      [Scott Moser] (LP: #1884071)
     - HACKING.rst: add strpath gotcha to testing gotchas section (#446)
     - cc_final_message: don't create directories when writing boot-finished
-      (#445)
+      (#445) (LP: #1883903)
     - .travis.yml: only store new schroot if something has changed (#440)
     - util: add ensure_dir_exists parameter to write_file (#443)
     - printing the error stream of the dhclient process before killing it
       (#369) [Moustafa Moustafa]
-    - Fix link to the MAAS documentation (#442) [Paride Legovini]
+    - Fix link to the MAAS documentation (#442)
+      [Paride Legovini] (LP: #1883666)
     - RPM build: disable the dynamic mirror URLs when using a proxy (#437)
       [Paride Legovini]
     - util: rename write_file's copy_mode parameter to preserve_mode (#439)
@@ -1699,7 +1879,7 @@ cloud-init (20.3-2-g371b392c-0ubuntu1~20.04.1) focal; urgency=medium
     - travis: cache the chroot we use for package builds (#429)
     - test: fix all flake8 E126 errors (#425) [Joshua Powers]
     - Fixes KeyError for bridge with no "parameters:" setting (#423)
-      [Brian Candler]
+      [Brian Candler] (LP: #1879673)
     - When tools.conf does not exist, running cmd "vmware-toolbox-cmd
       config get deployPkg enable-custom-scripts", the return code will
       be EX_UNAVAILABLE(69), on this condition, it should not take it as
@@ -1712,36 +1892,67 @@ cloud-init (20.3-2-g371b392c-0ubuntu1~20.04.1) focal; urgency=medium
     - Move subp into its own module. (#416) [Scott Moser]
     - readme: point at travis-ci.com (#417) [Joshua Powers]
     - New feature flag functionality and fix includes failing silently (#367)
-      [James Falcon]
+      [James Falcon] (LP: #1734939)
     - Enhance poll imds logging (#365) [Moustafa Moustafa]
     - test: fix all flake8 E121 and E123 errors (#404) [Joshua Powers]
 
- -- James Falcon <james.falcon@canonical.com>  Thu, 27 Aug 2020 14:58:22 -0500
+ -- Daniel Watkins <oddbloke@ubuntu.com>  Fri, 10 Jul 2020 09:11:25 -0400
 
-cloud-init (20.2-45-g5f7825e2-0ubuntu1~20.04.1) focal; urgency=medium
+cloud-init (20.2-45-g5f7825e2-0ubuntu1) groovy; urgency=medium
 
-  * d/cloud-init.templates: correct lintian missing RbxCloud from Choices-C
-  * d/control: drop python3-six, python3-pep8 and python3-pyflakes
-    from Build-Depends
-  * New upstream snapshot. (LP: #1881018)
+  * d/control: drop python3-six, python3-unittest2, python3-pep8,
+    python3-pyflakes and python3-nose from Build-Depends.
+  * New upstream snapshot.
     - test: fix all flake8 E241 (#403) [Joshua Powers]
     - test: ignore flake8 E402 errors in main.py (#402) [Joshua Powers]
     - cc_grub_dpkg: determine idevs in more robust manner with grub-probe
-      (#358) [Matthew Ruffell]
+      (#358) [Matthew Ruffell] (LP: #1877491)
     - test: fix all flake8 E741 errors (#401) [Joshua Powers]
     - tests: add groovy integration tests for ubuntu (#400)
     - Enable chef_license support for chef infra client (#389) [Bipin Bachhao]
     - testing: use flake8 again (#392) [Joshua Powers]
 
- -- Chad Smith <chad.smith@canonical.com>  Tue, 02 Jun 2020 10:12:34 -0600
+ -- Chad Smith <chad.smith@canonical.com>  Tue, 02 Jun 2020 09:51:50 -0600
 
-cloud-init (20.2-38-g8377897b-0ubuntu1~20.04.1) focal; urgency=medium
+cloud-init (20.2-38-g8377897b-0ubuntu1) groovy; urgency=medium
 
-  * d/control: drop pyflakes from Build-Depends
-    - This python2 pyflakes package is an unneeded dependency now that tests
-      use python3-pyflakes.
-  * d/control: drop python3-nose and python3-unittest2 from Build-Depends
-    - Upstream now uses pytest
+  * New upstream snapshot.
+    - enable Puppet, Chef mcollective in default config (#385)
+      [Mina Galić (deprecated: Igor Galić)] (LP: #1880279)
+    - HACKING.rst: introduce .net -> Networking refactor section (#384)
+    - Travis: do not install python3-contextlib2 (dropped dependency) (#388)
+      [Paride Legovini]
+    - HACKING: mention that .github-cla-signers is alpha-sorted (#380)
+    - Add bipinbachhao as contributor (#379) [Bipin Bachhao]
+    - cc_snap: validate that assertions property values are strings (#370)
+    - conftest: implement partial disable_subp_usage (#371)
+    - test_resolv_conf: refresh stale comment (#374)
+
+ -- Chad Smith <chad.smith@canonical.com>  Wed, 27 May 2020 14:36:46 -0600
+
+cloud-init (20.2-30-g8bcf1c06-0ubuntu1) groovy; urgency=medium
+
+  * d/control: drop pyflakes as Build-Depends
+    - upstream uses python3-pyflakes now
+  * New upstream snapshot.
+    - cc_snap: apply validation to snap.commands properties (#364)
+    - make finding libc platform independent (#366)
+      [Mina Galić (deprecated: Igor Galić)]
+    - doc/rtd/topics/faq: Updates LXD docs links to current site (#368) [TomP]
+    - templater: drop Jinja Python 2 compatibility shim (#353)
+    - cloudinit: minor pylint fixes (#360)
+    - cloudinit: remove unneeded __future__ imports (#362)
+    - migrating momousta lp user to Moustafa-Moustafa GitHub user (#361)
+      [Moustafa Moustafa]
+    - cloud_tests: emit dots on Travis while fetching images (#347)
+    - Add schema to apt configure config (#357) [lucasmoura] (LP: #1858884)
+    - conftest: add docs and tests regarding CiTestCase's subp functionality
+      (#343)
+
+ -- Chad Smith <chad.smith@canonical.com>  Mon, 18 May 2020 16:24:16 -0600
+
+cloud-init (20.2-20-gd10ce3ec-0ubuntu1) groovy; urgency=medium
+
   * drop the following cherry-picks now included:
     + cpick-6600c642-ec2-render-network-on-all-NICs-and-add-secondary-IPs-as
     + cpick-986f37b0-cloudinit-move-to-pytest-for-running-tests-211
@@ -1756,30 +1967,7 @@ cloud-init (20.2-38-g8377897b-0ubuntu1~20.04.1) focal; urgency=medium
     + fix-cpick-4fb6fd8a-net-ubuntu-focal-prioritize-netplan-over-eni.patch
     + cpick-9d7b35ce-cc_mounts-fix-incorrect-format-specifiers-316
     + cpick-0c5c7367-test_mounts-expand-happy-path-test-for-both-happy-paths
-  * New upstream snapshot. (LP: #1881018)
-    - enable Puppet, Chef mcollective in default config (#385)
-      [Mina Galić (deprecated: Igor Galić)]
-    - HACKING.rst: introduce .net -> Networking refactor section (#384)
-    - Travis: do not install python3-contextlib2 (dropped dependency) (#388)
-      [Paride Legovini]
-    - HACKING: mention that .github-cla-signers is alpha-sorted (#380)
-    - Add bipinbachhao as contributor (#379) [Bipin Bachhao]
-    - cc_snap: validate that assertions property values are strings (#370)
-    - conftest: implement partial disable_subp_usage (#371)
-    - test_resolv_conf: refresh stale comment (#374)
-    - cc_snap: apply validation to snap.commands properties (#364)
-    - make finding libc platform independent (#366)
-      [Mina Galić (deprecated: Igor Galić)]
-    - doc/rtd/topics/faq: Updates LXD docs links to current site (#368) [TomP]
-    - templater: drop Jinja Python 2 compatibility shim (#353)
-    - cloudinit: minor pylint fixes (#360)
-    - cloudinit: remove unneeded __future__ imports (#362)
-    - migrating momousta lp user to Moustafa-Moustafa GitHub user (#361)
-      [Moustafa Moustafa]
-    - cloud_tests: emit dots on Travis while fetching images (#347)
-    - Add schema to apt configure config (#357) [lucasmoura]
-    - conftest: add docs and tests regarding CiTestCase's subp functionality
-      (#343)
+  * New upstream snapshot.
     - analyze/dump: refactor shared string into variable (#350)
     - doc: update boot.rst with correct timing of runcmd (#351)
     - HACKING.rst: change contact info to Rick Harding (#359) [lucasmoura]
@@ -1788,25 +1976,27 @@ cloud-init (20.2-38-g8377897b-0ubuntu1~20.04.1) focal; urgency=medium
     - .travis.yml: don't run lintian during integration test package builds
       (#352)
     - Add test to ensure docs examples are valid cloud-init configs (#355)
-      [James Falcon]
+      [James Falcon] (LP: #1876414)
     - make suse and sles support 127.0.1.1 (#336) [chengcheng-chcheng]
-    - Create tests to validate schema examples (#348) [lucasmoura]
+    - Create tests to validate schema examples (#348)
+      [lucasmoura] (LP: #1876412)
     - analyze/dump: add support for Amazon Linux 2 log lines (#346)
+      (LP: #1876323)
     - bsd: upgrade support (#305) [Gonéri Le Bouder]
     - Add lucasmoura as contributor (#345) [lucasmoura]
     - Add "therealfalcon" as contributor (#344) [James Falcon]
     - Adapt the package building scripts to use Python 3 (#231)
       [Paride Legovini]
     - DataSourceEc2: use metadata's NIC ordering to determine route-metrics
-      (#342)
+      (#342) (LP: #1876312)
     - .travis.yml: introduce caching (#329)
     - cc_locale: introduce schema (#335)
     - doc/rtd/conf.py: bump copyright year to 2020 (#341)
     - yum_add_repo: Add Centos to the supported distro list (#340)
-    - Release 20.2 (#337)
+    - Release 20.2 (#337) (LP: #1875951)
     - doc/format: reference make-mime.py instead of an inline script (#334)
     - Add docs about  creating parent folders (#330) [Adrian Wilkins]
-    - DataSourceNoCloud/OVF: drop claim to support FTP (#333)
+    - DataSourceNoCloud/OVF: drop claim to support FTP (#333) (LP: #1875470)
     - schema: ignore spurious pylint error (#332)
     - schema: add json schema for write_files module (#152)
     - BSD: find_devs_with_ refactoring (#298) [Gonéri Le Bouder]
@@ -1819,15 +2009,15 @@ cloud-init (20.2-38-g8377897b-0ubuntu1~20.04.1) focal; urgency=medium
     - conftest: introduce disable_subp_usage autouse fixture (#304)
     - YAML align indent sizes for docs readability  (#323) [Tak Nishigori]
     - network_state: add missing space to log message (#325)
-    - tests: add missing mocks for get_interfaces_by_mac (#326)
+    - tests: add missing mocks for get_interfaces_by_mac (#326) (LP: #1873910)
     - test_mounts: expand happy path test for both happy paths (#319)
-    - cc_mounts: fix incorrect format specifiers (#316)
+    - cc_mounts: fix incorrect format specifiers (#316) (LP: #1872836)
     - swap file "size" being used before checked if str (#315) [Eduardo Otubo]
     - HACKING.rst: add pytest version gotchas section (#311)
     - docs: Add steps to re-run cloud-id and cloud-init (#313) [Joshua Powers]
     - readme: OpenBSD is now supported (#309) [Gonéri Le Bouder]
-    - net: ignore 'renderer' key in netplan config (#306)
-    - Add support for NFS/EFS mounts (#300) [Andrew Beresford]
+    - net: ignore 'renderer' key in netplan config (#306) (LP: #1870421)
+    - Add support for NFS/EFS mounts (#300) [Andrew Beresford] (LP: #1870370)
     - openbsd: set_passwd should not unlock user (#289) [Gonéri Le Bouder]
     - tools/.github-cla-signers: add beezly as CLA signer (#301)
     - util: remove unnecessary lru_cache import fallback (#299)
@@ -1836,10 +2026,12 @@ cloud-init (20.2-38-g8377897b-0ubuntu1~20.04.1) focal; urgency=medium
     - HACKING.rst: add note about variable annotations (#295)
     - CiTestCase: stop using and remove sys_exit helper (#283)
     - distros: replace invalid characters in mirror URLs with hyphens (#291)
+      (LP: #1868232)
     - rbxcloud: gracefully handle arping errors (#262) [Adam Dobrawy]
     - Fix cloud-init ignoring some misdeclared mimetypes in user-data.
       [Kurt Garloff]
-    - net: ubuntu focal prioritize netplan over eni even if both present (#267)
+    - net: ubuntu focal prioritize netplan over eni even if both present
+      (#267) (LP: #1867029)
     - cloudinit: refactor util.is_ipv4 to net.is_ipv4_address (#292)
     - net/cmdline: replace type comments with annotations (#294)
     - HACKING.rst: add Type Annotations design section (#293)
@@ -1862,7 +2054,7 @@ cloud-init (20.2-38-g8377897b-0ubuntu1~20.04.1) focal; urgency=medium
     - freebsd: ensure package update works (#273) [Gonéri Le Bouder]
     - doc: introduce Code Review Process documentation (#160)
     - tools: use python3 (#274)
-    - cc_disk_setup: fix RuntimeError (#270)
+    - cc_disk_setup: fix RuntimeError (#270) (LP: #1868327)
     - cc_apt_configure/util: combine search_for_mirror implementations (#271)
     - bsd: boottime does not depend on the libc soname (#269)
       [Gonéri Le Bouder]
@@ -1872,6 +2064,7 @@ cloud-init (20.2-38-g8377897b-0ubuntu1~20.04.1) focal; urgency=medium
     - .travis.yml: drop stale comment (#255)
     - .gitignore: add more common directories (#258)
     - ec2: render network on all NICs and add secondary IPs as static (#114)
+      (LP: #1866930)
     - ec2 json validation: fix the reference to the 'merged_cfg' key (#256)
       [Paride Legovini]
     - releases.yaml: quote the Ubuntu version numbers (#254) [Paride Legovini]
@@ -1893,7 +2086,7 @@ cloud-init (20.2-38-g8377897b-0ubuntu1~20.04.1) focal; urgency=medium
     - tox.ini: bump pyflakes version to 2.1.1 (#239)
     - cloudinit: move to pytest for running tests (#211)
 
- -- Chad Smith <chad.smith@canonical.com>  Thu, 28 May 2020 15:43:19 -0600
+ -- Chad Smith <chad.smith@canonical.com>  Mon, 11 May 2020 20:17:06 -0600
 
 cloud-init (20.1-10-g71af48df-0ubuntu5) focal; urgency=medium
 

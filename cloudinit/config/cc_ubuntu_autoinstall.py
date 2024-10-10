@@ -83,6 +83,7 @@ def handle(name: str, cfg: Config, cloud: Cloud, args: list) -> None:
         )
         return
 
+    util.wait_for_snap_seeded(cloud)
     snap_list, _ = subp.subp(["snap", "list"])
     installer_present = None
     for snap_name in LIVE_INSTALLER_SNAPS:
