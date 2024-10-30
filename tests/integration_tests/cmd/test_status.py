@@ -1,4 +1,5 @@
 """Tests for `cloud-init status`"""
+
 import json
 
 import pytest
@@ -18,9 +19,8 @@ def _remove_nocloud_dir_and_reboot(client: IntegrationInstance):
     # On Impish and below, NoCloud will be detected on an LXD container.
     # If we remove this directory, it will no longer be detected.
     client.execute("rm -rf /var/lib/cloud/seed/nocloud-net")
-    old_boot_id = client.instance.get_boot_id()
-    client.execute("cloud-init clean --logs --reboot")
-    client.instance._wait_for_execute(old_boot_id=old_boot_id)
+    client.instance.clean()
+    client.instance.restart()
 
 
 @retry(tries=30, delay=1)
@@ -117,7 +117,7 @@ write_files:
     fi
     cloud-init status --wait --long > $1
     date +%s.%N > $MARKER_FILE
-"""  # noqa: E501
+"""
 
 
 BEFORE_CLOUD_INIT_LOCAL = """\
@@ -156,13 +156,14 @@ def test_status_block_through_all_boot_status(client):
     push_and_enable_systemd_unit(
         client, "before-cloud-init-local.service", BEFORE_CLOUD_INIT_LOCAL
     )
-    client.execute("cloud-init clean --logs --reboot")
+    client.instance.clean()
+    client.instance.restart()
     wait_for_cloud_init(client).stdout.strip()
     client.execute("cloud-init status --wait")
 
     # Assert that before-cloud-init-local.service started before
     # cloud-init-local.service could create status.json
-    client.execute("test -f /before-local.start-hasstatusjson").failed
+    assert client.execute("test -f /before-local.start-hasstatusjson").failed
 
     early_unit_timestamp = retry_read_from_file(
         client, "/before-local.start-nostatusjson"

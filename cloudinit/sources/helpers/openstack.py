@@ -87,7 +87,7 @@ class SourceMixin:
         if not self.ec2_metadata:
             return None
         bdm = self.ec2_metadata.get("block-device-mapping", {})
-        for (ent_name, device) in bdm.items():
+        for ent_name, device in bdm.items():
             if name == ent_name:
                 return device
         return None
@@ -266,7 +266,7 @@ class BaseReader(metaclass=abc.ABCMeta):
             "version": 2,
         }
         data = datafiles(self._find_working_version())
-        for (name, (path, required, translator)) in data.items():
+        for name, (path, required, translator) in data.items():
             path = self._path_join(self.base_path, path)
             data = None
             found = False
@@ -346,7 +346,7 @@ class BaseReader(metaclass=abc.ABCMeta):
         results["ec2-metadata"] = self._read_ec2_metadata()
 
         # Perform some misc. metadata key renames...
-        for (target_key, source_key, is_required) in KEY_COPIES:
+        for target_key, source_key, is_required in KEY_COPIES:
             if is_required and source_key not in metadata:
                 raise BrokenMetadata("No '%s' entry in metadata" % source_key)
             if source_key in metadata:
@@ -412,7 +412,7 @@ class ConfigDriveReader(BaseReader):
             raise NonReadable("%s: no files found" % (self.base_path))
 
         md = {}
-        for (name, (key, translator, default)) in FILES_V1.items():
+        for name, (key, translator, default) in FILES_V1.items():
             if name in found:
                 path = found[name]
                 try:
@@ -578,8 +578,8 @@ def convert_net_json(network_json=None, known_macs=None):
             "scope",
             "dns_nameservers",
             "dns_search",
-            "routes",
         ],
+        "routes": ["network", "destination", "netmask", "gateway", "metric"],
     }
 
     links = network_json.get("links", [])
@@ -620,6 +620,20 @@ def convert_net_json(network_json=None, known_macs=None):
                 (k, v) for k, v in network.items() if k in valid_keys["subnet"]
             )
 
+            # Filter the route entries as they may contain extra elements such
+            # as DNS which are required elsewhere by the cloudinit schema
+            routes = [
+                dict(
+                    (k, v)
+                    for k, v in route.items()
+                    if k in valid_keys["routes"]
+                )
+                for route in network.get("routes", [])
+            ]
+
+            if routes:
+                subnet.update({"routes": routes})
+
             if network["type"] == "ipv4_dhcp":
                 subnet.update({"type": "dhcp4"})
             elif network["type"] == "ipv6_dhcp":
@@ -646,11 +660,22 @@ def convert_net_json(network_json=None, known_macs=None):
                     }
                 )
 
+            # Look for either subnet or network specific DNS servers
+            # and add them as subnet level DNS entries.
+            # Subnet specific nameservers
             dns_nameservers = [
                 service["address"]
-                for service in network.get("services", [])
+                for route in network.get("routes", [])
+                for service in route.get("services", [])
                 if service.get("type") == "dns"
             ]
+            # Network specific nameservers
+            for service in network.get("services", []):
+                if service.get("type") != "dns":
+                    continue
+                if service["address"] in dns_nameservers:
+                    continue
+                dns_nameservers.append(service["address"])
             if dns_nameservers:
                 subnet["dns_nameservers"] = dns_nameservers
 
