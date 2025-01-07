@@ -212,7 +212,7 @@ class DataSourceNoCloud(sources.DataSource):
         # to accomplish this.
         system_uuid = None
         try:
-            system_uuid = util.read_dmi_data('system-uuid')
+            system_uuid = dmi.read_dmi_data('system-uuid')
             system_uuid = system_uuid.lower() if system_uuid else None
         except Exception:
             util.logexc(LOG, "Failed to get system uuid from dmi")
