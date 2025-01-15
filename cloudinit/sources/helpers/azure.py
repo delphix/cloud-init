@@ -10,10 +10,10 @@ import re
 import textwrap
 import zlib
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import datetime, timezone
 from time import sleep, time
 from typing import Callable, List, Optional, TypeVar, Union
-from xml.etree import ElementTree  # nosec B405
+from xml.etree import ElementTree as ET  # nosec B405
 from xml.sax.saxutils import escape  # nosec B406
 
 from cloudinit import distros, subp, temp_utils, url_helper, util, version
@@ -122,9 +122,11 @@ def get_boot_telemetry():
         "boot-telemetry",
         "kernel_start=%s user_start=%s cloudinit_activation=%s"
         % (
-            datetime.utcfromtimestamp(kernel_start).isoformat() + "Z",
-            datetime.utcfromtimestamp(user_start).isoformat() + "Z",
-            datetime.utcfromtimestamp(cloudinit_activation).isoformat() + "Z",
+            datetime.fromtimestamp(kernel_start, timezone.utc).isoformat(),
+            datetime.fromtimestamp(user_start, timezone.utc).isoformat(),
+            datetime.fromtimestamp(
+                cloudinit_activation, timezone.utc
+            ).isoformat(),
         ),
         events.DEFAULT_EVENT_ORIGIN,
     )
@@ -363,8 +365,8 @@ class GoalState:
         self.azure_endpoint_client = azure_endpoint_client
 
         try:
-            self.root = ElementTree.fromstring(unparsed_xml)  # nosec B314
-        except ElementTree.ParseError as e:
+            self.root = ET.fromstring(unparsed_xml)  # nosec B314
+        except ET.ParseError as e:
             report_diagnostic_event(
                 "Failed to parse GoalState XML: %s" % e,
                 logger_func=LOG.warning,
@@ -457,7 +459,9 @@ class OpenSSLManager:
                 ]
             )
             certificate = ""
-            for line in open(self.certificate_names["certificate"]):
+            for line in util.load_text_file(
+                self.certificate_names["certificate"]
+            ).splitlines():
                 if "CERTIFICATE" not in line:
                     certificate += line.rstrip()
             self.certificate = certificate
@@ -496,9 +500,7 @@ class OpenSSLManager:
         """Decrypt the certificates XML document using the our private key;
         return the list of certs and private keys contained in the doc.
         """
-        tag = ElementTree.fromstring(certificates_xml).find(  # nosec B314
-            ".//Data"
-        )
+        tag = ET.fromstring(certificates_xml).find(".//Data")  # nosec B314
         certificates_content = tag.text
         lines = [
             b"MIME-Version: 1.0",
@@ -1006,12 +1008,12 @@ class OvfEnvXml:
                 unparsable or invalid.
         """
         try:
-            root = ElementTree.fromstring(ovf_env_xml)  # nosec B314
-        except ElementTree.ParseError as e:
+            root = ET.fromstring(ovf_env_xml)  # nosec B314
+        except ET.ParseError as e:
             raise errors.ReportableErrorOvfParsingException(exception=e) from e
 
         # If there's no provisioning section, it's not Azure ovf-env.xml.
-        if not root.find("./wa:ProvisioningSection", cls.NAMESPACES):
+        if root.find("./wa:ProvisioningSection", cls.NAMESPACES) is None:
             raise NonAzureDataSource(
                 "Ignoring non-Azure ovf-env.xml: ProvisioningSection not found"
             )

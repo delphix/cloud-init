@@ -104,14 +104,9 @@ class DataSourceGCE(sources.DataSource):
                 try:
                     with network_context:
                         try:
-                            ret = util.log_time(
-                                LOG.debug,
-                                "Crawl of GCE metadata service",
-                                read_md,
-                                kwargs={
-                                    "address": self.metadata_address,
-                                    "url_params": url_params,
-                                },
+                            ret = read_md(
+                                address=self.metadata_address,
+                                url_params=url_params,
                             )
                         except Exception as e:
                             LOG.debug(
@@ -131,15 +126,7 @@ class DataSourceGCE(sources.DataSource):
                     "Did not find a fallback interface on %s.", self.cloud_name
                 )
         else:
-            ret = util.log_time(
-                LOG.debug,
-                "Crawl of GCE metadata service",
-                read_md,
-                kwargs={
-                    "address": self.metadata_address,
-                    "url_params": url_params,
-                },
-            )
+            ret = read_md(address=self.metadata_address, url_params=url_params)
 
         if not ret["success"]:
             if ret["platform_reports_gce"]:
@@ -226,14 +213,14 @@ def _has_expired(public_key):
         return False
 
     expire_str = json_obj["expireOn"]
-    format_str = "%Y-%m-%dT%H:%M:%S+0000"
+    format_str = "%Y-%m-%dT%H:%M:%S%z"
     try:
         expire_time = datetime.datetime.strptime(expire_str, format_str)
     except ValueError:
         return False
 
     # Expire the key if and only if we have exceeded the expiration timestamp.
-    return datetime.datetime.utcnow() > expire_time
+    return datetime.datetime.now(datetime.timezone.utc) > expire_time
 
 
 def _parse_public_keys(public_keys_data, default_user=None):
