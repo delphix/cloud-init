@@ -1,11 +1,24 @@
-cloud-init (24.3.1-0ubuntu0~24.04.2) noble; urgency=medium
+cloud-init (24.4-0ubuntu1~24.04.2) noble; urgency=medium
 
-  * Bug fix release (LP: #2081124):
-    d/p/cpick-hotplugd-systemd-ordering-fix.patch: fix systemd ordering cycle
-    issues with network cloud-init-hotplugd.socket, NetworkManager and
-    dbus.socket by adding DefaultDependencies=no to cloud-init-hotplugd.socket.
+  * Fix d/p/no-single-process.patch
+    - It didn't contain removal of cloud-init-network.service nor
+      the removal of the network.service reference
 
- -- Chad Smith <chad.smith@canonical.com>  Fri, 20 Sep 2024 16:07:14 -0600
+ -- James Falcon <james.falcon@canonical.com>  Mon, 02 Dec 2024 13:09:22 -0600
+
+cloud-init (24.4-0ubuntu1~24.04.1) noble; urgency=medium
+
+  * add d/p/grub-dpkg-support.patch
+    - Revert the removal of grub-dpkg from default modules
+  * refresh patches:
+    - d/p/deprecation-version-boundary.patch
+    - d/p/no-nocloud-network.patch
+    - d/p/no-single-process.patch
+  * Upstream snapshot based on 24.4. (LP: #2089577).
+    List of changes from upstream can be found at
+    https://raw.githubusercontent.com/canonical/cloud-init/24.4/ChangeLog
+
+ -- James Falcon <james.falcon@canonical.com>  Tue, 26 Nov 2024 07:46:41 -0600
 
 cloud-init (24.3.1-0ubuntu0~24.04.1) noble; urgency=medium
 

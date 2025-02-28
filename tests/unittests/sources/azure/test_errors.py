@@ -3,7 +3,7 @@
 import base64
 import datetime
 from unittest import mock
-from xml.etree import ElementTree
+from xml.etree import ElementTree as ET
 
 import pytest
 import requests
@@ -20,9 +20,9 @@ def agent_string():
 
 @pytest.fixture()
 def fake_utcnow():
-    timestamp = datetime.datetime.utcnow()
+    timestamp = datetime.datetime.now(datetime.timezone.utc)
     with mock.patch.object(errors, "datetime", autospec=True) as m:
-        m.utcnow.return_value = timestamp
+        m.now.return_value = timestamp
         yield timestamp
 
 
@@ -211,8 +211,8 @@ def test_imds_metadata_parsing_exception():
 def test_ovf_parsing_exception():
     error = None
     try:
-        ElementTree.fromstring("<badxml")
-    except ElementTree.ParseError as exception:
+        ET.fromstring("<badxml")
+    except ET.ParseError as exception:
         error = errors.ReportableErrorOvfParsingException(exception=exception)
 
     assert (

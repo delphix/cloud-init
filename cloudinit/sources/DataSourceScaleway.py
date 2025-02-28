@@ -19,7 +19,7 @@ from requests.exceptions import ConnectionError
 from urllib3.connection import HTTPConnection
 from urllib3.poolmanager import PoolManager
 
-from cloudinit import dmi, sources, url_helper, util
+from cloudinit import dmi, performance, sources, url_helper, util
 from cloudinit.event import EventScope, EventType
 from cloudinit.net.dhcp import NoDHCPLeaseError
 from cloudinit.net.ephemeral import EphemeralDHCPv4, EphemeralIPv6Network
@@ -255,30 +255,6 @@ class DataSourceScaleway(sources.DataSource):
         if "scaleway" in cmdline:
             return True
 
-    def _set_urls_on_ip_version(self, proto, urls):
-
-        if proto not in ["ipv4", "ipv6"]:
-            LOG.debug("Invalid IP version : %s", proto)
-            return []
-
-        filtered_urls = []
-        for url in urls:
-            # Numeric IPs
-            address = urlparse(url).netloc
-            if address[0] == "[":
-                address = address[1:-1]
-            addr_proto = socket.getaddrinfo(
-                address, None, proto=socket.IPPROTO_TCP
-            )[0][0]
-            if addr_proto == socket.AF_INET and proto == "ipv4":
-                filtered_urls += [url]
-                continue
-            elif addr_proto == socket.AF_INET6 and proto == "ipv6":
-                filtered_urls += [url]
-                continue
-
-        return filtered_urls
-
     def _get_data(self):
 
         # The DataSource uses EventType.BOOT so we are called more than once.
@@ -293,18 +269,12 @@ class DataSourceScaleway(sources.DataSource):
                     self.distro,
                     self.distro.fallback_interface,
                 ) as ipv4:
-                    util.log_time(
-                        logfunc=LOG.debug,
-                        msg="Set api-metadata URL depending on "
-                        "IPv4 availability",
-                        func=self._set_metadata_url,
-                        args=(self.metadata_urls,),
-                    )
-                    util.log_time(
-                        logfunc=LOG.debug,
-                        msg="Crawl of metadata service",
-                        func=self._crawl_metadata,
-                    )
+                    with performance.Timed(
+                        "Setting api-metadata URL "
+                        "depending on IPv4 availability"
+                    ):
+                        self._set_metadata_url(self.metadata_urls)
+                    self._crawl_metadata()
                     self.ephemeral_fixed_address = ipv4["fixed-address"]
                     self.metadata["net_in_use"] = "ipv4"
             except (
@@ -324,18 +294,12 @@ class DataSourceScaleway(sources.DataSource):
                     self.distro,
                     self.distro.fallback_interface,
                 ):
-                    util.log_time(
-                        logfunc=LOG.debug,
-                        msg="Set api-metadata URL depending on "
+                    with performance.Timed(
+                        "Setting api-metadata URL depending on "
                         "IPv6 availability",
-                        func=self._set_metadata_url,
-                        args=(self.metadata_urls,),
-                    )
-                    util.log_time(
-                        logfunc=LOG.debug,
-                        msg="Crawl of metadata service",
-                        func=self._crawl_metadata,
-                    )
+                    ):
+                        self._set_metadata_url(self.metadata_urls)
+                    self._crawl_metadata()
                     self.metadata["net_in_use"] = "ipv6"
             except ConnectionError:
                 return False
@@ -367,9 +331,15 @@ class DataSourceScaleway(sources.DataSource):
                 if ip["address"] == self.ephemeral_fixed_address:
                     ip_cfg["dhcp4"] = True
                     # Force addition of a route to the metadata API
-                    ip_cfg["routes"] = [
-                        {"to": "169.254.42.42/32", "via": "62.210.0.1"}
-                    ]
+                    route = {
+                        "on-link": True,
+                        "to": "169.254.42.42/32",
+                        "via": "62.210.0.1",
+                    }
+                    if "routes" in ip_cfg.keys():
+                        ip_cfg["routes"] += [route]
+                    else:
+                        ip_cfg["routes"] = [route]
                 else:
                     if "addresses" in ip_cfg.keys():
                         ip_cfg["addresses"] += (
