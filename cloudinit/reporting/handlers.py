@@ -10,11 +10,11 @@ import struct
 import threading
 import time
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from threading import Event
 from typing import Union
 
-from cloudinit import url_helper, util
+from cloudinit import performance, url_helper, util
 from cloudinit.registry import DictRegistry
 
 LOG = logging.getLogger(__name__)
@@ -98,7 +98,7 @@ class WebHookHandler(ReportingHandler):
         self.ssl_details = util.fetch_ssl_details()
 
         self.flush_requested = Event()
-        self.queue = queue.Queue()
+        self.queue: queue.Queue = queue.Queue()
         self.event_processor = threading.Thread(target=self.process_requests)
         self.event_processor.daemon = True
         self.event_processor.start()
@@ -204,7 +204,7 @@ class HyperVKvpReportingHandler(ReportingHandler):
         )
 
         self._event_types = event_types
-        self.q = queue.Queue()
+        self.q: queue.Queue = queue.Queue()
         self.incarnation_no = self._get_incarnation_no()
         self.event_key_prefix = "{0}|{1}".format(
             self.EVENT_PREFIX, self.incarnation_no
@@ -310,7 +310,9 @@ class HyperVKvpReportingHandler(ReportingHandler):
         return {"key": k, "value": v}
 
     def _append_kvp_item(self, record_data):
-        with open(self._kvp_file_path, "ab") as f:
+        with performance.Timed(f"Appending {self._kvp_file_path}"), open(
+            self._kvp_file_path, "ab"
+        ) as f:
             fcntl.flock(f, fcntl.LOCK_EX)
             for data in record_data:
                 f.write(data)
@@ -373,7 +375,9 @@ class HyperVKvpReportingHandler(ReportingHandler):
             "name": event.name,
             "type": event.event_type,
             "ts": (
-                datetime.utcfromtimestamp(event.timestamp).isoformat() + "Z"
+                datetime.fromtimestamp(
+                    event.timestamp, timezone.utc
+                ).isoformat()
             ),
         }
         if hasattr(event, self.RESULT_KEY):

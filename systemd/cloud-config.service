@@ -1,0 +1,20 @@
+[Unit]
+# https://docs.cloud-init.io/en/latest/explanation/boot.html
+Description=Cloud-init: Config Stage
+After=network-online.target cloud-config.target
+Wants=network-online.target cloud-config.target
+ConditionPathExists=!/etc/cloud/cloud-init.disabled
+ConditionKernelCommandLine=!cloud-init=disabled
+ConditionEnvironment=!KERNEL_CMDLINE=cloud-init=disabled
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/cloud-init modules --mode=config
+RemainAfterExit=yes
+TimeoutSec=0
+
+# Output needs to appear in instance console output
+StandardOutput=journal+console
+
+[Install]
+WantedBy=cloud-init.target

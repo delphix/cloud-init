@@ -1,4 +1,5 @@
 from collections import namedtuple
+from typing import Any, NamedTuple
 from unittest import mock
 from unittest.mock import call
 
@@ -19,6 +20,13 @@ hotplug_args = namedtuple("hotplug_args", "udevaction, subsystem, devpath")
 FAKE_MAC = "11:22:33:44:55:66"
 
 
+class Mocks(NamedTuple):
+    m_init: Any
+    m_network_state: Any
+    m_activator: Any
+    m_sleep: Any
+
+
 @pytest.fixture
 def mocks():
     m_init = mock.MagicMock(spec=Init)
@@ -28,6 +36,7 @@ def mocks():
     m_datasource = mock.MagicMock(spec=DataSource)
     m_datasource.distro = m_distro
     m_datasource.skip_hotplug_detect = False
+    m_datasource.hotplug_retry_settings = DataSource.hotplug_retry_settings
     m_init.datasource = m_datasource
     m_init.fetch.return_value = m_datasource
 
@@ -54,7 +63,7 @@ def mocks():
     parse_net.start()
     m_sleep = sleep.start()
 
-    yield namedtuple("mocks", "m_init m_network_state m_activator m_sleep")(
+    yield Mocks(
         m_init=m_init,
         m_network_state=m_network_state,
         m_activator=m_activator,

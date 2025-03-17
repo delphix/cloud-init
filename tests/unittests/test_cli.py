@@ -25,7 +25,7 @@ FakeArgs = namedtuple("FakeArgs", ["action", "local", "mode"])
 def disable_setup_logging():
     # setup_basic_logging can change the logging level to WARNING, so
     # ensure it is always mocked
-    with mock.patch(f"{M_PATH}log.setup_basic_logging", autospec=True):
+    with mock.patch(f"{M_PATH}loggers.setup_basic_logging", autospec=True):
         yield
 
 
@@ -33,13 +33,12 @@ def disable_setup_logging():
 def mock_status_wrapper(mocker, tmpdir):
     link_d = os.path.join(tmpdir, "link")
     data_d = os.path.join(tmpdir, "data")
-    with mocker.patch(
+    mocker.patch(
         "cloudinit.cmd.main.read_cfg_paths",
         return_value=mock.Mock(get_cpath=lambda _: data_d),
-    ), mocker.patch(
-        "cloudinit.cmd.main.os.path.normpath", return_value=link_d
-    ):
-        yield Tmpdir(tmpdir, link_d, data_d)
+    )
+    mocker.patch("cloudinit.cmd.main.os.path.normpath", return_value=link_d)
+    yield Tmpdir(tmpdir, link_d, data_d)
 
 
 class TestCLI:
@@ -205,7 +204,7 @@ class TestCLI:
             ),
         ),
     )
-    @mock.patch("cloudinit.cmd.main.log.setup_basic_logging")
+    @mock.patch("cloudinit.cmd.main.loggers.setup_basic_logging")
     def test_subcommands_log_to_stderr_via_setup_basic_logging(
         self, setup_basic_logging, subcommand, log_to_stderr, mocks
     ):
@@ -303,90 +302,8 @@ class TestCLI:
         # Known whitebox output from schema subcommand
         assert (
             "Error:\n"
-            "Expected one of --config-file, --system or --docs arguments\n"
-            in err
+            "Expected one of --config-file or --system arguments\n" in err
         )
-
-    @pytest.mark.parametrize(
-        "args,expected_doc_sections,is_error",
-        [
-            pytest.param(
-                ["all"],
-                [
-                    "**Supported distros:** all",
-                    "**Supported distros:** "
-                    "almalinux, alpine, aosc, azurelinux, "
-                    "centos, cloudlinux, cos, debian, eurolinux, fedora, "
-                    "freebsd, mariner, miraclelinux, openbsd, openeuler, "
-                    "OpenCloudOS, openmandriva, opensuse, opensuse-microos, "
-                    "opensuse-tumbleweed, opensuse-leap, photon, rhel, rocky, "
-                    "sle_hpc, sle-micro, sles, TencentOS, ubuntu, virtuozzo",
-                    " **resize_rootfs:** ",
-                    "(``true``/``false``/``noblock``)",
-                    "runcmd:\n         - [ls, -l, /]\n",
-                ],
-                False,
-                id="all_spot_check",
-            ),
-            pytest.param(
-                ["cc_runcmd"],
-                ["\nRuncmd\n------\n\nRun arbitrary commands\n"],
-                False,
-                id="single_spot_check",
-            ),
-            pytest.param(
-                [
-                    "cc_runcmd",
-                    "cc_resizefs",
-                ],
-                [
-                    "\nRuncmd\n------\n\nRun arbitrary commands",
-                    "\nResizefs\n--------\n\nResize filesystem",
-                ],
-                False,
-                id="multiple_spot_check",
-            ),
-            pytest.param(
-                ["garbage_value"],
-                ["Invalid --docs value"],
-                True,
-                id="bad_arg_fails",
-            ),
-        ],
-    )
-    @mock.patch("cloudinit.stages.Init._read_cfg", return_value={})
-    def test_wb_schema_subcommand(
-        self,
-        m_read_cfg,
-        args,
-        expected_doc_sections,
-        is_error,
-        mocker,
-        request,
-    ):
-        """Validate that doc content has correct values."""
-
-        # Note: patchStdoutAndStderr() is convenient for reducing boilerplate,
-        # but inspecting the code for debugging is not ideal
-        # contextlib.redirect_stdout() provides similar behavior as a context
-        # manager
-        out_or_err = io.StringIO()
-        redirecter = (
-            contextlib.redirect_stderr
-            if is_error
-            else contextlib.redirect_stdout
-        )
-        paths = helpers.Paths(
-            {"docs_dir": os.path.join(request.config.rootdir, "doc")}
-        )
-        mocker.patch(
-            "cloudinit.config.schema.read_cfg_paths", return_value=paths
-        )
-        with redirecter(out_or_err):
-            self._call_main(["cloud-init", "schema", "--docs"] + args)
-        out_or_err = out_or_err.getvalue()
-        for expected in expected_doc_sections:
-            assert expected in out_or_err
 
     @mock.patch("cloudinit.cmd.main.main_single")
     def test_single_subcommand(self, m_main_single):

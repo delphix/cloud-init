@@ -5,9 +5,10 @@ import glob
 import logging
 import os
 import re
+from contextlib import suppress
 from typing import Optional
 
-from cloudinit import subp, util
+from cloudinit import performance, subp, util
 from cloudinit.net import ParserError, renderer, subnet_is_ipv6
 from cloudinit.net.network_state import NetworkState
 
@@ -208,8 +209,7 @@ def _parse_deb_config_data(ifaces, contents, src_dir, src_path):
                     )
                 ]
                 for entry in dir_contents:
-                    with open(entry, "r") as fp:
-                        src_data = fp.read().strip()
+                    src_data = util.load_text_file(entry).strip()
                     abs_entry = os.path.abspath(entry)
                     _parse_deb_config_data(
                         ifaces, src_data, os.path.dirname(abs_entry), abs_entry
@@ -308,8 +308,9 @@ def _parse_deb_config_data(ifaces, contents, src_dir, src_path):
             ifaces[iface]["auto"] = False
 
 
+@performance.timed("Converting eni data")
 def convert_eni_data(eni_data):
-    # return a network config representation of what is in eni_data
+    """Return a network config representation of what is in eni_data"""
     ifaces = {}
     _parse_deb_config_data(ifaces, eni_data, src_dir=None, src_path=None)
     return _ifaces_to_net_config_data(ifaces)
@@ -421,6 +422,11 @@ class Renderer(renderer.Renderer):
         return content
 
     def _render_iface(self, iface, render_hwaddress=False):
+        iface = copy.deepcopy(iface)
+
+        # Remove irrelevant keys
+        with suppress(KeyError):
+            iface.pop("config_id")
         sections = []
         subnets = iface.get("subnets", {})
         accept_ra = iface.pop("accept-ra", None)
@@ -568,26 +574,6 @@ class Renderer(renderer.Renderer):
                 content=self._render_persistent_net(network_state),
                 preserve_mode=True,
             )
-
-
-def network_state_to_eni(network_state, header=None, render_hwaddress=False):
-    # render the provided network state, return a string of equivalent eni
-    eni_path = "etc/network/interfaces"
-    renderer = Renderer(
-        config={
-            "eni_path": eni_path,
-            "eni_header": header,
-            "netrules_path": None,
-        }
-    )
-    if not header:
-        header = ""
-    if not header.endswith("\n"):
-        header += "\n"
-    contents = renderer._render_interfaces(
-        network_state, render_hwaddress=render_hwaddress
-    )
-    return header + contents
 
 
 def available(target=None):

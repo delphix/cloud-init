@@ -76,13 +76,10 @@ class DataSourceExoscale(sources.DataSource):
 
         @returns: Dictionary of crawled metadata content.
         """
-        metadata_ready = util.log_time(
-            logfunc=LOG.info,
-            msg="waiting for the metadata service",
-            func=self.wait_for_metadata_service,
-        )
+        metadata_ready = self.wait_for_metadata_service()
 
         if not metadata_ready:
+            LOG.error("Unable to get response from metadata service")
             return {}
 
         return read_metadata(
@@ -100,11 +97,7 @@ class DataSourceExoscale(sources.DataSource):
         Please refer to the datasource documentation for details on how the
         metadata server and password server are crawled.
         """
-        data = util.log_time(
-            logfunc=LOG.debug,
-            msg="Crawl of metadata service",
-            func=self.crawl_metadata,
-        )
+        data = self.crawl_metadata()
 
         if not data:
             return False

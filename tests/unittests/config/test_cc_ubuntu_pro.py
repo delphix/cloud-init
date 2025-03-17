@@ -1,4 +1,5 @@
 # This file is part of cloud-init. See LICENSE file for license information.
+import importlib.metadata
 import json
 import logging
 import re
@@ -447,13 +448,10 @@ class TestUbuntuProSchema:
                         " Use **ubuntu_pro** instead"
                     ),
                 ),
-                # If __version__ no longer exists on jsonschema, that means
-                # we're using a high enough version of jsonschema to not need
-                # to skip this test.
                 (
                     JSONSCHEMA_SKIP_REASON
                     if lifecycle.Version.from_str(
-                        getattr(jsonschema, "__version__", "999")
+                        importlib.metadata.version("jsonschema")
                     )
                     < lifecycle.Version(4)
                     else ""
@@ -1154,13 +1152,11 @@ class TestShouldAutoAttach:
         m_should_auto_attach.should_auto_attach.return_value.should_auto_attach = (  # noqa: E501
             should_auto_attach_value
         )
-        if expected_result is None:  # Pro API does respond
+        if expected_result is None:
+            # Pro API does respond
             assert should_auto_attach_value == _should_auto_attach(ua_section)
-            assert (
-                "Checking if the instance can be attached to Ubuntu Pro took"
-                in caplog.text
-            )
-        else:  # cloud-init does respond
+        else:
+            # cloud-init does respond
             assert expected_result == _should_auto_attach(ua_section)
             assert not caplog.text
 
@@ -1191,7 +1187,6 @@ class TestAutoAttach:
             mock.Mock()
         )
         _auto_attach(self.ua_section)
-        assert "Attaching to Ubuntu Pro took" in caplog.text
 
 
 class TestAttach:
