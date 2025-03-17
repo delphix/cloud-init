@@ -421,7 +421,7 @@ class DataSourceOracle(sources.DataSource):
                 # Are there plans to switch to v2?
                 interface_config = {
                     "mtu": MTU,
-                    "match": {"macaddress": mac_address},
+                    "match": {"name": name},
                     "dhcp6": False,
                     "dhcp4": is_primary,
                 }
