@@ -12,7 +12,7 @@ import pytest
 
 from tests.integration_tests.clouds import IntegrationCloud
 from tests.integration_tests.releases import CURRENT_RELEASE, IS_UBUNTU
-from tests.integration_tests.util import verify_clean_log
+from tests.integration_tests.util import verify_clean_boot, verify_clean_log
 
 USER_DATA = """\
 #cloud-config
@@ -65,7 +65,7 @@ class TestPackageUpdateUpgradeInstall:
             "grep ^Commandline: /var/log/apt/history.log"
         )
         assert re.search(
-            "Commandline: /usr/bin/apt-get --option=Dpkg::Options"
+            "Commandline: (/usr/bin/)?apt-get --option=Dpkg::Options"
             "::=--force-confold --option=Dpkg::options::=--force-unsafe-io "
             r"--assume-yes --quiet install (sl|tree) (tree|sl)",
             out,
@@ -122,6 +122,7 @@ class TestPackageUpdateUpgradeInstall:
 
 
 HELLO_VERSIONS_BY_RELEASE = {
+    "plucky": "2.10-3build2",
     "oracular": "2.10-3build2",
     "noble": "2.10-3build1",
     "mantic": "2.10-3",
@@ -146,6 +147,7 @@ def test_versioned_packages_are_installed(session_cloud: IntegrationCloud):
         user_data=VERSIONED_USER_DATA.format(pkg_version=pkg_version)
     ) as client:
         verify_clean_log(client.read_from_file("/var/log/cloud-init.log"))
+        verify_clean_boot(client)
         assert f"hello	{pkg_version}" == client.execute(
             "dpkg-query -W hello"
         ), (

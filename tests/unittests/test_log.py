@@ -10,8 +10,9 @@ from typing import cast
 
 import pytest
 
-from cloudinit import lifecycle, log, util
+from cloudinit import lifecycle, util
 from cloudinit.analyze.dump import CLOUD_INIT_ASCTIME_FMT
+from cloudinit.log import loggers
 from tests.unittests.helpers import CiTestCase
 
 
@@ -24,7 +25,7 @@ class TestCloudInitLogger(CiTestCase):
         self.ci_logs = io.StringIO()
         self.ci_root = logging.getLogger()
         console = logging.StreamHandler(self.ci_logs)
-        console.setFormatter(logging.Formatter(log.DEFAULT_LOG_FORMAT))
+        console.setFormatter(logging.Formatter(loggers.DEFAULT_LOG_FORMAT))
         console.setLevel(logging.DEBUG)
         self.ci_root.addHandler(console)
         self.ci_root.setLevel(logging.DEBUG)
@@ -44,9 +45,22 @@ class TestCloudInitLogger(CiTestCase):
         # parsed dt : 2017-08-23 14:19:43.069000
         # utc_after : 2017-08-23 14:19:43.570064
 
-        utc_before = datetime.datetime.utcnow() - datetime.timedelta(0, 0.5)
+        def remove_tz(_dt: datetime.datetime) -> datetime.datetime:
+            """
+            Removes the timezone object from an aware datetime dt without
+            conversion of date and time data
+            """
+            return _dt.replace(tzinfo=None)
+
+        utc_before = remove_tz(
+            datetime.datetime.now(datetime.timezone.utc)
+            - datetime.timedelta(0, 0.5)
+        )
         self.LOG.error("Test message")
-        utc_after = datetime.datetime.utcnow() + datetime.timedelta(0, 0.5)
+        utc_after = remove_tz(
+            datetime.datetime.now(datetime.timezone.utc)
+            + datetime.timedelta(0, 0.5)
+        )
 
         # extract timestamp from log:
         # 2017-08-23 14:19:43,069 - test_log.py[ERROR]: Test message
@@ -64,13 +78,13 @@ class TestCloudInitLogger(CiTestCase):
 
 class TestDeprecatedLogs:
     def test_deprecated_log_level(self, caplog):
-        logger = cast(log.CustomLoggerType, logging.getLogger())
+        logger = cast(loggers.CustomLoggerType, logging.getLogger())
         logger.deprecated("deprecated message")
         assert "DEPRECATED" == caplog.records[0].levelname
         assert "deprecated message" in caplog.text
 
     def test_trace_log_level(self, caplog):
-        logger = cast(log.CustomLoggerType, logging.getLogger())
+        logger = cast(loggers.CustomLoggerType, logging.getLogger())
         logger.setLevel(logging.NOTSET)
         logger.trace("trace message")
         assert "TRACE" == caplog.records[0].levelname
@@ -124,7 +138,7 @@ class TestDeprecatedLogs:
         )
 
     def test_log_deduplication(self, caplog):
-        log.define_extra_loggers()
+        loggers.define_extra_loggers()
         lifecycle.deprecate(
             deprecated="stuff",
             deprecated_version="19.1",
@@ -146,6 +160,6 @@ class TestDeprecatedLogs:
 
 def test_logger_prints_to_stderr(capsys):
     message = "to stdout"
-    log.setup_basic_logging()
+    loggers.setup_basic_logging()
     logging.getLogger().warning(message)
     assert message in capsys.readouterr().err

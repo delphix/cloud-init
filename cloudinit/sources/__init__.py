@@ -17,9 +17,17 @@ import pickle
 import re
 from collections import namedtuple
 from enum import Enum, unique
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, NamedTuple, Optional, Tuple, Union
 
-from cloudinit import atomic_helper, dmi, importer, lifecycle, net, type_utils
+from cloudinit import (
+    atomic_helper,
+    dmi,
+    importer,
+    lifecycle,
+    net,
+    performance,
+    type_utils,
+)
 from cloudinit import user_data as ud
 from cloudinit import util
 from cloudinit.atomic_helper import write_json
@@ -185,6 +193,14 @@ DataSourceHostname = namedtuple(
 )
 
 
+class HotplugRetrySettings(NamedTuple):
+    """in seconds"""
+
+    force_retry: bool
+    sleep_period: int
+    sleep_total: int
+
+
 class DataSource(CloudInitPickleMixin, metaclass=abc.ABCMeta):
 
     dsmode = DSMODE_NETWORK
@@ -195,7 +211,7 @@ class DataSource(CloudInitPickleMixin, metaclass=abc.ABCMeta):
     dsname = "_undef"
 
     # Cached cloud_name as determined by _get_cloud_name
-    _cloud_name = None
+    _cloud_name: Optional[str] = None
 
     # Cached cloud platform api type: e.g. ec2, openstack, kvm, lxd, azure etc.
     _platform_type = None
@@ -308,6 +324,14 @@ class DataSource(CloudInitPickleMixin, metaclass=abc.ABCMeta):
     # in the updated metadata
     skip_hotplug_detect = False
 
+    # AWS interface data propagates to the IMDS without a syncronization method
+    # Since no better alternative exists, use a datasource-specific mechanism
+    # which retries periodically for a set amount of time - apply configuration
+    # as needed. Do not force retry on other datasources.
+    #
+    # https://github.com/amazonlinux/amazon-ec2-net-utils/blob/601bc3513fa7b8a6ab46d9496b233b079e55f2e9/lib/lib.sh#L483
+    hotplug_retry_settings = HotplugRetrySettings(False, 0, 0)
+
     # Extra udev rules for cc_install_hotplug
     extra_hotplug_udev_rules: Optional[str] = None
 
@@ -319,12 +343,12 @@ class DataSource(CloudInitPickleMixin, metaclass=abc.ABCMeta):
         self.paths = paths
         self.userdata: Optional[Any] = None
         self.metadata: dict = {}
-        self.userdata_raw: Optional[str] = None
+        self.userdata_raw: Optional[Union[str, bytes]] = None
         self.vendordata = None
         self.vendordata2 = None
         self.vendordata_raw = None
         self.vendordata2_raw = None
-        self.metadata_address = None
+        self.metadata_address: Optional[str] = None
         self.network_json: Optional[str] = UNSET
         self.ec2_metadata = UNSET
 
@@ -352,6 +376,7 @@ class DataSource(CloudInitPickleMixin, metaclass=abc.ABCMeta):
             "skip_hotplug_detect": False,
             "vendordata2": None,
             "vendordata2_raw": None,
+            "hotplug_retry_settings": HotplugRetrySettings(False, 0, 0),
         }
         for key, value in expected_attrs.items():
             if not hasattr(self, key):
@@ -475,6 +500,7 @@ class DataSource(CloudInitPickleMixin, metaclass=abc.ABCMeta):
         if not attr_defaults:
             self._dirty_cache = False
 
+    @performance.timed("Getting metadata", log_mode="always")
     def get_data(self) -> bool:
         """Datasources implement _get_data to setup metadata and userdata_raw.
 

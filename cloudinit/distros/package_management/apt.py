@@ -174,7 +174,6 @@ class Apt(PackageManager):
         full_command.extend(pkglist)
 
         self._wait_for_apt_command(
-            short_cmd=command,
             subp_kwargs={
                 "args": full_command,
                 "update_env": self.environment,
@@ -199,11 +198,10 @@ class Apt(PackageManager):
         return True
 
     def _wait_for_apt_command(
-        self, short_cmd, subp_kwargs, timeout=APT_LOCK_WAIT_TIMEOUT
+        self, subp_kwargs, timeout=APT_LOCK_WAIT_TIMEOUT
     ):
         """Wait for apt install to complete.
 
-        short_cmd: Name of command like "upgrade" or "install"
         subp_kwargs: kwargs to pass to subp
         """
         start_time = time.monotonic()
@@ -214,14 +212,7 @@ class Apt(PackageManager):
                 continue
             LOG.debug("APT lock available")
             try:
-                # Allow the output of this to flow outwards (not be captured)
-                log_msg = f'apt-{short_cmd} [{" ".join(subp_kwargs["args"])}]'
-                return util.log_time(
-                    logfunc=LOG.debug,
-                    msg=log_msg,
-                    func=subp.subp,
-                    kwargs=subp_kwargs,
-                )
+                return subp.subp(**subp_kwargs)
             except subp.ProcessExecutionError:
                 # Even though we have already waited for the apt lock to be
                 # available, it is possible that the lock was acquired by

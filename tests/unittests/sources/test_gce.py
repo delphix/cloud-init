@@ -341,8 +341,8 @@ class TestDataSourceGCE(test_helpers.ResponsesTestCase):
 
     def test_has_expired(self):
         def _get_timestamp(days):
-            format_str = "%Y-%m-%dT%H:%M:%S+0000"
-            today = datetime.datetime.now()
+            format_str = "%Y-%m-%dT%H:%M:%S%z"
+            today = datetime.datetime.now(datetime.timezone.utc)
             timestamp = today + datetime.timedelta(days=days)
             return timestamp.strftime(format_str)
 
@@ -418,7 +418,7 @@ class TestDataSourceGCE(test_helpers.ResponsesTestCase):
         ds._get_data()
         assert m_dhcp.call_count == 1
 
-    @mock.patch(M_PATH + "util.log_time")
+    @mock.patch(M_PATH + "read_md")
     @mock.patch(
         M_PATH + "EphemeralDHCPv4",
         autospec=True,

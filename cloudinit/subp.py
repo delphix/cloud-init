@@ -5,10 +5,11 @@ import collections
 import logging
 import os
 import subprocess
-import time
 from errno import ENOEXEC
 from io import TextIOWrapper
 from typing import List, Optional, Union
+
+from cloudinit import performance, signal_handler
 
 LOG = logging.getLogger(__name__)
 
@@ -256,24 +257,19 @@ def subp(
             x if isinstance(x, bytes) else x.encode("utf-8") for x in args
         ]
     try:
-        before = time.monotonic()
-        sp = subprocess.Popen(
-            bytes_args,
-            stdout=stdout,
-            stderr=stderr,
-            stdin=stdin,
-            env=env,
-            shell=shell,
-            cwd=cwd,
-        )
-        out, err = sp.communicate(data, timeout=timeout)
-        total = time.monotonic() - before
-        if total > 0.1:
-            LOG.debug(
-                "%s took %.3ss to run",
-                logstring if logstring else args,
-                total,
+        with performance.Timed(
+            "Running {}".format(logstring if logstring else args)
+        ):
+            sp = subprocess.Popen(
+                bytes_args,
+                stdout=stdout,
+                stderr=stderr,
+                stdin=stdin,
+                env=env,
+                shell=shell,
+                cwd=cwd,
             )
+            out, err = sp.communicate(data, timeout=timeout)
     except OSError as e:
         raise ProcessExecutionError(
             cmd=args,
@@ -372,7 +368,8 @@ def runparts(dirp, skip_no_exist=True, exe_prefix=None):
         if is_exe(exe_path):
             attempted.append(exe_path)
             try:
-                subp(prefix + [exe_path], capture=False)
+                with signal_handler.suspend_crash():
+                    subp(prefix + [exe_path], capture=False)
             except ProcessExecutionError as e:
                 LOG.debug(e)
                 failed.append(exe_name)
