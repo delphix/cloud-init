@@ -17,6 +17,7 @@ Before=firewalld.target
 Before=sysinit.target
 {% endif %}
 Conflicts=shutdown.target
+RequiresMountsFor=/var/lib/cloud
 ConditionPathExists=!/etc/cloud/cloud-init.disabled
 ConditionKernelCommandLine=!cloud-init=disabled
 ConditionEnvironment=!KERNEL_CMDLINE=cloud-init=disabled
