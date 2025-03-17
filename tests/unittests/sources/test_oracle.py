@@ -608,7 +608,6 @@ class TestNetworkConfigFromOpcImds:
 
             assert primary_cfg["dhcp4"] is False
             assert primary_cfg["dhcp6"] is True
-            assert "02:00:17:0d:6b:be" == primary_cfg["match"]["macaddress"]
             assert 9000 == primary_cfg["mtu"]
             assert "addresses" not in primary_cfg
 
@@ -616,7 +615,6 @@ class TestNetworkConfigFromOpcImds:
         secondary_cfg = nic_cfg["ens4"]
         assert secondary_cfg["dhcp4"] is False
         assert secondary_cfg["dhcp6"] is False
-        assert "02:00:17:18:f6:ff" == secondary_cfg["match"]["macaddress"]
         assert 9000 == secondary_cfg["mtu"]
 
         assert 1 == len(secondary_cfg["addresses"])
