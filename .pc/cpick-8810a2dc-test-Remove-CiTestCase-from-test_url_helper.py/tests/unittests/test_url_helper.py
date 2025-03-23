@@ -2,18 +2,16 @@
 # pylint: disable=attribute-defined-outside-init
 
 import logging
-import pathlib
 from functools import partial
 from threading import Event
 from time import process_time
-from unittest import mock
 from unittest.mock import ANY, call
 
 import pytest
 import requests
 import responses
 
-from cloudinit import url_helper, util, version
+from cloudinit import util, version
 from cloudinit.url_helper import (
     REDACTED,
     UrlError,
@@ -25,6 +23,7 @@ from cloudinit.url_helper import (
     readurl,
     wait_for_url,
 )
+from tests.unittests.helpers import CiTestCase, mock, skipIf
 
 try:
     import oauthlib
@@ -38,15 +37,7 @@ except ImportError:
 M_PATH = "cloudinit.url_helper."
 
 
-def exception_cb(exception):
-    return True
-
-
-def headers_cb(url):
-    return {"cb_key": "cb_value"}
-
-
-class TestOAuthHeaders:
+class TestOAuthHeaders(CiTestCase):
     def test_oauth_headers_raises_not_implemented_when_oathlib_missing(self):
         """oauth_headers raises a NotImplemented error when oauth absent."""
         with mock.patch.dict("sys.modules", {"oauthlib": None}):
@@ -54,9 +45,7 @@ class TestOAuthHeaders:
                 oauth_headers(1, 2, 3, 4, 5)
         assert "oauth support is not available" == str(context_manager.value)
 
-    @pytest.mark.skipif(
-        _missing_oauthlib_dep, reason="No python-oauthlib dependency"
-    )
+    @skipIf(_missing_oauthlib_dep, "No python-oauthlib dependency")
     @mock.patch("oauthlib.oauth1.Client")
     def test_oauth_headers_calls_oathlibclient_when_available(self, m_client):
         """oauth_headers calls oaut1.hClient.sign with the provided url."""
@@ -78,100 +67,17 @@ class TestOAuthHeaders:
         assert "url" == return_value
 
 
-class TestOauthUrlHelper:
-    @responses.activate
-    def test_wrapped_readurl(self):
-        """Test the wrapped readurl happy path."""
-        oauth_helper = url_helper.OauthUrlHelper()
-        url = "http://myhost/path"
-        data = b"This is my url content"
-        responses.add(responses.GET, url, data)
-        assert oauth_helper.readurl(url).contents == data
+class TestReadFileOrUrl(CiTestCase):
 
-    @responses.activate
-    def test_default_exception_cb(self, tmp_path, caplog):
-        """Test that the default exception_cb is used."""
-        skew_file = tmp_path / "skew.json"
-        oauth_helper = url_helper.OauthUrlHelper(skew_data_file=skew_file)
-        url = "http://myhost/path"
-        data = b"This is my url content"
-        response = requests.Response()
-        response.status_code = 401
-        response._content = data
-        response.headers["date"] = "Wed, 21 Oct 2015 07:28:00 GMT"
-        responses.add_callback(
-            responses.GET,
-            url,
-            callback=lambda _: requests.HTTPError(response=response),
-        )
-        with pytest.raises(UrlError) as e:
-            oauth_helper.readurl(url)
-        assert e.value.code == 401
-        assert "myhost" in skew_file.read_text()
+    with_logs = True
 
-    @responses.activate
-    def test_custom_exception_cb(self):
-        """Test that a custom exception_cb is used."""
-        oauth_helper = url_helper.OauthUrlHelper()
-        url = "http://myhost/path"
-        data = b"This is my url content"
-        responses.add(responses.GET, url, data, status=401)
-        exception_cb = mock.Mock(return_value=True)
-
-        with pytest.raises(UrlError):
-            oauth_helper.readurl(url, exception_cb=exception_cb)
-        exception_cb.assert_called_once()
-        assert isinstance(exception_cb.call_args[0][0], UrlError)
-        assert exception_cb.call_args[0][0].code == 401
-
-    @responses.activate
-    def test_default_headers_cb(self, mocker):
-        """Test that the default headers_cb is used."""
-        m_headers = mocker.patch(
-            "cloudinit.url_helper.oauth_headers",
-            return_value={"key1": "value1"},
-        )
-        mocker.patch("time.time", return_value=5)
-        oauth_helper = url_helper.OauthUrlHelper()
-        oauth_helper.skew_data = {"myhost": 125}
-        oauth_helper._do_oauth = True
-        url = "http://myhost/path"
-        data = b"This is my url content"
-        responses.add(responses.GET, url, data)
-        response = oauth_helper.readurl(url)
-        request_headers = response._response.request.headers
-        assert "key1" in request_headers
-        assert request_headers["key1"] == "value1"
-        assert m_headers.call_args[1]["timestamp"] == 130
-
-    @responses.activate
-    def test_custom_headers_cb(self, mocker):
-        """Test that a custom headers_cb is used."""
-        mocker.patch(
-            "cloudinit.url_helper.oauth_headers",
-            return_value={"key1": "value1"},
-        )
-        oauth_helper = url_helper.OauthUrlHelper()
-        oauth_helper._do_oauth = True
-        url = "http://myhost/path"
-        data = b"This is my url content"
-        responses.add(responses.GET, url, data)
-        response = oauth_helper.readurl(url, headers_cb=headers_cb)
-        request_headers = response._response.request.headers
-        assert "key1" in request_headers
-        assert "cb_key" in request_headers
-        assert request_headers["key1"] == "value1"
-        assert request_headers["cb_key"] == "cb_value"
-
-
-class TestReadFileOrUrl:
-    def test_read_file_or_url_str_from_file(self, tmp_path: pathlib.Path):
+    def test_read_file_or_url_str_from_file(self):
         """Test that str(result.contents) on file is text version of contents.
         It should not be "b'data'", but just "'data'" """
-        tmpf = tmp_path / "myfile1"
+        tmpf = self.tmp_path("myfile1")
         data = b"This is my file content\n"
         util.write_file(tmpf, data, omode="wb")
-        result = read_file_or_url(f"file://{tmpf}")
+        result = read_file_or_url("file://%s" % tmpf)
         assert result.contents == data
         assert str(result) == data.decode("utf-8")
 
@@ -199,9 +105,7 @@ class TestReadFileOrUrl:
         assert str(result) == data.decode("utf-8")
 
     @responses.activate
-    def test_read_file_or_url_str_from_url_redacting_headers_from_logs(
-        self, caplog
-    ):
+    def test_read_file_or_url_str_from_url_redacting_headers_from_logs(self):
         """Headers are redacted from logs but unredacted in requests."""
         url = "http://hostname/path"
         headers = {"sensitive": "sekret", "server": "blah"}
@@ -214,11 +118,12 @@ class TestReadFileOrUrl:
         responses.add_callback(responses.GET, url, callback=_request_callback)
 
         read_file_or_url(url, headers=headers, headers_redact=["sensitive"])
-        assert REDACTED in caplog.text
-        assert "sekret" not in caplog.text
+        logs = self.logs.getvalue()
+        assert REDACTED in logs
+        assert "sekret" not in logs
 
     @responses.activate
-    def test_read_file_or_url_str_from_url_redacts_noheaders(self, caplog):
+    def test_read_file_or_url_str_from_url_redacts_noheaders(self):
         """When no headers_redact, header values are in logs and requests."""
         url = "http://hostname/path"
         headers = {"sensitive": "sekret", "server": "blah"}
@@ -231,8 +136,9 @@ class TestReadFileOrUrl:
         responses.add_callback(responses.GET, url, callback=_request_callback)
 
         read_file_or_url(url, headers=headers)
-        assert REDACTED not in caplog.text
-        assert "sekret" in caplog.text
+        logs = self.logs.getvalue()
+        assert REDACTED not in logs
+        assert "sekret" in logs
 
     def test_wb_read_url_defaults_honored_by_read_file_or_url_callers(self):
         """Readurl param defaults used when unspecified by read_file_or_url
