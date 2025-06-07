@@ -467,6 +467,11 @@ class DataSourceAzure(sources.DataSource):
                         ),
                         host_only=True,
                     )
+                except FileNotFoundError as error:
+                    report_diagnostic_event(
+                        "File not found during DHCP %r" % error,
+                        logger_func=LOG.error,
+                    )
                 except subp.ProcessExecutionError as error:
                     # udevadm settle, ip link set dev eth0 up, etc.
                     report_diagnostic_event(
@@ -758,14 +763,12 @@ class DataSourceAzure(sources.DataSource):
         if imds_hostname:
             LOG.debug("Hostname retrieved from IMDS: %s", imds_hostname)
             crawled_data["metadata"]["local-hostname"] = imds_hostname
-        if imds_disable_password:
+        if imds_disable_password is not None:
             LOG.debug(
                 "Disable password retrieved from IMDS: %s",
                 imds_disable_password,
             )
-            crawled_data["metadata"][
-                "disable_password"
-            ] = imds_disable_password
+            crawled_data["cfg"]["ssh_pwauth"] = not imds_disable_password
 
         if self.seed == "IMDS" and not crawled_data["files"]:
             try:
@@ -1733,15 +1736,18 @@ def can_dev_be_reformatted(devpath, preserve_ntfs):
     # devpath of /dev/sd[a-z] or /dev/disk/cloud/azure_resource
     # where partitions are "<devpath>1" or "<devpath>-part1" or "<devpath>p1"
     partitions = _partitions_on_device(devpath)
-    if len(partitions) == 0:
+    if not partitions:
         return False, "device %s was not partitioned" % devpath
-    elif len(partitions) > 2:
+
+    partition_len = len(partitions)
+    if partition_len > 2:
         msg = "device %s had 3 or more partitions: %s" % (
             devpath,
             " ".join([p[1] for p in partitions]),
         )
         return False, msg
-    elif len(partitions) == 2:
+
+    if partition_len == 2:
         cand_part, cand_path = partitions[1]
     else:
         cand_part, cand_path = partitions[0]
