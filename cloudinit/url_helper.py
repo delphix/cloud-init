@@ -432,7 +432,7 @@ def _handle_error(
         return None
     if error.code and error.code == 503:
         LOG.warning(
-            "Ec2 IMDS endpoint returned a 503 error. "
+            "Endpoint returned a 503 error. "
             "HTTP endpoint is overloaded. Retrying."
         )
         if error.headers:
@@ -697,7 +697,7 @@ def dual_stack(
         # No success, return the last exception but log them all for
         # debugging
         if last_exception:
-            LOG.warning(
+            LOG.debug(
                 "Exception(s) %s during request to "
                 "%s, raising last exception",
                 exceptions,
@@ -710,7 +710,7 @@ def dual_stack(
 
     # when max_wait expires, log but don't throw (retries happen)
     except TimeoutError:
-        LOG.warning(
+        LOG.debug(
             "Timed out waiting for addresses: %s, "
             "exception(s) raised while waiting: %s",
             " ".join(addresses),
@@ -1097,7 +1097,7 @@ class OauthUrlHelper:
         return self._wrapped(readurl, args, kwargs)
 
     def _exception_cb(self, extra_exception_cb, exception):
-        ret = None
+        ret = True
         try:
             if extra_exception_cb:
                 ret = extra_exception_cb(exception)

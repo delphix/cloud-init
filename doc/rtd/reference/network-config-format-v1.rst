@@ -3,7 +3,7 @@
 Networking config Version 1
 ***************************
 
-This network configuration format lets users customise their instance's
+This network configuration format lets users customize their instance's
 networking interfaces by assigning subnet configuration, virtual device
 creation (bonds, bridges, VLANs) routes and DNS configuration.
 
@@ -231,6 +231,8 @@ Type ``vlan`` requires the following keys:
 - ``name``: Set the name of the VLAN
 - ``vlan_link``: Specify the underlying link via its ``name``.
 - ``vlan_id``: Specify the VLAN numeric id.
+- ``mac_address``: Optional, specify VLAN subinterface MAC address. If not
+  set MAC address from physical interface is used.
 
 The following optional keys are supported:
 
@@ -319,6 +321,7 @@ Subnet types are one of the following:
 - ``ipv6_dhcpv6-stateful``: Configure this interface with ``dhcp6``.
 - ``ipv6_dhcpv6-stateless``: Configure this interface with SLAAC and DHCP.
 - ``ipv6_slaac``: Configure address with SLAAC.
+- ``manual`` : Manual configure this interface.
 
 When making use of ``dhcp`` or either of the ``ipv6_dhcpv6`` types,
 no additional configuration is needed in the subnet dictionary.
