@@ -986,8 +986,8 @@ class Init:
         available_cfgs = {
             NetworkConfigSource.CMD_LINE: cmdline.read_kernel_cmdline_config(),
             NetworkConfigSource.INITRAMFS: cmdline.read_initramfs_config(),
-            NetworkConfigSource.DS: None,
             NetworkConfigSource.SYSTEM_CFG: self.cfg.get("network"),
+            NetworkConfigSource.DS: None,
         }
 
         if self.datasource and hasattr(self.datasource, "network_config"):
