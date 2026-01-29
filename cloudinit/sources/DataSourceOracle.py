@@ -293,11 +293,17 @@ class DataSourceOracle(sources.DataSource):
             return self._network_config
 
         set_primary = False
-        # this is v1
         if self._is_iscsi_root():
             self._network_config = self._get_iscsi_config()
+            logging.debug(
+                "Instance is using iSCSI root, setting primary NIC as critical"
+            )
+            # This is necessary for Oracle baremetal instances in case they are
+            # running on an IPv6-only network. Without this, they become
+            # unreachable/unrecoverable after a shutdown.
+            self._network_config["config"][0]["keep_configuration"] = True
         if not self._has_network_config():
-            LOG.warning(
+            LOG.debug(
                 "Could not obtain network configuration from initramfs. "
                 "Falling back to IMDS."
             )
@@ -364,7 +370,7 @@ class DataSourceOracle(sources.DataSource):
             is_primary = set_primary and index == 0
             mac_address = vnic_dict["macAddr"].lower()
             is_ipv6_only = vnic_dict.get(
-                "ipv6SubnetCidrBlock", False
+                "ipv6VirtualRouterIp", False
             ) and not vnic_dict.get("privateIp", False)
             if mac_address not in interfaces_by_mac:
                 LOG.warning(
@@ -380,13 +386,11 @@ class DataSourceOracle(sources.DataSource):
             else:
                 network = ipaddress.ip_network(vnic_dict["subnetCidrBlock"])
 
-            if self._network_config["version"] == 1:
-                if is_primary:
-                    if is_ipv6_only:
-                        subnets = [{"type": "dhcp6"}]
-                    else:
-                        subnets = [{"type": "dhcp"}]
+            if is_primary:
+                if is_ipv6_only:
+                    subnets = [{"type": "dhcp6"}]
                 else:
+<<<<<<< HEAD
                     subnets = []
                     if vnic_dict.get("privateIp"):
                         subnets.append(
@@ -441,6 +445,39 @@ class DataSourceOracle(sources.DataSource):
                             f"{network.prefixlen}"
                         )
                 self._network_config["ethernets"][name] = interface_config
+=======
+                    subnets = [{"type": "dhcp"}]
+            else:
+                subnets = []
+                if vnic_dict.get("privateIp"):
+                    subnets.append(
+                        {
+                            "type": "static",
+                            "address": (
+                                f"{vnic_dict['privateIp']}/"
+                                f"{network.prefixlen}"
+                            ),
+                        }
+                    )
+                if vnic_dict.get("ipv6Addresses"):
+                    subnets.append(
+                        {
+                            "type": "static",
+                            "address": (
+                                f"{vnic_dict['ipv6Addresses'][0]}/"
+                                f"{network.prefixlen}"
+                            ),
+                        }
+                    )
+            interface_config = {
+                "name": name,
+                "type": "physical",
+                "mac_address": mac_address,
+                "mtu": MTU,
+                "subnets": subnets,
+            }
+            self._network_config["config"].append(interface_config)
+>>>>>>> origin/upstreams/develop
 
 
 class DataSourceOracleNet(DataSourceOracle):

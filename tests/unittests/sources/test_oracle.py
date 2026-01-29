@@ -487,6 +487,7 @@ class TestNetworkConfigFromOpcImds:
 
     @pytest.mark.parametrize(
         "set_primary",
+<<<<<<< HEAD
         [True, False],
     )
     def test_secondary_nic_v2(self, set_primary, oracle_ds):
@@ -529,6 +530,8 @@ class TestNetworkConfigFromOpcImds:
 
     @pytest.mark.parametrize(
         "set_primary",
+=======
+>>>>>>> origin/upstreams/develop
         [
             pytest.param(True, id="set_primary"),
             pytest.param(False, id="dont_set_primary"),
@@ -578,6 +581,7 @@ class TestNetworkConfigFromOpcImds:
         )
         assert "static" == secondary_cfg["subnets"][0]["type"]
 
+<<<<<<< HEAD
     @pytest.mark.parametrize(
         "set_primary",
         [True, False],
@@ -623,6 +627,8 @@ class TestNetworkConfigFromOpcImds:
             == secondary_cfg["addresses"][0]
         )
 
+=======
+>>>>>>> origin/upstreams/develop
     @pytest.mark.parametrize("error_add_network", [None, Exception])
     @pytest.mark.parametrize(
         "configure_secondary_nics",
@@ -673,7 +679,7 @@ class TestNetworkConfigFromOpcImds:
             ) == caplog.record_tuples[-1][1:]
 
         assert (
-            logging.WARNING,
+            logging.DEBUG,
             "Could not obtain network configuration from initramfs."
             " Falling back to IMDS.",
         ) == caplog.record_tuples[log_initramfs_index][1:]
