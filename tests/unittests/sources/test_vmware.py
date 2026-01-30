@@ -1042,7 +1042,7 @@ class TestDataSourceVMwareIMC:
                 ds.get_imc_data_fn,
             )
             assert result == (None, None, None)
-        assert "Error creating marker files" in self.logs.getvalue()
+        assert "Error creating marker files" in caplog.text
 
     def test_get_imc_data_cust_script_disabled(self, caplog, DS, tmpdir):
         """
@@ -1125,7 +1125,7 @@ class TestDataSourceVMwareIMC:
                     ds.get_imc_data_fn,
                 )
                 assert result == (None, None, None)
-        assert "Error creating marker files" in self.logs.getvalue()
+        assert "Error creating marker files" in caplog.text
 
     def test_get_imc_data_force_run_post_script_is_yes(
         self, caplog, DS, tmpdir
@@ -1174,7 +1174,7 @@ class TestDataSourceVMwareIMC:
                     ds.get_imc_data_fn,
                 )
                 assert result == (None, None, None)
-        assert "Error creating marker files" in self.logs.getvalue()
+        assert "Error creating marker files" in caplog.text
 
     def test_get_data_cloudinit_metadata_json(self, DS, tmpdir):
         """
