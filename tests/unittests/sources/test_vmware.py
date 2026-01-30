@@ -1041,18 +1041,9 @@ class TestDataSourceVMwareIMC:
                 },
                 ds.get_imc_data_fn,
             )
-<<<<<<< HEAD
-            self.assertEqual(result, (None, None, None))
-        custom_script = self.tmp_path("test-script", self.tdir)
-        self.assertIn(
-            "Error creating marker files",
-            self.logs.getvalue(),
-        )
-=======
             assert result == (None, None, None)
         custom_script = os.path.join(tmpdir, "test-script")
         assert "Script %s not found!!" % custom_script in caplog.text
->>>>>>> origin/upstreams/develop
 
     def test_get_imc_data_cust_script_disabled(self, caplog, DS, tmpdir):
         """
@@ -1093,16 +1084,8 @@ class TestDataSourceVMwareIMC:
                     },
                     ds.get_imc_data_fn,
                 )
-<<<<<<< HEAD
-                self.assertEqual(result, (None, None, None))
-        self.assertIn(
-            "Error creating marker files",
-            self.logs.getvalue(),
-        )
-=======
                 assert result == (None, None, None)
         assert "Custom script is disabled by VM Administrator" in caplog.text
->>>>>>> origin/upstreams/develop
 
     def test_get_imc_data_cust_script_enabled(self, caplog, DS, tmpdir):
         """
@@ -1144,16 +1127,8 @@ class TestDataSourceVMwareIMC:
                 )
                 assert result == (None, None, None)
         # Verify custom script is trying to be executed
-<<<<<<< HEAD
-        custom_script = self.tmp_path("test-script", self.tdir)
-        self.assertIn(
-            "Error creating marker files",
-            self.logs.getvalue(),
-        )
-=======
         custom_script = os.path.join(tmpdir, "test-script")
         assert "Script %s not found!!" % custom_script in caplog.text
->>>>>>> origin/upstreams/develop
 
     def test_get_imc_data_force_run_post_script_is_yes(
         self, caplog, DS, tmpdir
@@ -1204,16 +1179,8 @@ class TestDataSourceVMwareIMC:
                 assert result == (None, None, None)
         # Verify custom script still runs although it is
         # disabled by VMware Tools
-<<<<<<< HEAD
-        custom_script = self.tmp_path("test-script", self.tdir)
-        self.assertIn(
-            "Error creating marker files",
-            self.logs.getvalue(),
-        )
-=======
         custom_script = os.path.join(tmpdir, "test-script")
         assert "Script %s not found!!" % custom_script in caplog.text
->>>>>>> origin/upstreams/develop
 
     def test_get_data_cloudinit_metadata_json(self, DS, tmpdir):
         """

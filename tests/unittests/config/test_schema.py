@@ -47,11 +47,7 @@ from tests.helpers import cloud_init_project_dir
 from tests.hypothesis import given
 from tests.hypothesis_jsonschema import from_schema
 from tests.unittests.helpers import (
-<<<<<<< HEAD
-    CiTestCase,
     SkipTest,
-=======
->>>>>>> origin/upstreams/develop
     does_not_raise,
     mock,
     skipUnlessHypothesisJsonSchema,

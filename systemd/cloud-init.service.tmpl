@@ -25,14 +25,9 @@ After=wicked.service
 After=dbus.service
 {% endif %}
 Before=network-online.target
-<<<<<<< HEAD
-=======
 {% if variant == "raspberry-pi-os" %}
 Before=avahi-daemon.service
 {% endif %}
-Before=sshd-keygen.service
-Before=sshd.service
->>>>>>> origin/upstreams/develop
 Before=systemd-user-sessions.service
 {% if variant in ["ubuntu", "unknown", "debian"] %}
 Before=sysinit.target
