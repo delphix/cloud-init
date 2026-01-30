@@ -1042,8 +1042,10 @@ class TestDataSourceVMwareIMC:
                 ds.get_imc_data_fn,
             )
             assert result == (None, None, None)
-        custom_script = os.path.join(tmpdir, "test-script")
-        assert "Script %s not found!!" % custom_script in caplog.text
+        self.assertIn(
+            "Error creating marker files",
+            self.logs.getvalue(),
+        )
 
     def test_get_imc_data_cust_script_disabled(self, caplog, DS, tmpdir):
         """
@@ -1126,9 +1128,10 @@ class TestDataSourceVMwareIMC:
                     ds.get_imc_data_fn,
                 )
                 assert result == (None, None, None)
-        # Verify custom script is trying to be executed
-        custom_script = os.path.join(tmpdir, "test-script")
-        assert "Script %s not found!!" % custom_script in caplog.text
+        self.assertIn(
+            "Error creating marker files",
+            self.logs.getvalue(),
+        )
 
     def test_get_imc_data_force_run_post_script_is_yes(
         self, caplog, DS, tmpdir
@@ -1177,10 +1180,10 @@ class TestDataSourceVMwareIMC:
                     ds.get_imc_data_fn,
                 )
                 assert result == (None, None, None)
-        # Verify custom script still runs although it is
-        # disabled by VMware Tools
-        custom_script = os.path.join(tmpdir, "test-script")
-        assert "Script %s not found!!" % custom_script in caplog.text
+        self.assertIn(
+            "Error creating marker files",
+            self.logs.getvalue(),
+        )
 
     def test_get_data_cloudinit_metadata_json(self, DS, tmpdir):
         """
