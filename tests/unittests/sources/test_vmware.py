@@ -1042,7 +1042,7 @@ class TestDataSourceVMwareIMC:
                 ds.get_imc_data_fn,
             )
             assert result == (None, None, None)
-        self.assertIn(
+        assertIn(
             "Error creating marker files",
             self.logs.getvalue(),
         )
@@ -1128,7 +1128,7 @@ class TestDataSourceVMwareIMC:
                     ds.get_imc_data_fn,
                 )
                 assert result == (None, None, None)
-        self.assertIn(
+        assertIn(
             "Error creating marker files",
             self.logs.getvalue(),
         )
@@ -1180,7 +1180,7 @@ class TestDataSourceVMwareIMC:
                     ds.get_imc_data_fn,
                 )
                 assert result == (None, None, None)
-        self.assertIn(
+        assertIn(
             "Error creating marker files",
             self.logs.getvalue(),
         )
