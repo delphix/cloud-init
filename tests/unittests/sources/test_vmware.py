@@ -1084,7 +1084,7 @@ class TestDataSourceVMwareIMC:
                     ds.get_imc_data_fn,
                 )
                 assert result == (None, None, None)
-        assert "Custom script is disabled by VM Administrator" in caplog.text
+        assert "Error creating marker files" in caplog.text
 
     def test_get_imc_data_cust_script_enabled(self, caplog, DS, tmpdir):
         """
