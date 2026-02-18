@@ -1,3 +1,16 @@
+cloud-init (25.3-0ubuntu1~24.04.1) noble; urgency=medium
+
+  * d/p/retain-setuptools.patch: avoid upstream switch to meson build backend.
+  * refresh patches:
+    - d/p/no-nocloud-network.patch
+    - d/p/no-single-process.patch
+    - d/p/grub-dpkg-support.patch
+  * Upstream snapshot based on 25.3. (LP: #2131604).
+    List of changes from upstream can be found at
+    https://raw.githubusercontent.com/canonical/cloud-init/25.3/ChangeLog
+
+ -- Chad Smith <chad.smith@canonical.com>  Sat, 15 Nov 2025 11:02:56 -0700
+
 cloud-init (25.2-0ubuntu1~24.04.1) noble; urgency=medium
 
   * add d/p/strip-invalid-mtu.patch
