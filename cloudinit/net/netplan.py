@@ -243,7 +243,9 @@ def _clean_default(target=None):
         os.unlink(f)
 
 
-def netplan_api_write_yaml_file(net_config_content: str) -> bool:
+def netplan_api_write_yaml_file(
+    net_config_content: str, target: Optional[str] = None
+) -> bool:
     """Use netplan.State._write_yaml_file to write netplan config
 
     Where netplan python API exists, prefer to use of the private
@@ -281,9 +283,11 @@ def netplan_api_write_yaml_file(net_config_content: str) -> bool:
             # determine default root-dir /etc/netplan and/or specialized
             # filenames or read permissions based on whether this config
             # contains secrets.
-            state_output_file._write_yaml_file(
-                os.path.basename(CLOUDINIT_NETPLAN_FILE)
-            )
+            if not target:
+                file = os.path.basename(CLOUDINIT_NETPLAN_FILE)
+            else:
+                file = target
+            state_output_file._write_yaml_file(file)
     except Exception as e:
         LOG.warning(
             "Unable to render network config using netplan python module."
@@ -391,8 +395,14 @@ class Renderer(renderer.Renderer):
             header += "\n"
         content = header + content
 
+        # Customize target only if explicitly passed in
+        if target is None:
+            target_ = target
+        else:
+            target_ = fpnplan
+
         netplan_config_changed = has_netplan_config_changed(fpnplan, content)
-        if not netplan_api_write_yaml_file(content):
+        if not netplan_api_write_yaml_file(content, target=target_):
             fallback_write_netplan_yaml(fpnplan, content)
 
         if self.clean_default:
@@ -431,6 +441,7 @@ class Renderer(renderer.Renderer):
         # net_setup_link on a device that no longer exists. When this happens,
         # we don't know what the device was renamed to, so re-gather the
         # entire list of devices and try again.
+        last_exception: Optional[Exception]
         for _ in range(5):
             try:
                 for iface in get_devicelist():
@@ -438,10 +449,11 @@ class Renderer(renderer.Renderer):
                         subp.subp(
                             setup_lnk + [SYS_CLASS_NET + iface], capture=True
                         )
+                last_exception = None
                 break
             except subp.ProcessExecutionError as e:
                 last_exception = e
-        else:
+        if last_exception:
             raise RuntimeError(
                 "'udevadm test-builtin net_setup_link' unable to run "
                 "successfully for all devices."
@@ -527,8 +539,9 @@ class Renderer(renderer.Renderer):
                 bridge_ports = ifcfg.get("bridge_ports")
                 if bridge_ports is None:
                     LOG.warning(
-                        "Invalid config. The key",
-                        f"'bridge_ports' is required in {config}.",
+                        "Invalid config. The key"
+                        "'bridge_ports' is required in %s.",
+                        config,
                     )
                     continue
                 ports = sorted(copy.copy(bridge_ports))
