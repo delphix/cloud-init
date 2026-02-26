@@ -47,7 +47,6 @@ from tests.helpers import cloud_init_project_dir
 from tests.hypothesis import given
 from tests.hypothesis_jsonschema import from_schema
 from tests.unittests.helpers import (
-    SkipTest,
     does_not_raise,
     mock,
     skipUnlessHypothesisJsonSchema,
@@ -377,7 +376,6 @@ class TestNetplanValidateNetworkSchema:
             ),
         ),
     )
-    @SkipTest
     def test_network_config_schema_validation_false_when_skipped(
         self, config, expected_log, caplog, mocker
     ):
@@ -1886,7 +1884,6 @@ class TestNetworkSchema:
             ),
         ),
     )
-    @SkipTest
     @mock.patch("cloudinit.net.netplan.available", return_value=False)
     def test_network_schema(
         self,
