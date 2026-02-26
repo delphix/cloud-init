@@ -1,0 +1,13 @@
+-r requirements.txt
+doc8
+furo
+meson
+m2r2
+pyyaml
+sphinx==7.1.2
+sphinx-design
+sphinx-copybutton
+sphinx-notfound-page
+sphinxcontrib.datatemplates
+sphinxcontrib-mermaid
+sphinxcontrib-spelling
