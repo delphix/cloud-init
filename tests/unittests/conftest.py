@@ -7,12 +7,19 @@ from unittest import mock
 
 import pytest
 
-from cloudinit import atomic_helper, distros, helpers, lifecycle, temp_utils
+from cloudinit import (
+    atomic_helper,
+    distros,
+    helpers,
+    lifecycle,
+    temp_utils,
+)
 from cloudinit import user_data as ud
-from cloudinit import util
+from cloudinit import (
+    util,
+)
 from cloudinit.gpg import GPG
 from cloudinit.log import loggers
-from tests.hypothesis import HAS_HYPOTHESIS
 from tests.unittests.helpers import (
     example_netdev,
     rebase_path,
@@ -123,7 +130,8 @@ def fake_filesystem(mocker, tmpdir, fake_filesystem_hook):
     # assuming that it already exists, but then it fails because of the
     # retargeting that happens here.
     TMPDIR = os.getenv("TMPDIR", "/tmp")
-    Path(tmpdir, TMPDIR[1:]).mkdir(exist_ok=True)
+    Path(tmpdir, TMPDIR[1:]).mkdir(parents=True, exist_ok=True)
+    Path(tmpdir, "tmp").mkdir(exist_ok=True)
 
     for mod, funcs in FS_FUNCS.items():
         for f, nargs in funcs:
@@ -198,7 +206,7 @@ def disable_root_logger_setup():
 @pytest.fixture
 def clear_deprecation_log():
     """Clear any deprecation warnings before and after running tests."""
-    # Since deprecations are de-duped, the existance (or non-existance) of
+    # Since deprecations are de-duped, the existence (or non-existence) of
     # a deprecation warning in a previous test can cause the next test to
     # fail.
     setattr(lifecycle.deprecate, "log", set())
@@ -211,13 +219,6 @@ if PYTEST_VERSION_TUPLE < (3, 9, 0):
     @pytest.fixture
     def tmp_path(tmpdir):
         return Path(tmpdir)
-
-
-if HAS_HYPOTHESIS:
-    from hypothesis import settings  # pylint: disable=import-error
-
-    settings.register_profile("ci", max_examples=1000)
-    settings.load_profile(os.getenv("HYPOTHESIS_PROFILE", "default"))
 
 
 @pytest.fixture
@@ -239,3 +240,24 @@ def paths(tmpdir) -> helpers.Paths:
 @pytest.fixture
 def ud_proc(paths):
     return ud.UserDataProcessor(paths)
+
+
+@pytest.fixture
+def socket_attrs(mocker):
+    """A fixture to add to some attributes to the socket module.
+
+    Many socket attributes are OS-specific, so ensure we have attributes
+    that work for the tests that need them.
+    """
+    mocker.patch("socket.AF_NETLINK", 0, create=True)
+    mocker.patch("socket.NETLINK_ROUTE", 0, create=True)
+    mocker.patch("socket.SOCK_CLOEXEC", 0, create=True)
+
+
+@pytest.fixture
+def fake_socket(mocker, socket_attrs):
+    """A fixture to mock socket.socket()."""
+    # Even though this is just a one-liner, if we need to mock
+    # socket.socket, we want to ensure that socket_attrs is
+    # applied too.
+    return mocker.patch("socket.socket", autospec=True)

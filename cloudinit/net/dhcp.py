@@ -16,7 +16,7 @@ import time
 from contextlib import suppress
 from io import StringIO
 from subprocess import TimeoutExpired
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple, Type
 
 import configobj
 
@@ -661,6 +661,7 @@ class Dhcpcd(DhcpClient):
                 "--waitip",  # wait for ipv4 to be configured
                 "--persistent",  # don't deconfigure when dhcpcd exits
                 "--noarp",  # don't be slow
+                "--debug",  # verbose logging for debugging
                 "--script=/bin/true",  # disable hooks
                 *infiniband_argument,
                 interface,
@@ -747,7 +748,7 @@ class Dhcpcd(DhcpClient):
         @param number: Option number to return
         @return: the option (bytes) or None
         """
-        # DHCP is basically an extension to bootp. The relevent standards that
+        # DHCP is basically an extension to bootp. The relevant standards that
         # describe the packet format include:
         #
         # RFC 951 (Section 3)
@@ -1013,4 +1014,4 @@ class Udhcpc(DhcpClient):
         return []
 
 
-ALL_DHCP_CLIENTS = [Dhcpcd, IscDhclient, Udhcpc]
+ALL_DHCP_CLIENTS: List[Type[DhcpClient]] = [Dhcpcd, IscDhclient, Udhcpc]

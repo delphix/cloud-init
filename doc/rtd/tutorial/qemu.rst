@@ -23,7 +23,7 @@ Why QEMU?
 machines. QEMU is used at the core of a range of production operating system
 deployments and open source software projects (including libvirt, LXD,
 and vagrant). It is capable of running Windows, Linux, and Unix guest operating
-systems. While QEMU is flexibile and feature-rich, we are using it because it
+systems. While QEMU is flexible and feature-rich, we are using it because it
 is widely supported and able to run on \*nix-derived operating systems.
 
 If you do not already have QEMU installed, you can install it by running the
@@ -56,16 +56,16 @@ run on first boot. We don't need to worry about installing cloud-init
 for now, since we are not manually creating our own image in this tutorial.
 
 In our case, we want to select the latest `Ubuntu LTS`_. Let's download the
-server image using :command:`wget`:
+server image using :command:`wcurl`:
 
 .. code-block:: bash
 
-    $ wget https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img
+    $ wcurl https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img
 
 .. note::
    This example uses emulated CPU instructions on non-x86 hosts, so it may be
    slow. To make it faster on non-x86 architectures, one can change the image
-   type and :spelling:ignore:`qemu-system-<arch>` command name to match the
+   type and ``qemu-system-<arch>`` command name to match the
    architecture of your host machine.
 
 Define the configuration data files

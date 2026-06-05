@@ -44,13 +44,12 @@ def version_to_pep440(version: str) -> str:
     # read-version can spit out something like 22.4-15-g7f97aee24
     # which is invalid under PEP 440. If we replace the first - with a +
     # that should give us a valid version.
-    return version.replace("-", "+", 1)
+    return version.strip("_").split("-")[0]
 
 
 def get_version() -> str:
-    cmd = [sys.executable, "tools/read-version"]
-    ver = subprocess.check_output(cmd)  # B603
-    version = ver.decode("utf-8").strip()
+    ver = os.environ.get("PACKAGED_VERSION", "MISSING_ENVVAR_PACKAGED_VERSION")
+    version = ver.strip()
     return version_to_pep440(version)
 
 
