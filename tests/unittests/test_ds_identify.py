@@ -226,7 +226,6 @@ RC_FOUND = 0
 RC_NOT_FOUND = 1
 DS_NONE = "None"
 
-P_BOARD_NAME = "sys/class/dmi/id/board_name"
 P_CHASSIS_ASSET_TAG = "sys/class/dmi/id/chassis_asset_tag"
 P_PRODUCT_NAME = "sys/class/dmi/id/product_name"
 P_PRODUCT_SERIAL = "sys/class/dmi/id/product_serial"
@@ -346,6 +345,7 @@ class DsIdentifyBase:
             "DEBUG_LEVEL=2",
             "DI_LOG=stderr",
             "PATH_ROOT='%s'" % rootd,
+            "PATH_DI_ENV='%s/ds-identify-env'" % rootd,
             ". " + self.dsid_path,
             'DI_DEFAULT_POLICY="%s"' % policy_dmi,
             'DI_DEFAULT_POLICY_NO_DMI="%s"' % policy_no_dmi,
@@ -377,10 +377,7 @@ class DsIdentifyBase:
                 "ret": 1,
                 "err": "No dmidecode program. ERROR.",
             },
-            {
-                "name": "is_disabled",
-                "ret": 1,
-            },
+            {"name": "is_disabled", "ret": 1},
             {
                 "name": "get_kenv_field",
                 "ret": 1,
@@ -535,9 +532,11 @@ class TestDsIdentify(DsIdentifyBase):
             # maas datasource uses check_config() and the existence of a "MAAS"
             # key to identify itself (which is a very poor identifier - clouds
             # should have stricter identifiers). Since the MAAS datasource is
-            # at the begining of the list, this is particularly troublesome and
-            # more concerning than NoCloud false positives, for example.
+            # at the beginning of the list, this is particularly troublesome
+            # and more concerning than NoCloud false positives, for example.
+            pytest.param("LXD-kvm-not-MAAS-1", True, id="mass_not_detected_1"),
             pytest.param("LXD-kvm-not-MAAS-2", True, id="mass_not_detected_2"),
+            pytest.param("LXD-kvm-not-MAAS-3", True, id="mass_not_detected_3"),
             # Don't detect incorrect config when invalid datasource_list
             # provided
             #
@@ -626,6 +625,10 @@ class TestDsIdentify(DsIdentifyBase):
             ),
             # LXD containers will have /dev/lxd/socket at generator time.
             pytest.param("LXD", True, id="lxd_containers"),
+            # MAAS detected despite /dev/lxd/socket existing
+            pytest.param(
+                "MAAS-not-LXD", True, id="maas_detected_kernel_cmdline_not_lxd"
+            ),
             # ConfigDrive datasource has a disk with LABEL=config-2.
             pytest.param("ConfigDrive", True, id="config_drive"),
             # Rbx datasource has a disk with LABEL=CLOUDMD.
@@ -739,6 +742,7 @@ class TestDsIdentify(DsIdentifyBase):
             pytest.param(
                 "SmartOS-lxbrand-env", True, id="smartos_lxbrand-env"
             ),
+            pytest.param("Ec2-Tilaa", True, id="tilaa_is_ec2"),
             # EC2: chassis asset tag ends with 'zstack.io'
             pytest.param("Ec2-ZStack", True, id="zstack_is_ec2"),
             # EC2: e24cloud identified by sys_vendor
@@ -895,6 +899,28 @@ class TestDsIdentify(DsIdentifyBase):
             pytest.param("Not-WSL", False, id="wsl_not_found_virt"),
             # Negative test by lack of host filesystem mount points.
             pytest.param("WSL-no-host-mounts", False, id="wsl_no_fs_mounts"),
+            # Test LXD virtio-ports discovery with linuxcontainers serial name
+            pytest.param(
+                "LXD-virtio-linuxcontainers",
+                True,
+                id="lxd_virtio_linuxcontainers_serial",
+            ),
+            # Test LXD virtio-ports discovery with canonical serial name
+            pytest.param(
+                "LXD-virtio-canonical", True, id="lxd_virtio_canonical_serial"
+            ),
+            # Test that wrong virtio serial name doesn't detect LXD
+            pytest.param(
+                "LXD-virtio-wrong-name", False, id="lxd_virtio_wrong_serial"
+            ),
+            # Test LXD detection with multiple virtio ports
+            pytest.param(
+                "LXD-virtio-multiple-ports",
+                True,
+                id="lxd_virtio_multiple_ports",
+            ),
+            # Test that empty virtio-ports directory doesn't detect LXD
+            pytest.param("LXD-virtio-empty", False, id="lxd_virtio_empty_dir"),
         ],
     )
     def test_ds_found_not_found(self, config, found, tmp_path):
@@ -1268,11 +1294,7 @@ class TestDsIdentify(DsIdentifyBase):
             'PATH="/mycust/path"; main; r=$?; echo ' + pre + "$PATH; exit $r;"
         )
         ret = self._check_via_dict(
-            cust,
-            rootd,
-            RC_FOUND,
-            func=".",
-            args=[os.path.join(rootd, mpp)],
+            cust, rootd, RC_FOUND, func=".", args=[os.path.join(rootd, mpp)]
         )
         match = [
             line for line in ret.stdout.splitlines() if line.startswith(pre)
@@ -1424,13 +1446,7 @@ class TestWSL(DsIdentifyBase):
         variable.
         """
         data = copy.deepcopy(VALID_CFG["WSL-supported"])
-        data["mocks"].append(
-            {
-                "name": "WSL_run_cmd",
-                "ret": 0,
-                "RET": "\r\n",
-            },
-        )
+        data["mocks"].append({"name": "WSL_run_cmd", "ret": 0, "RET": "\r\n"})
         self._check_via_dict(data, str(tmp_path), RC_NOT_FOUND)
 
     def test_no_cloudinitdir_in_userprofile(self, tmp_path):
@@ -1438,11 +1454,7 @@ class TestWSL(DsIdentifyBase):
         data = copy.deepcopy(VALID_CFG["WSL-supported"])
         userprofile = str(tmp_path)
         data["mocks"].append(
-            {
-                "name": "WSL_profile_dir",
-                "ret": 0,
-                "RET": userprofile,
-            },
+            {"name": "WSL_profile_dir", "ret": 0, "RET": userprofile}
         )
         self._check_via_dict(data, str(tmp_path), RC_NOT_FOUND)
 
@@ -1451,11 +1463,7 @@ class TestWSL(DsIdentifyBase):
         data = copy.deepcopy(VALID_CFG["WSL-supported"])
         userprofile = str(tmp_path)
         data["mocks"].append(
-            {
-                "name": "WSL_profile_dir",
-                "ret": 0,
-                "RET": userprofile,
-            },
+            {"name": "WSL_profile_dir", "ret": 0, "RET": userprofile}
         )
         cloudinitdir = os.path.join(userprofile, ".cloud-init")
         os.mkdir(cloudinitdir)
@@ -1468,15 +1476,11 @@ class TestWSL(DsIdentifyBase):
         data = copy.deepcopy(VALID_CFG["WSL-supported-debian"])
         userprofile = str(tmp_path)
         data["mocks"].append(
-            {
-                "name": "WSL_profile_dir",
-                "ret": 0,
-                "RET": userprofile,
-            },
+            {"name": "WSL_profile_dir", "ret": 0, "RET": userprofile}
         )
 
         # Forcing WSL_linux2win_path to return a path we'll fail to parse
-        # (missing one / in the begining of the path).
+        # (missing one / in the beginning of the path).
         for i, m in enumerate(data["mocks"]):
             if m["name"] == "WSL_linux2win_path":
                 data["mocks"][i]["RET"] = "/wsl.localhost/cant-findme"
@@ -1493,11 +1497,7 @@ class TestWSL(DsIdentifyBase):
         data = copy.deepcopy(VALID_CFG["WSL-supported-debian"])
         userprofile = str(tmp_path)
         data["mocks"].append(
-            {
-                "name": "WSL_profile_dir",
-                "ret": 0,
-                "RET": userprofile,
-            },
+            {"name": "WSL_profile_dir", "ret": 0, "RET": userprofile}
         )
         cloudinitdir = os.path.join(userprofile, ".cloud-init")
         os.mkdir(cloudinitdir)
@@ -1515,11 +1515,7 @@ class TestWSL(DsIdentifyBase):
         data = copy.deepcopy(VALID_CFG["WSL-supported"])
         userprofile = str(tmp_path)
         data["mocks"].append(
-            {
-                "name": "WSL_profile_dir",
-                "ret": 0,
-                "RET": userprofile,
-            },
+            {"name": "WSL_profile_dir", "ret": 0, "RET": userprofile}
         )
         cloudinitdir = os.path.join(userprofile, ".cloud-init")
         os.mkdir(cloudinitdir)
@@ -1637,9 +1633,7 @@ VALID_CFG = {
     },
     "Azure-dmi-detection": {
         "ds": "Azure",
-        "files": {
-            P_CHASSIS_ASSET_TAG: "7783-7084-3265-9085-8269-3286-77\n",
-        },
+        "files": {P_CHASSIS_ASSET_TAG: "7783-7084-3265-9085-8269-3286-77\n"},
     },
     "Azure-seed-detection": {
         "ds": "Azure",
@@ -1648,10 +1642,7 @@ VALID_CFG = {
             os.path.join(P_SEED_DIR, "azure", "ovf-env.xml"): "present\n",
         },
     },
-    "CloudCIX": {
-        "ds": "CloudCIX",
-        "files": {P_PRODUCT_NAME: "CloudCIX\n"},
-    },
+    "CloudCIX": {"ds": "CloudCIX", "files": {P_PRODUCT_NAME: "CloudCIX\n"}},
     "Azure-parse-invalid": {
         "ds": "Azure",
         "files": {
@@ -1672,9 +1663,7 @@ VALID_CFG = {
     "Ec2-hvm-swap-endianness": {
         "ds": "Ec2",
         "mocks": [{"name": "detect_virt", "RET": "kvm", "ret": 0}],
-        "files": {
-            P_PRODUCT_UUID: "AB232AEC-54BE-4843-8D24-8C819F88453E\n",
-        },
+        "files": {P_PRODUCT_UUID: "AB232AEC-54BE-4843-8D24-8C819F88453E\n"},
     },
     "Ec2-hvm-env": {
         "ds": "Ec2",
@@ -1717,7 +1706,9 @@ VALID_CFG = {
     },
     "LXD-kvm": {
         "ds": "LXD",
-        "files": {P_BOARD_NAME: "LXD\n"},
+        "files": {
+            "sys/class/virtio-ports/vport0p1/name": "com.canonical.lxd",
+        },
         # /dev/lxd/sock does not exist and KVM virt-type
         "mocks": [{"name": "is_socket_file", "ret": 1}, MOCK_VIRT_IS_KVM],
         "no_mocks": ["dscheck_LXD"],  # Don't default mock dscheck_LXD
@@ -1725,34 +1716,44 @@ VALID_CFG = {
     "LXD-kvm-not-MAAS-1": {
         "ds": "LXD",
         "files": {
-            P_BOARD_NAME: "LXD\n",
             "etc/cloud/cloud.cfg.d/92-broken-maas.cfg": (
                 "datasource:\n MAAS:\n metadata_urls: [ 'blah.com' ]"
             ),
         },
-        # /dev/lxd/sock does not exist and KVM virt-type
-        "mocks": [{"name": "is_socket_file", "ret": 1}, MOCK_VIRT_IS_KVM],
+        # /dev/lxd/sock does exist and KVM virt-type
+        "mocks": [{"name": "is_socket_file", "ret": 0}, MOCK_VIRT_IS_KVM],
         "no_mocks": ["dscheck_LXD"],  # Don't default mock dscheck_LXD
     },
     "LXD-kvm-not-MAAS-2": {
         "ds": "LXD",
         "files": {
-            P_BOARD_NAME: "LXD\n",
             "etc/cloud/cloud.cfg.d/92-broken-maas.cfg": ("#MAAS: None"),
         },
-        # /dev/lxd/sock does not exist and KVM virt-type
-        "mocks": [{"name": "is_socket_file", "ret": 1}, MOCK_VIRT_IS_KVM],
+        # /dev/lxd/sock does exist and KVM virt-type
+        "mocks": [{"name": "is_socket_file", "ret": 0}, MOCK_VIRT_IS_KVM],
         "no_mocks": ["dscheck_LXD"],  # Don't default mock dscheck_LXD
     },
     "LXD-kvm-not-MAAS-3": {
         "ds": "LXD",
         "files": {
-            P_BOARD_NAME: "LXD\n",
             "etc/cloud/cloud.cfg.d/92-broken-maas.cfg": ("MAAS: None\n"),
+            "sys/class/virtio-ports/vport0p1/name": "com.canonical.lxd",
         },
         # /dev/lxd/sock does not exist and KVM virt-type
         "mocks": [{"name": "is_socket_file", "ret": 1}, MOCK_VIRT_IS_KVM],
         "no_mocks": ["dscheck_LXD"],  # Don't default mock dscheck_LXD
+    },
+    "MAAS-not-LXD": {
+        "ds": "MAAS",
+        # /dev/lxd/sock does exist and KVM virt-type
+        "mocks": [
+            {"name": "is_socket_file", "ret": 0},
+            MOCK_VIRT_IS_KVM,
+        ],
+        "no_mocks": ["dscheck_LXD"],  # Don't default mock dscheck_LXD
+        "files": {
+            "ds-identify-env": 'DI_KERNEL_CMDLINE="ds=MAAS"',
+        },
     },
     "flow_sequence-control": {
         "ds": "None",
@@ -1875,19 +1876,20 @@ VALID_CFG = {
     "LXD-kvm-not-azure": {
         "ds": "Azure",
         "files": {
-            P_BOARD_NAME: "LXD\n",
             "etc/cloud/cloud.cfg.d/92-broken-azure.cfg": (
                 "datasource_list:\n - Azure"
             ),
         },
-        # /dev/lxd/sock does not exist and KVM virt-type
-        "mocks": [{"name": "is_socket_file", "ret": 1}, MOCK_VIRT_IS_KVM],
+        # /dev/lxd/sock does exist and KVM virt-type
+        "mocks": [{"name": "is_socket_file", "ret": 0}, MOCK_VIRT_IS_KVM],
         "no_mocks": ["dscheck_LXD"],  # Don't default mock dscheck_LXD
     },
-    "LXD-kvm-qemu-kernel-gt-5.10": {  # LXD host > 5.10 kvm launch virt==qemu
+    "LXD-kvm-qemu-kernel-gt-5.10": {  # LXD host > 5.10 kvm
         "ds": "LXD",
-        "files": {P_BOARD_NAME: "LXD\n"},
-        # /dev/lxd/sock does not exist and KVM virt-type
+        "files": {
+            "sys/class/virtio-ports/vport0p1/name": "com.canonical.lxd",
+        },
+        # /dev/lxd/sock does not exist and QEMU virt-type
         "mocks": [{"name": "is_socket_file", "ret": 1}, MOCK_VIRT_IS_KVM_QEMU],
         "no_mocks": ["dscheck_LXD"],  # Don't default mock dscheck_LXD
     },
@@ -1895,18 +1897,16 @@ VALID_CFG = {
     "LXD-kvm-qemu-kernel-gt-5.10-env": {
         "ds": "LXD",
         "files": {
-            P_BOARD_NAME: "LXD\n",
             # this test is systemd-specific, but may run on non-systemd systems
             # ensure that /run/systemd/ exists, such that this test will take
             # the systemd branch on those systems as well
             #
             # https://github.com/canonical/cloud-init/issues/5095
             "/run/systemd/somefile": "",
+            "sys/class/virtio-ports/vport0p1/name": "com.canonical.lxd",
         },
-        # /dev/lxd/sock does not exist and KVM virt-type
-        "mocks": [
-            {"name": "is_socket_file", "ret": 1},
-        ],
+        # /dev/lxd/sock does not exist and QEMU env virt-type
+        "mocks": [{"name": "is_socket_file", "ret": 1}],
         "env_vars": IS_KVM_QEMU_ENV,
         "no_mocks": [
             "dscheck_LXD",
@@ -1938,9 +1938,7 @@ VALID_CFG = {
                 ),
             },
         ],
-        "files": {
-            "dev/vdb": "pretend iso content for cidata\n",
-        },
+        "files": {"dev/vdb": "pretend iso content for cidata\n"},
     },
     "NoCloud-cfg": {
         "ds": "NoCloud",
@@ -1975,9 +1973,7 @@ VALID_CFG = {
                 ),
             },
         ],
-        "files": {
-            "/dev/vtdb": "pretend iso content for cidata\n",
-        },
+        "files": {"/dev/vtdb": "pretend iso content for cidata\n"},
     },
     "NoCloudUpper": {
         "ds": "NoCloud",
@@ -1998,9 +1994,7 @@ VALID_CFG = {
                 ),
             },
         ],
-        "files": {
-            "dev/vdb": "pretend iso content for cidata\n",
-        },
+        "files": {"dev/vdb": "pretend iso content for cidata\n"},
     },
     "NoCloud-fatboot": {
         "ds": "NoCloud",
@@ -2023,9 +2017,7 @@ VALID_CFG = {
                 ),
             },
         ],
-        "files": {
-            "dev/vdb": "pretend iso content for cidata\n",
-        },
+        "files": {"dev/vdb": "pretend iso content for cidata\n"},
     },
     "NoCloud-seed": {
         "ds": "NoCloud",
@@ -2132,9 +2124,7 @@ VALID_CFG = {
     },
     "OVF-seed": {
         "ds": "OVF",
-        "files": {
-            os.path.join(P_SEED_DIR, "ovf", "ovf-env.xml"): "present\n",
-        },
+        "files": {os.path.join(P_SEED_DIR, "ovf", "ovf-env.xml"): "present\n"},
     },
     "OVF": {
         "ds": "OVF",
@@ -2202,7 +2192,7 @@ VALID_CFG = {
                         },
                     ]
                 ),
-            },
+            }
         ],
     },
     "ConfigDriveUpper": {
@@ -2231,7 +2221,7 @@ VALID_CFG = {
                         },
                     ]
                 ),
-            },
+            }
         ],
     },
     "ConfigDrive-seed": {
@@ -2268,7 +2258,7 @@ VALID_CFG = {
                         {"DEVNAME": "vdb", "TYPE": "vfat", "LABEL": "CLOUDMD"},
                     ]
                 ),
-            },
+            }
         ],
     },
     "RbxCloudLower": {
@@ -2293,13 +2283,10 @@ VALID_CFG = {
                         {"DEVNAME": "vdb", "TYPE": "vfat", "LABEL": "cloudmd"},
                     ]
                 ),
-            },
+            }
         ],
     },
-    "Hetzner": {
-        "ds": "Hetzner",
-        "files": {P_SYS_VENDOR: "Hetzner\n"},
-    },
+    "Hetzner": {"ds": "Hetzner", "files": {P_SYS_VENDOR: "Hetzner\n"}},
     "Hetzner-kenv": {
         "ds": "Hetzner",
         "mocks": [
@@ -2318,10 +2305,7 @@ VALID_CFG = {
         "ds": "Hetzner",
         "mocks": [{"name": "dmi_decode", "ret": 0, "RET": "Hetzner"}],
     },
-    "NWCS": {
-        "ds": "NWCS",
-        "files": {P_SYS_VENDOR: "NWCS\n"},
-    },
+    "NWCS": {"ds": "NWCS", "files": {P_SYS_VENDOR: "NWCS\n"}},
     "NWCS-kenv": {
         "ds": "NWCS",
         "mocks": [
@@ -2427,9 +2411,7 @@ VALID_CFG = {
     },
     "Oracle": {
         "ds": "Oracle",
-        "files": {
-            P_CHASSIS_ASSET_TAG: ds_oracle.CHASSIS_ASSET_TAG + "\n",
-        },
+        "files": {P_CHASSIS_ASSET_TAG: ds_oracle.CHASSIS_ASSET_TAG + "\n"},
     },
     "SmartOS-bhyve": {
         "ds": "SmartOS",
@@ -2484,23 +2466,19 @@ VALID_CFG = {
         "env_vars": IS_CONTAINER_OTHER_ENV,
         "files": {ds_smartos.METADATA_SOCKFILE: "would be a socket\n"},
     },
+    "Ec2-Tilaa": {"ds": "Ec2", "files": {P_SYS_VENDOR: "Tilaa\n"}},
     "Ec2-ZStack": {
         "ds": "Ec2",
         "files": {P_CHASSIS_ASSET_TAG: "123456.zstack.io\n"},
     },
-    "Ec2-E24Cloud": {
-        "ds": "Ec2",
-        "files": {P_SYS_VENDOR: "e24cloud\n"},
-    },
+    "Ec2-E24Cloud": {"ds": "Ec2", "files": {P_SYS_VENDOR: "e24cloud\n"}},
     "Ec2-E24Cloud-negative": {
         "ds": "Ec2",
         "files": {P_SYS_VENDOR: "e24cloudyday\n"},
     },
     "VMware-NoValidTransports": {
         "ds": "VMware",
-        "mocks": [
-            MOCK_VIRT_IS_VMWARE,
-        ],
+        "mocks": [MOCK_VIRT_IS_VMWARE],
     },
     "VMware-vmware-customization": {
         "ds": "VMware",
@@ -2612,109 +2590,49 @@ VALID_CFG = {
     "VMware-EnvVar-NoData": {
         "ds": "VMware",
         "mocks": [
-            {
-                "name": "vmware_has_envvar_vmx_guestinfo",
-                "ret": 0,
-            },
-            {
-                "name": "vmware_has_envvar_vmx_guestinfo_metadata",
-                "ret": 1,
-            },
-            {
-                "name": "vmware_has_envvar_vmx_guestinfo_userdata",
-                "ret": 1,
-            },
-            {
-                "name": "vmware_has_envvar_vmx_guestinfo_vendordata",
-                "ret": 1,
-            },
+            {"name": "vmware_has_envvar_vmx_guestinfo", "ret": 0},
+            {"name": "vmware_has_envvar_vmx_guestinfo_metadata", "ret": 1},
+            {"name": "vmware_has_envvar_vmx_guestinfo_userdata", "ret": 1},
+            {"name": "vmware_has_envvar_vmx_guestinfo_vendordata", "ret": 1},
             MOCK_VIRT_IS_VMWARE,
         ],
     },
     "VMware-EnvVar-NoVirtID": {
         "ds": "VMware",
         "mocks": [
-            {
-                "name": "vmware_has_envvar_vmx_guestinfo",
-                "ret": 0,
-            },
-            {
-                "name": "vmware_has_envvar_vmx_guestinfo_metadata",
-                "ret": 0,
-            },
-            {
-                "name": "vmware_has_envvar_vmx_guestinfo_userdata",
-                "ret": 1,
-            },
-            {
-                "name": "vmware_has_envvar_vmx_guestinfo_vendordata",
-                "ret": 1,
-            },
+            {"name": "vmware_has_envvar_vmx_guestinfo", "ret": 0},
+            {"name": "vmware_has_envvar_vmx_guestinfo_metadata", "ret": 0},
+            {"name": "vmware_has_envvar_vmx_guestinfo_userdata", "ret": 1},
+            {"name": "vmware_has_envvar_vmx_guestinfo_vendordata", "ret": 1},
         ],
     },
     "VMware-EnvVar-Metadata": {
         "ds": "VMware",
         "mocks": [
-            {
-                "name": "vmware_has_envvar_vmx_guestinfo",
-                "ret": 0,
-            },
-            {
-                "name": "vmware_has_envvar_vmx_guestinfo_metadata",
-                "ret": 0,
-            },
-            {
-                "name": "vmware_has_envvar_vmx_guestinfo_userdata",
-                "ret": 1,
-            },
-            {
-                "name": "vmware_has_envvar_vmx_guestinfo_vendordata",
-                "ret": 1,
-            },
+            {"name": "vmware_has_envvar_vmx_guestinfo", "ret": 0},
+            {"name": "vmware_has_envvar_vmx_guestinfo_metadata", "ret": 0},
+            {"name": "vmware_has_envvar_vmx_guestinfo_userdata", "ret": 1},
+            {"name": "vmware_has_envvar_vmx_guestinfo_vendordata", "ret": 1},
             MOCK_VIRT_IS_VMWARE,
         ],
     },
     "VMware-EnvVar-Userdata": {
         "ds": "VMware",
         "mocks": [
-            {
-                "name": "vmware_has_envvar_vmx_guestinfo",
-                "ret": 0,
-            },
-            {
-                "name": "vmware_has_envvar_vmx_guestinfo_metadata",
-                "ret": 1,
-            },
-            {
-                "name": "vmware_has_envvar_vmx_guestinfo_userdata",
-                "ret": 0,
-            },
-            {
-                "name": "vmware_has_envvar_vmx_guestinfo_vendordata",
-                "ret": 1,
-            },
+            {"name": "vmware_has_envvar_vmx_guestinfo", "ret": 0},
+            {"name": "vmware_has_envvar_vmx_guestinfo_metadata", "ret": 1},
+            {"name": "vmware_has_envvar_vmx_guestinfo_userdata", "ret": 0},
+            {"name": "vmware_has_envvar_vmx_guestinfo_vendordata", "ret": 1},
             MOCK_VIRT_IS_VMWARE,
         ],
     },
     "VMware-EnvVar-Vendordata": {
         "ds": "VMware",
         "mocks": [
-            {
-                "name": "vmware_has_envvar_vmx_guestinfo",
-                "ret": 0,
-            },
-            {
-                "name": "vmware_has_envvar_vmx_guestinfo_metadata",
-                "ret": 1,
-            },
-            {
-                "name": "vmware_has_envvar_vmx_guestinfo_userdata",
-                "ret": 1,
-            },
-            {
-                "name": "vmware_has_envvar_vmx_guestinfo_vendordata",
-                "ret": 0,
-            },
+            {"name": "vmware_has_envvar_vmx_guestinfo", "ret": 0},
+            {"name": "vmware_has_envvar_vmx_guestinfo_metadata", "ret": 1},
+            {"name": "vmware_has_envvar_vmx_guestinfo_userdata", "ret": 1},
+            {"name": "vmware_has_envvar_vmx_guestinfo_vendordata", "ret": 0},
             MOCK_VIRT_IS_VMWARE,
         ],
     },
@@ -2731,18 +2649,9 @@ VALID_CFG = {
                 "ret": 1,
                 "out": "/usr/bin/vmtoolsd",
             },
-            {
-                "name": "vmware_guestinfo_metadata",
-                "ret": 1,
-            },
-            {
-                "name": "vmware_guestinfo_userdata",
-                "ret": 1,
-            },
-            {
-                "name": "vmware_guestinfo_vendordata",
-                "ret": 1,
-            },
+            {"name": "vmware_guestinfo_metadata", "ret": 1},
+            {"name": "vmware_guestinfo_userdata", "ret": 1},
+            {"name": "vmware_guestinfo_vendordata", "ret": 1},
             MOCK_VIRT_IS_VMWARE,
         ],
     },
@@ -2760,18 +2669,9 @@ VALID_CFG = {
                 "ret": 0,
                 "out": "/usr/bin/vmtoolsd",
             },
-            {
-                "name": "vmware_guestinfo_metadata",
-                "ret": 1,
-            },
-            {
-                "name": "vmware_guestinfo_userdata",
-                "ret": 1,
-            },
-            {
-                "name": "vmware_guestinfo_vendordata",
-                "ret": 1,
-            },
+            {"name": "vmware_guestinfo_metadata", "ret": 1},
+            {"name": "vmware_guestinfo_userdata", "ret": 1},
+            {"name": "vmware_guestinfo_vendordata", "ret": 1},
             MOCK_VIRT_IS_VMWARE,
         ],
     },
@@ -2783,19 +2683,9 @@ VALID_CFG = {
                 "ret": 0,
                 "out": "/usr/bin/vmware-rpctool",
             },
-            {
-                "name": "vmware_guestinfo_metadata",
-                "ret": 0,
-                "out": "---",
-            },
-            {
-                "name": "vmware_guestinfo_userdata",
-                "ret": 1,
-            },
-            {
-                "name": "vmware_guestinfo_vendordata",
-                "ret": 1,
-            },
+            {"name": "vmware_guestinfo_metadata", "ret": 0, "out": "---"},
+            {"name": "vmware_guestinfo_userdata", "ret": 1},
+            {"name": "vmware_guestinfo_vendordata", "ret": 1},
         ],
     },
     "VMware-GuestInfo-Metadata": {
@@ -2811,19 +2701,9 @@ VALID_CFG = {
                 "ret": 0,
                 "out": "/usr/bin/vmtoolsd",
             },
-            {
-                "name": "vmware_guestinfo_metadata",
-                "ret": 0,
-                "out": "---",
-            },
-            {
-                "name": "vmware_guestinfo_userdata",
-                "ret": 1,
-            },
-            {
-                "name": "vmware_guestinfo_vendordata",
-                "ret": 1,
-            },
+            {"name": "vmware_guestinfo_metadata", "ret": 0, "out": "---"},
+            {"name": "vmware_guestinfo_userdata", "ret": 1},
+            {"name": "vmware_guestinfo_vendordata", "ret": 1},
             MOCK_VIRT_IS_VMWARE,
         ],
     },
@@ -2840,19 +2720,9 @@ VALID_CFG = {
                 "ret": 1,
                 "out": "/usr/bin/vmtoolsd",
             },
-            {
-                "name": "vmware_guestinfo_metadata",
-                "ret": 1,
-            },
-            {
-                "name": "vmware_guestinfo_userdata",
-                "ret": 0,
-                "out": "---",
-            },
-            {
-                "name": "vmware_guestinfo_vendordata",
-                "ret": 1,
-            },
+            {"name": "vmware_guestinfo_metadata", "ret": 1},
+            {"name": "vmware_guestinfo_userdata", "ret": 0, "out": "---"},
+            {"name": "vmware_guestinfo_vendordata", "ret": 1},
             MOCK_VIRT_IS_VMWARE,
         ],
     },
@@ -2869,19 +2739,9 @@ VALID_CFG = {
                 "ret": 0,
                 "out": "/usr/bin/vmtoolsd",
             },
-            {
-                "name": "vmware_guestinfo_metadata",
-                "ret": 1,
-            },
-            {
-                "name": "vmware_guestinfo_userdata",
-                "ret": 1,
-            },
-            {
-                "name": "vmware_guestinfo_vendordata",
-                "ret": 0,
-                "out": "---",
-            },
+            {"name": "vmware_guestinfo_metadata", "ret": 1},
+            {"name": "vmware_guestinfo_userdata", "ret": 1},
+            {"name": "vmware_guestinfo_vendordata", "ret": 0, "out": "---"},
             MOCK_VIRT_IS_VMWARE,
         ],
     },
@@ -2899,19 +2759,9 @@ VALID_CFG = {
                 "ret": 0,
                 "out": "/usr/bin/vmtoolsd",
             },
-            {
-                "name": "vmware_guestinfo_metadata",
-                "ret": 0,
-                "out": "---",
-            },
-            {
-                "name": "vmware_guestinfo_userdata",
-                "ret": 1,
-            },
-            {
-                "name": "vmware_guestinfo_vendordata",
-                "ret": 1,
-            },
+            {"name": "vmware_guestinfo_metadata", "ret": 0, "out": "---"},
+            {"name": "vmware_guestinfo_userdata", "ret": 1},
+            {"name": "vmware_guestinfo_vendordata", "ret": 1},
             {
                 "name": "blkid",
                 "ret": 0,
@@ -2952,19 +2802,9 @@ VALID_CFG = {
                 "ret": 0,
                 "out": "/usr/bin/vmtoolsd",
             },
-            {
-                "name": "vmware_guestinfo_metadata",
-                "ret": 0,
-                "out": "---",
-            },
-            {
-                "name": "vmware_guestinfo_userdata",
-                "ret": 1,
-            },
-            {
-                "name": "vmware_guestinfo_vendordata",
-                "ret": 1,
-            },
+            {"name": "vmware_guestinfo_metadata", "ret": 0, "out": "---"},
+            {"name": "vmware_guestinfo_userdata", "ret": 1},
+            {"name": "vmware_guestinfo_vendordata", "ret": 1},
             {
                 "name": "blkid",
                 "ret": 0,
@@ -3012,25 +2852,17 @@ VALID_CFG = {
             P_SYS_VENDOR: "3DS Outscale\n",
         },
     },
-    "Not-WSL": {
-        "ds": "WSL",
-        "mocks": [
-            MOCK_VIRT_IS_KVM,
-        ],
-    },
+    "Not-WSL": {"ds": "WSL", "mocks": [MOCK_VIRT_IS_KVM]},
     "WSL-no-host-mounts": {
         "ds": "WSL",
-        "mocks": [
-            MOCK_VIRT_IS_WSL,
-            MOCK_UNAME_IS_WSL,
-        ],
+        "mocks": [MOCK_VIRT_IS_WSL, MOCK_UNAME_IS_WSL],
         "files": {
             "proc/mounts": (
                 "/dev/sdd / ext4 rw,errors=remount-ro,data=ordered 0 0\n"
                 "cgroup2 /sys/fs/cgroup cgroup2 rw,nosuid,nodev,noexec0 0\n"
                 "snapfuse /snap/core22/1033 fuse.snapfuse ro,nodev,user_id=0,"
                 "group_id=0,allow_other 0 0"
-            ),
+            )
         },
     },
     "WSL-supported": {
@@ -3080,5 +2912,53 @@ VALID_CFG = {
                 "os_release_no_version_id"
             ],
         },
+    },
+    # Test virtio-ports discovery with linuxcontainers serial name
+    "LXD-virtio-linuxcontainers": {
+        "ds": "LXD",
+        "files": {
+            "sys/class/virtio-ports/vprt0p1/name": "org.linuxcontainers.lxd",
+        },
+        "mocks": [{"name": "is_socket_file", "ret": 1}, MOCK_VIRT_IS_KVM_QEMU],
+        "no_mocks": ["dscheck_LXD"],
+    },
+    # Test virtio-ports discovery with canonical serial name
+    "LXD-virtio-canonical": {
+        "ds": "LXD",
+        "files": {
+            "sys/class/virtio-ports/vport0p1/name": "com.canonical.lxd",
+        },
+        "mocks": [{"name": "is_socket_file", "ret": 1}, MOCK_VIRT_IS_KVM],
+        "no_mocks": ["dscheck_LXD"],
+    },
+    # Test virtio-ports with wrong serial name should not detect LXD
+    "LXD-virtio-wrong-name": {
+        "ds": "LXD",
+        "files": {
+            "sys/class/virtio-ports/vport0p1/name": "some.other.serial",
+        },
+        "mocks": [{"name": "is_socket_file", "ret": 1}, MOCK_VIRT_IS_KVM],
+        "no_mocks": ["dscheck_LXD"],
+    },
+    # Test virtio-ports with multiple ports, only one is LXD
+    "LXD-virtio-multiple-ports": {
+        "ds": "LXD",
+        "files": {
+            "sys/class/virtio-ports/vport0p1/name": "some.other.serial",
+            "sys/class/virtio-ports/vport0p2/name": "com.canonical.lxd",
+            "sys/class/virtio-ports/vport0p3/name": "another.serial",
+        },
+        "mocks": [{"name": "is_socket_file", "ret": 1}, MOCK_VIRT_IS_KVM],
+        "no_mocks": ["dscheck_LXD"],
+    },
+    # Test empty virtio-ports directory should not detect LXD
+    "LXD-virtio-empty": {
+        "ds": "LXD",
+        "files": {
+            # Create the directory but no ports
+            "sys/class/virtio-ports/.keep": "",
+        },
+        "mocks": [{"name": "is_socket_file", "ret": 1}],
+        "no_mocks": ["dscheck_LXD"],
     },
 }

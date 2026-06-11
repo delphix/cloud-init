@@ -437,7 +437,7 @@ class DataSourceNoCloudNet(DataSourceNoCloud):
 
         NoCloud historically used "nocloud-net" as its dsname
         for network timeframe (DEP_NETWORK), which supports http(s) urls.
-        For backwards compatiblity, check for that dsname.
+        For backwards compatibility, check for that dsname.
         """
         log_deprecated = partial(
             lifecycle.deprecate,
@@ -445,7 +445,7 @@ class DataSourceNoCloudNet(DataSourceNoCloud):
             deprecated_version="24.1",
             extra_message=(
                 "Use 'nocloud' instead, which uses the seedfrom protocol"
-                "scheme (http// or file://) to decide how to run."
+                "scheme (http:// or file://) to decide how to run."
             ),
         )
 

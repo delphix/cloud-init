@@ -1,8 +1,12 @@
 {
    "debian" : {
       "build-requires" : [
+         "meson",
+         "pkgconf",
+         "bash-completion",
          "debhelper",
-         "dh-python",
+         "systemd-dev",
+         "python3",
          "python3-debconf"
       ],
       "renames" : {
@@ -10,6 +14,11 @@
          "pyserial" : "python3-serial"
       },
       "requires" : [
+         "debconf",
+         "dhcpcd-base",
+         "iproute2",
+         "netcat-openbsd",
+         "netplan.io",
          "procps"
       ]
    },
@@ -77,6 +86,17 @@
          "shadow-utils",
          "sudo",
          "hostname"
+      ]
+   },
+   "freebsd": {
+      "build-requires" : [
+         "bash-completion",
+         "meson",
+         "pkgconf"
+      ],
+      "requires" : [
+         "e2fsprogs",
+         "sudo"
       ]
    },
    "suse" : {

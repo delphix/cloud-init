@@ -1,3 +1,21 @@
+cloud-init (26.1-0ubuntu1~24.04.1) noble; urgency=medium
+
+  * d/rules: replace DOWNSTREAM_VERSION with packaged DEB_VERSION value
+  * d/p/0001-Revert-fix-DNS-resolution-performance-regression-dur.patch revert Ec2 URL change
+  * d/p/0001-Revert-fix-support-bond-names-in-network_data.patch revert bond name change
+  * refresh patches:
+    - d/p/no-nocloud-network.patch
+    - d/p/no-single-process.patch
+    - d/p/grub-dpkg-support.patch
+    - d/p/retain-setuptools.patch. Use PACKAGED_VERSION environment variable.
+      build tools and tests.
+  * Upstream snapshot based on upstream/main at 090026a3.
+  * Upstream snapshot based on 26.1. (LP: #2146833).
+    List of changes from upstream can be found at
+    https://raw.githubusercontent.com/canonical/cloud-init/26.1/ChangeLog
+
+ -- Chad Smith <chad.smith@canonical.com>  Mon, 30 Mar 2026 12:55:18 -0600
+
 cloud-init (25.3-0ubuntu1~24.04.1) noble; urgency=medium
 
   * d/p/retain-setuptools.patch: avoid upstream switch to meson build backend.
