@@ -1,11 +1,2 @@
-deprecation-version-boundary.patch
-no-single-process.patch
-no-nocloud-network.patch
-grub-dpkg-support.patch
-cpick-84806336-chore-Add-feature-flag-for-manual-network-waiting
-no-remove-networkd-online.patch
-cpick-d75840be-fix-retry-AWS-hotplug-for-async-IMDS-5995
-cpick-c60771d8-test-pytestify-test_url_helper.py
-cpick-8810a2dc-test-Remove-CiTestCase-from-test_url_helper.py
-cpick-582f16c1-test-add-OauthUrlHelper-tests
-cpick-9311e066-fix-Update-OauthUrlHelper-to-use-readurl-exception_cb
+cpick-d4566b1a-fix-ubuntu-Configure-arm64-to-use-archive.ubuntu.com
+cpick-bd85f29d-fix-oracle-detect-iSCSI-root-via-iBFT-for-dracut-images

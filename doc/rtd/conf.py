@@ -1,12 +1,8 @@
 import datetime
 import glob
-import itertools
 import os
+import re
 import sys
-
-from cloudinit import version
-from cloudinit.config.schema import get_schema
-from cloudinit.handlers.jinja_template import render_jinja_payload
 
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
@@ -15,6 +11,13 @@ sys.path.insert(0, os.path.abspath("../../"))
 sys.path.insert(0, os.path.abspath("../"))
 sys.path.insert(0, os.path.abspath("./"))
 sys.path.insert(0, os.path.abspath("."))
+
+
+# Readthedocs builds will pip install packages and not have PYTHONPATH set
+# So avoid cloudinit imports until we have updated our path first.
+from cloudinit.config.schema import get_schema
+from cloudinit.handlers.jinja_template import render_jinja_payload
+from cloudinit.subp import subp
 
 # Suppress warnings for docs that aren't used yet
 # unused_docs = [
@@ -63,7 +66,18 @@ master_doc = "index"
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
 # built documents.
-version = version.version_string()
+
+
+def get_version():
+    subp(["meson", "setup", "../../builddir", "../.."])
+    with open("../../builddir/meson_versions.py") as stream:
+        match = re.search(r'UPSTREAM_VERSION = "([^"]+)"', stream.read())
+    if match:
+        return match.group(1)
+    return "@UNABLE_TO_BUILD_meson_versions_py@"
+
+
+version = get_version()
 release = version
 
 # Set the default Pygments syntax
@@ -240,12 +254,12 @@ def render_property_template(prop_name, prop_cfg, prefix=""):
         description = f" {prop_cfg['description']}"
     else:
         description = ""
-    description += get_deprecated_str(prop_name, prop_cfg)
-    description += get_changed_str(prop_name, prop_cfg)
     jinja_vars = {
         "prefix": prefix,
         "name": prop_name,
         "description": description,
+        "deprecated": get_deprecated_str(prop_name, prop_cfg),
+        "changed": get_changed_str(prop_name, prop_cfg),
         "types": get_types_str(prop_cfg),
         "prop_cfg": prop_cfg,
     }
@@ -270,14 +284,13 @@ def flatten_schema_refs(src_cfg: dict, defs: dict):
                 if "$ref" in sub_schema:
                     reference = sub_schema.pop("$ref").replace("#/$defs/", "")
                     sub_schema.update(defs[reference])
-    for sub_schema in itertools.chain(
-        src_cfg.get("oneOf", []),
-        src_cfg.get("anyOf", []),
-        src_cfg.get("allOf", []),
-    ):
-        if "$ref" in sub_schema:
-            reference = sub_schema.pop("$ref").replace("#/$defs/", "")
-            sub_schema.update(defs[reference])
+    for key in ("anyOf", "oneOf", "allOf"):
+        if key in src_cfg:
+            for sub_schema in src_cfg[key]:
+                flatten_schema_refs(sub_schema, defs)
+    #   if "$ref" in sub_schema:
+    #       reference = sub_schema.pop("$ref").replace("#/$defs/", "")
+    #       sub_schema.update(defs[reference])
 
 
 def flatten_schema_all_of(src_cfg: dict):
@@ -295,6 +308,9 @@ def flatten_schema_all_of(src_cfg: dict):
 
 def render_nested_properties(prop_cfg, defs, prefix):
     prop_str = ""
+    if "oneOf" in prop_cfg:
+        for alt_schema in prop_cfg["oneOf"]:
+            prop_str += render_nested_properties(alt_schema, defs, prefix)
     prop_types = set(["properties", "patternProperties"])
     flatten_schema_refs(prop_cfg, defs)
     if "items" in prop_cfg:
@@ -334,7 +350,7 @@ def debug_module_docs(
 
     :param module_id: A specific 'cc_*' module name to print rendered RST for,
         or provide 'all' to print out all rendered module docs.
-    :param mod_docs: A dict represnting doc metadata for each config module.
+    :param mod_docs: A dict representing doc metadata for each config module.
         The dict is keyed on config module id (cc_*) and each value is a dict
         with values such as: title, name, examples, schema_doc.
     :param debug_file_path: A specific file to write the rendered RST content.

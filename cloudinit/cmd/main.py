@@ -79,6 +79,42 @@ STAGE_NAME = {
 LOG = logging.getLogger(__name__)
 
 
+class SubcommandAwareArgumentParser(argparse.ArgumentParser):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._raw_args = None
+
+    def parse_args(self, args=None, namespace=None):
+        """Override parse_args to store raw arguments for error handling."""
+        self._raw_args = args
+        return super().parse_args(args, namespace)
+
+    def error(self, message):
+        """Override error method to show subcommand usage if applicable."""
+        print(f"error: {message}\n", file=sys.stderr)
+
+        # Scan for the first valid subcommand
+
+        if not self._raw_args:
+            self._raw_args = sys.argv[1:]
+        subcommand = None
+        if self._raw_args:
+            for arg in self._raw_args:
+                if arg in self._subparsers._group_actions[0].choices:
+                    subcommand = arg
+                    break
+        # Check if the subcommand exists and show its help
+
+        if subcommand:
+            subparser = self._subparsers._group_actions[0].choices[subcommand]
+            subparser.print_help(
+                file=sys.stderr
+            )  # Print subcommand help to stderr
+        else:
+            self.print_help(file=sys.stderr)
+        sys.exit(2)
+
+
 # Used for when a logger may not be active
 # and we still want to print exceptions...
 def print_exc(msg=""):
@@ -313,7 +349,7 @@ def _should_bring_up_interfaces(init, args):
 
 
 def _should_wait_via_user_data(
-    raw_config: Optional[Union[str, bytes]]
+    raw_config: Optional[Union[str, bytes]],
 ) -> Tuple[bool, Reason]:
     """Determine if our cloud-config requires us to wait
 
@@ -362,7 +398,6 @@ def _should_wait_via_user_data(
             source_uri = source_dict.get("uri", "")
             if source_uri and not (source_uri.startswith(("/", "file:"))):
                 return True, "write_files with source uri found"
-        return False, "write_files without source uri found"
     if parsed_yaml.get("bootcmd"):
         return True, "bootcmd found"
     if parsed_yaml.get("random_seed", {}).get("command"):
@@ -736,7 +771,7 @@ def main_modules(action_name, args):
         util.logexc(LOG, msg)
         print_exc(msg)
         if not args.force:
-            return [(msg)]
+            return [msg]
     _maybe_persist_instance_data(init)
     # Stage 3
     mods = Modules(init, extract_fns(args), reporter=args.reporter)
@@ -1036,7 +1071,7 @@ def main(sysv_args=None):
     loggers.configure_root_logger()
     if not sysv_args:
         sysv_args = sys.argv
-    parser = argparse.ArgumentParser(prog=sysv_args.pop(0))
+    parser = SubcommandAwareArgumentParser(prog=sysv_args.pop(0))
 
     # Top level args
     parser.add_argument(
@@ -1070,7 +1105,7 @@ def main(sysv_args=None):
         action="store_true",
         help=(
             "Run cloud-init's stages under a single process using a "
-            "syncronization protocol. This is not intended for CLI usage."
+            "synchronization protocol. This is not intended for CLI usage."
         ),
         default=False,
     )
@@ -1270,7 +1305,7 @@ def main(sysv_args=None):
     args = parser.parse_args(args=sysv_args)
     setattr(args, "skip_log_setup", False)
     if not args.all_stages:
-        return sub_main(args)
+        return sub_main(args, parser)
     return all_stages(parser)
 
 
@@ -1290,7 +1325,7 @@ def all_stages(parser):
         args = parser.parse_args(args=["init", "--local"])
         args.skip_log_setup = False
         # run local stage
-        sync.systemd_exit_code = sub_main(args)
+        sync.systemd_exit_code = sub_main(args, parser)
 
     # wait for cloud-init-network.service to start
     with sync("network"):
@@ -1298,7 +1333,7 @@ def all_stages(parser):
         args = parser.parse_args(args=["init"])
         args.skip_log_setup = True
         # run init stage
-        sync.systemd_exit_code = sub_main(args)
+        sync.systemd_exit_code = sub_main(args, parser)
 
     # wait for cloud-config.service to start
     with sync("config"):
@@ -1306,7 +1341,7 @@ def all_stages(parser):
         args = parser.parse_args(args=["modules", "--mode=config"])
         args.skip_log_setup = True
         # run config stage
-        sync.systemd_exit_code = sub_main(args)
+        sync.systemd_exit_code = sub_main(args, parser)
 
     # wait for cloud-final.service to start
     with sync("final"):
@@ -1314,7 +1349,7 @@ def all_stages(parser):
         args = parser.parse_args(args=["modules", "--mode=final"])
         args.skip_log_setup = True
         # run final stage
-        sync.systemd_exit_code = sub_main(args)
+        sync.systemd_exit_code = sub_main(args, parser)
 
     # signal completion to cloud-init-main.service
     if sync.experienced_any_error:
@@ -1333,10 +1368,19 @@ def all_stages(parser):
         socket.sd_notify("STOPPING=1")
 
 
-def sub_main(args):
+def sub_main(args, parser):
 
-    # Subparsers.required = True and each subparser sets action=(name, functor)
-    (name, functor) = args.action
+    try:
+        # Subparsers.required = True
+        # and each subparser sets action=(name, functor)
+        (name, functor) = args.action
+    except AttributeError:
+        parser.print_usage()
+        sys.stderr.write(
+            "\nNo Subcommand specified. Please specify a subcommand in"
+            " addition to the option"
+        )
+        sys.exit(1)
 
     # Setup basic logging for cloud-init:
     # - for cloud-init stages if --debug

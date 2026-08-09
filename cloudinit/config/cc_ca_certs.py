@@ -72,18 +72,23 @@ for distro in (
 
 for distro in (
     "almalinux",
+    "centos",
     "cloudlinux",
+    "rocky",
 ):
     DISTRO_OVERRIDES[distro] = DISTRO_OVERRIDES["rhel"]
 
 distros = [
     "almalinux",
     "aosc",
+    "centos",
     "cloudlinux",
     "alpine",
     "debian",
     "fedora",
+    "raspberry-pi-os",
     "rhel",
+    "rocky",
     "opensuse",
     "opensuse-microos",
     "opensuse-tumbleweed",
@@ -157,10 +162,16 @@ def disable_default_ca_certs(distro_name, distro_cfg):
     """
     if distro_name in ["rhel", "photon"]:
         remove_default_ca_certs(distro_cfg)
-    elif distro_name in ["alpine", "aosc", "debian", "ubuntu"]:
+    elif distro_name in [
+        "alpine",
+        "aosc",
+        "debian",
+        "raspberry-pi-os",
+        "ubuntu",
+    ]:
         disable_system_ca_certs(distro_cfg)
 
-        if distro_name in ["debian", "ubuntu"]:
+        if distro_name in ["debian", "raspberry-pi-os", "ubuntu"]:
             debconf_sel = (
                 "ca-certificates ca-certificates/trust_new_crts " + "select no"
             )
@@ -249,6 +260,8 @@ def handle(name: str, cfg: Config, cloud: Cloud, args: list) -> None:
             " Ignoring ca-certs."
         )
     ca_cert_cfg = cfg.get("ca_certs", cfg.get("ca-certs"))
+    if not isinstance(ca_cert_cfg, dict):
+        raise TypeError("unexpected type: {ca_cert_cfg}")
     distro_cfg = _distro_ca_certs_configs(cloud.distro.name)
 
     # If there is a remove_defaults option set to true, disable the system

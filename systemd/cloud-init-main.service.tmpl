@@ -1,0 +1,42 @@
+## template:jinja
+# systemd ordering resources
+# ==========================
+# https://systemd.io/NETWORK_ONLINE/
+# https://docs.cloud-init.io/en/latest/explanation/boot.html
+# https://www.freedesktop.org/wiki/Software/systemd/NetworkTarget/
+# https://www.freedesktop.org/software/systemd/man/latest/systemd.special.html
+# https://www.freedesktop.org/software/systemd/man/latest/systemd-remount-fs.service.html
+[Unit]
+Description=Cloud-init: Single Process
+{% if variant in ["almalinux", "cloudlinux", "ubuntu", "unknown", "debian", "raspberry-pi-os", "rhel"] %}
+DefaultDependencies=no
+{% endif %}
+{% if variant in ["almalinux", "cloudlinux", "rhel"] %}
+Requires=dbus.socket
+After=dbus.socket
+{% endif %}
+
+After=systemd-remount-fs.service
+Before=cloud-init-local.service
+Before=shutdown.target
+Conflicts=shutdown.target
+RequiresMountsFor=/var/lib/cloud
+ConditionPathExists=!/etc/cloud/cloud-init.disabled
+ConditionKernelCommandLine=!cloud-init=disabled
+ConditionEnvironment=!KERNEL_CMDLINE=cloud-init=disabled
+
+[Service]
+Type=notify
+ExecStart=/usr/bin/cloud-init --all-stages
+KillMode=process
+TasksMax=infinity
+TimeoutStartSec=infinity
+{% if variant in ["almalinux", "cloudlinux", "rhel"] %}
+ExecStartPre=/sbin/restorecon /run/cloud-init
+{% endif %}
+
+# Output needs to appear in instance console output
+StandardOutput=journal+console
+
+[Install]
+WantedBy=cloud-init.target

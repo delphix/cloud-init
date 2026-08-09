@@ -14,6 +14,7 @@ Notes:
 """
 
 import base64
+import glob
 import ipaddress
 import json
 import logging
@@ -48,6 +49,12 @@ V2_HEADERS = {"Authorization": "Bearer Oracle"}
 # indicates that an MTU of 9000 is used within OCI
 MTU = 9000
 
+# iBFT target flags exposed by the kernel's iscsi_ibft module. A target that
+# is both valid and firmware-boot-selected indicates an iSCSI boot device.
+IBFT_TARGET_FLAGS_GLOB = "/sys/firmware/ibft/target*/flags"
+IBFT_TGT_BLOCK_VALID = 0x01
+IBFT_TGT_FIRMWARE_BOOT_SELECTED = 0x02
+
 
 class ReadOpcMetadataResponse(NamedTuple):
     version: int
@@ -66,6 +73,24 @@ class KlibcOracleNetworkConfigSource(cmdline.KlibcNetworkConfigSource):
     def is_applicable(self) -> bool:
         """Override is_applicable"""
         return bool(self._files)
+
+
+def _ibft_has_iscsi_boot_target() -> bool:
+    """Return True if an iBFT target is flagged as a firmware boot device."""
+    for flags_path in glob.glob(IBFT_TARGET_FLAGS_GLOB):
+        try:
+            flags = int(util.load_text_file(flags_path).strip())
+            if (
+                flags & IBFT_TGT_BLOCK_VALID
+                and flags & IBFT_TGT_FIRMWARE_BOOT_SELECTED
+            ):
+                LOG.debug(
+                    "Detected iSCSI boot target via iBFT: %s", flags_path
+                )
+                return True
+        except (OSError, ValueError):
+            continue
+    return False
 
 
 def _ensure_netfailover_safe(network_config: NetworkConfig) -> None:
@@ -216,7 +241,9 @@ class DataSourceOracle(sources.DataSource):
             )
         else:
             network_context = util.nullcontext()
-        fetch_primary_nic = not self._is_iscsi_root()
+        # Use the klibc source directly rather than _is_iscsi_root: iBFT may
+        # report iSCSI root even when no klibc files exist to render config.
+        fetch_primary_nic = not self._network_config_source.is_applicable()
         fetch_secondary_nics = self.ds_cfg.get(
             "configure_secondary_nics",
             BUILTIN_DS_CONFIG["configure_secondary_nics"],
@@ -252,7 +279,7 @@ class DataSourceOracle(sources.DataSource):
             "name": data["displayName"],
         }
 
-        if "metadata" in data:
+        if "metadata" in data and data["metadata"] is not None:
             user_data = data["metadata"].get("user_data")
             if user_data:
                 self.userdata_raw = base64.b64decode(user_data)
@@ -274,7 +301,7 @@ class DataSourceOracle(sources.DataSource):
 
     def _is_iscsi_root(self) -> bool:
         """Return whether we are on a iscsi machine."""
-        return self._network_config_source.is_applicable()
+        return _ibft_has_iscsi_boot_target()
 
     def _get_iscsi_config(self) -> dict:
         return self._network_config_source.render_config()
@@ -293,11 +320,10 @@ class DataSourceOracle(sources.DataSource):
             return self._network_config
 
         set_primary = False
-        # this is v1
-        if self._is_iscsi_root():
+        if self._network_config_source.is_applicable():
             self._network_config = self._get_iscsi_config()
         if not self._has_network_config():
-            LOG.warning(
+            LOG.debug(
                 "Could not obtain network configuration from initramfs. "
                 "Falling back to IMDS."
             )
@@ -317,6 +343,14 @@ class DataSourceOracle(sources.DataSource):
                     LOG,
                     "Failed to parse IMDS network configuration!",
                 )
+
+        # On iSCSI root, mark the primary NIC as critical so it is not torn
+        # down on shutdown, whether config came from initramfs or IMDS.
+        if self._is_iscsi_root() and self._has_network_config():
+            LOG.debug(
+                "Instance is using iSCSI root, setting primary NIC as critical"
+            )
+            self._network_config["config"][0]["keep_configuration"] = True
 
         # we need to verify that the nic selected is not a netfail over
         # device and, if it is a netfail master, then we need to avoid
@@ -364,7 +398,7 @@ class DataSourceOracle(sources.DataSource):
             is_primary = set_primary and index == 0
             mac_address = vnic_dict["macAddr"].lower()
             is_ipv6_only = vnic_dict.get(
-                "ipv6SubnetCidrBlock", False
+                "ipv6VirtualRouterIp", False
             ) and not vnic_dict.get("privateIp", False)
             if mac_address not in interfaces_by_mac:
                 LOG.warning(
@@ -380,65 +414,41 @@ class DataSourceOracle(sources.DataSource):
             else:
                 network = ipaddress.ip_network(vnic_dict["subnetCidrBlock"])
 
-            if self._network_config["version"] == 1:
-                if is_primary:
-                    if is_ipv6_only:
-                        subnets = [{"type": "dhcp6"}]
-                    else:
-                        subnets = [{"type": "dhcp"}]
+            if is_primary:
+                if is_ipv6_only:
+                    subnets = [{"type": "dhcp6"}]
                 else:
-                    subnets = []
-                    if vnic_dict.get("privateIp"):
-                        subnets.append(
-                            {
-                                "type": "static",
-                                "address": (
-                                    f"{vnic_dict['privateIp']}/"
-                                    f"{network.prefixlen}"
-                                ),
-                            }
-                        )
-                    if vnic_dict.get("ipv6Addresses"):
-                        subnets.append(
-                            {
-                                "type": "static",
-                                "address": (
-                                    f"{vnic_dict['ipv6Addresses'][0]}/"
-                                    f"{network.prefixlen}"
-                                ),
-                            }
-                        )
-                interface_config = {
-                    "name": name,
-                    "type": "physical",
-                    "mac_address": mac_address,
-                    "mtu": MTU,
-                    "subnets": subnets,
-                }
-                self._network_config["config"].append(interface_config)
-            elif self._network_config["version"] == 2:
-                # Why does this elif exist???
-                # Are there plans to switch to v2?
-                interface_config = {
-                    "mtu": MTU,
-                    "match": {"macaddress": mac_address},
-                }
-                self._network_config["ethernets"][name] = interface_config
-
-                interface_config["dhcp6"] = is_primary and is_ipv6_only
-                interface_config["dhcp4"] = is_primary and not is_ipv6_only
-                if not is_primary:
-                    interface_config["addresses"] = []
-                    if vnic_dict.get("privateIp"):
-                        interface_config["addresses"].append(
-                            f"{vnic_dict['privateIp']}/{network.prefixlen}"
-                        )
-                    if vnic_dict.get("ipv6Addresses"):
-                        interface_config["addresses"].append(
-                            f"{vnic_dict['ipv6Addresses'][0]}/"
-                            f"{network.prefixlen}"
-                        )
-                self._network_config["ethernets"][name] = interface_config
+                    subnets = [{"type": "dhcp"}]
+            else:
+                subnets = []
+                if vnic_dict.get("privateIp"):
+                    subnets.append(
+                        {
+                            "type": "static",
+                            "address": (
+                                f"{vnic_dict['privateIp']}/"
+                                f"{network.prefixlen}"
+                            ),
+                        }
+                    )
+                if vnic_dict.get("ipv6Addresses"):
+                    subnets.append(
+                        {
+                            "type": "static",
+                            "address": (
+                                f"{vnic_dict['ipv6Addresses'][0]}/"
+                                f"{network.prefixlen}"
+                            ),
+                        }
+                    )
+            interface_config = {
+                "name": name,
+                "type": "physical",
+                "mac_address": mac_address,
+                "mtu": MTU,
+                "subnets": subnets,
+            }
+            self._network_config["config"].append(interface_config)
 
 
 class DataSourceOracleNet(DataSourceOracle):
@@ -488,7 +498,7 @@ def read_opc_metadata(
     fetch_vnics_data: bool = False,
     max_wait=DataSourceOracle.url_max_wait,
     timeout=DataSourceOracle.url_timeout,
-    metadata_patterns: List[str] = [IPV4_METADATA_PATTERN],
+    metadata_patterns: Optional[List[str]] = None,
 ) -> Optional[ReadOpcMetadataResponse]:
     """
     Fetch metadata from the /opc/ routes from the IMDS.
@@ -505,6 +515,8 @@ def read_opc_metadata(
                 This allows for later determining if v1 or v2 endppoint was
                 used and whether the IMDS was reached via IPv4 or IPv6.
     """
+    if metadata_patterns is None:
+        metadata_patterns = [IPV4_METADATA_PATTERN]
     urls = [
         metadata_pattern.format(version=version, path="instance")
         for version in [2, 1]

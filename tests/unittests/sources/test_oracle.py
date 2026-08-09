@@ -381,6 +381,48 @@ class TestIsPlatformViable:
         m_read_dmi_data.assert_has_calls([mock.call("chassis-asset-tag")])
 
 
+class TestIbftHasIscsiBootTarget:
+    @pytest.mark.parametrize(
+        "flags_contents, is_iscsi_root",
+        [
+            # Valid and firmware-boot-selected target is an iSCSI root.
+            (["3"], True),
+            # Valid but not boot-selected is not.
+            (["1"], False),
+            # Neither valid nor boot-selected is not.
+            (["0"], False),
+            # Boot-selected but not valid is not.
+            (["2"], False),
+            # Any valid and boot-selected target among several wins.
+            (["0", "3"], True),
+            (["1", "2"], False),
+            # Malformed flag contents are ignored.
+            (["garbage"], False),
+            # No iBFT targets present.
+            ([], False),
+        ],
+    )
+    def test_flag_values(self, flags_contents, is_iscsi_root, mocker):
+        paths = [
+            f"/sys/firmware/ibft/target{i}/flags"
+            for i in range(len(flags_contents))
+        ]
+        mocker.patch(DS_PATH + ".glob.glob", return_value=paths)
+        mocker.patch(
+            DS_PATH + ".util.load_text_file", side_effect=flags_contents
+        )
+        assert is_iscsi_root == oracle._ibft_has_iscsi_boot_target()
+
+    @pytest.mark.parametrize("error", [FileNotFoundError, PermissionError])
+    def test_unreadable_flags_are_skipped(self, error, mocker):
+        mocker.patch(
+            DS_PATH + ".glob.glob",
+            return_value=["/sys/firmware/ibft/target0/flags"],
+        )
+        mocker.patch(DS_PATH + ".util.load_text_file", side_effect=error)
+        assert not oracle._ibft_has_iscsi_boot_target()
+
+
 @pytest.mark.is_iscsi(False)
 @mock.patch(
     "cloudinit.net.is_openvswitch_internal_interface",
@@ -487,48 +529,6 @@ class TestNetworkConfigFromOpcImds:
 
     @pytest.mark.parametrize(
         "set_primary",
-        [True, False],
-    )
-    def test_secondary_nic_v2(self, set_primary, oracle_ds):
-        oracle_ds._vnics_data = json.loads(OPC_VM_SECONDARY_VNIC_RESPONSE)
-        oracle_ds._network_config = {
-            "version": 2,
-            "ethernets": {"primary": {"nic": {}}},
-        }
-        with mock.patch(
-            f"{DS_PATH}.get_interfaces_by_mac",
-            return_value={
-                "02:00:17:05:d1:db": "ens3",
-                "00:00:17:02:2b:b1": "ens4",
-            },
-        ):
-            oracle_ds._add_network_config_from_opc_imds(
-                set_primary=set_primary
-            )
-
-        nic_cfg = oracle_ds.network_config["ethernets"]
-        if set_primary:
-            assert "ens3" in nic_cfg
-            primary_cfg = nic_cfg["ens3"]
-
-            assert primary_cfg["dhcp4"] is True
-            assert primary_cfg["dhcp6"] is False
-            assert "02:00:17:05:d1:db" == primary_cfg["match"]["macaddress"]
-            assert 9000 == primary_cfg["mtu"]
-            assert "addresses" not in primary_cfg
-
-        assert "ens4" in nic_cfg
-        secondary_cfg = nic_cfg["ens4"]
-        assert secondary_cfg["dhcp4"] is False
-        assert secondary_cfg["dhcp6"] is False
-        assert "00:00:17:02:2b:b1" == secondary_cfg["match"]["macaddress"]
-        assert 9000 == secondary_cfg["mtu"]
-
-        assert 1 == len(secondary_cfg["addresses"])
-        assert "10.0.0.231/24" == secondary_cfg["addresses"][0]
-
-    @pytest.mark.parametrize(
-        "set_primary",
         [
             pytest.param(True, id="set_primary"),
             pytest.param(False, id="dont_set_primary"),
@@ -577,53 +577,6 @@ class TestNetworkConfigFromOpcImds:
             == secondary_cfg["subnets"][0]["address"]
         )
         assert "static" == secondary_cfg["subnets"][0]["type"]
-
-    @pytest.mark.parametrize(
-        "set_primary",
-        [True, False],
-    )
-    def test_secondary_nic_v2_ipv6_only(self, set_primary, oracle_ds):
-        oracle_ds._vnics_data = json.loads(
-            OPC_VM_IPV6_ONLY_SECONDARY_VNIC_RESPONSE
-        )
-        oracle_ds._network_config = {
-            "version": 2,
-            "ethernets": {"primary": {"nic": {}}},
-        }
-        with mock.patch(
-            f"{DS_PATH}.get_interfaces_by_mac",
-            return_value={
-                "02:00:17:0d:6b:be": "ens3",
-                "02:00:17:18:f6:ff": "ens4",
-            },
-        ):
-            oracle_ds._add_network_config_from_opc_imds(
-                set_primary=set_primary
-            )
-
-        nic_cfg = oracle_ds.network_config["ethernets"]
-        if set_primary:
-            assert "ens3" in nic_cfg
-            primary_cfg = nic_cfg["ens3"]
-
-            assert primary_cfg["dhcp4"] is False
-            assert primary_cfg["dhcp6"] is True
-            assert "02:00:17:0d:6b:be" == primary_cfg["match"]["macaddress"]
-            assert 9000 == primary_cfg["mtu"]
-            assert "addresses" not in primary_cfg
-
-        assert "ens4" in nic_cfg
-        secondary_cfg = nic_cfg["ens4"]
-        assert secondary_cfg["dhcp4"] is False
-        assert secondary_cfg["dhcp6"] is False
-        assert "02:00:17:18:f6:ff" == secondary_cfg["match"]["macaddress"]
-        assert 9000 == secondary_cfg["mtu"]
-
-        assert 1 == len(secondary_cfg["addresses"])
-        assert (
-            "2603:c020:400d:5d7e:aacc:8e5f:3b1b:3a4a/128"
-            == secondary_cfg["addresses"][0]
-        )
 
     @pytest.mark.parametrize("error_add_network", [None, Exception])
     @pytest.mark.parametrize(
@@ -675,7 +628,7 @@ class TestNetworkConfigFromOpcImds:
             ) == caplog.record_tuples[-1][1:]
 
         assert (
-            logging.WARNING,
+            logging.DEBUG,
             "Could not obtain network configuration from initramfs."
             " Falling back to IMDS.",
         ) == caplog.record_tuples[log_initramfs_index][1:]
@@ -1429,7 +1382,9 @@ class TestPerformDHCPSetup:
         if ephemeral_dhcp_setup_raises_exception:
 
             def raise_exception(**kwargs):
-                raise Exception("Failed to setup ephemeral network")
+                raise Exception(  # pylint: disable=W0719
+                    "Failed to setup ephemeral network"
+                )
 
             m_ephemeral_network.side_effect = raise_exception
         else:
@@ -1460,12 +1415,12 @@ class TestPerformDHCPSetup:
             ),
         ):
             # datasource fails/exits if ephemeral dhcp setup fails
-            with (
-                pytest.raises(Exception)
-                if ephemeral_dhcp_setup_raises_exception
-                else test_helpers.does_not_raise()
-            ):
-                assert oracle_ds._check_and_get_data()
+            if ephemeral_dhcp_setup_raises_exception:
+                with pytest.raises(Exception):
+                    assert oracle_ds._check_and_get_data()
+            else:
+                with test_helpers.does_not_raise():
+                    assert oracle_ds._check_and_get_data()
 
         if perform_dhcp_setup:
             assert [
@@ -1498,6 +1453,50 @@ class TestNetworkConfig:
         assert 1 == oracle_ds._get_iscsi_config.call_count
         oracle_ds.network_config  # pylint: disable=pointless-statement
         assert 1 == oracle_ds._get_iscsi_config.call_count
+
+    @pytest.mark.is_iscsi(True)
+    def test_keep_configuration_set_from_iscsi_klibc(
+        self, m_get_interfaces_by_mac, oracle_ds
+    ):
+        """iSCSI root config from initramfs marks the primary NIC critical."""
+        netcfg = oracle_ds.network_config
+        assert netcfg["config"][0]["keep_configuration"] is True
+
+    @pytest.mark.is_iscsi(True)
+    def test_keep_configuration_set_from_imds_fallback(
+        self, m_get_interfaces_by_mac, oracle_ds, mocker
+    ):
+        """iSCSI root with no klibc config (dracut) still marks the
+        primary NIC critical when config comes from IMDS."""
+        m_get_interfaces_by_mac.return_value = {
+            "02:00:17:05:d1:db": "ens3",
+            "00:00:17:02:2b:b1": "ens4",
+        }
+        mocker.patch.object(
+            oracle_ds._network_config_source,
+            "is_applicable",
+            return_value=False,
+        )
+        oracle_ds._vnics_data = json.loads(OPC_VM_SECONDARY_VNIC_RESPONSE)
+
+        netcfg = oracle_ds.network_config
+
+        assert netcfg["config"][0]["keep_configuration"] is True
+
+    @pytest.mark.is_iscsi(False)
+    def test_keep_configuration_not_set_without_iscsi(
+        self, m_get_interfaces_by_mac, oracle_ds
+    ):
+        """Non-iSCSI instances do not mark the primary NIC critical."""
+        m_get_interfaces_by_mac.return_value = {
+            "02:00:17:05:d1:db": "ens3",
+            "00:00:17:02:2b:b1": "ens4",
+        }
+        oracle_ds._vnics_data = json.loads(OPC_VM_SECONDARY_VNIC_RESPONSE)
+
+        netcfg = oracle_ds.network_config
+
+        assert "keep_configuration" not in netcfg["config"][0]
 
     @pytest.mark.parametrize(
         "configure_secondary_nics,is_iscsi,expected_set_primary",
@@ -1620,7 +1619,7 @@ class TestNetworkConfig:
         oracle_ds,
         caplog,
     ):
-        """If no intefaces by mac found, then _network_config not setted and
+        """If no interfaces by mac found, then _network_config not set and
         correct logs.
         """
         vnics_data = json.loads(OPC_VM_SECONDARY_VNIC_RESPONSE)

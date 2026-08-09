@@ -19,16 +19,18 @@ from pycloudlib.gce.instance import GceInstance
 import cloudinit.config
 from cloudinit import lifecycle
 from cloudinit.util import is_true
+from tests.integration_tests.clouds import Ec2Cloud
 from tests.integration_tests.decorators import retry
 from tests.integration_tests.instances import IntegrationInstance
 from tests.integration_tests.integration_settings import (
     OS_IMAGE_TYPE,
     PLATFORM,
 )
-from tests.integration_tests.releases import CURRENT_RELEASE, IS_UBUNTU, JAMMY
+from tests.integration_tests.releases import CURRENT_RELEASE, IS_UBUNTU, NOBLE
 from tests.integration_tests.util import (
     get_feature_flag_value,
     get_inactive_modules,
+    has_netplanlib,
     lxd_has_nocloud,
     network_wait_logged,
     verify_clean_boot,
@@ -98,13 +100,13 @@ class TestCombined:
         Test that netplan config file is generated with proper permissions
         """
         log = class_client.read_from_file("/var/log/cloud-init.log")
-        if CURRENT_RELEASE < JAMMY:
+        if has_netplanlib(class_client):
+            assert "Rendered netplan config using netplan python API" in log
+        else:
             assert (
                 "No netplan python module. Fallback to write"
                 " /etc/netplan/50-cloud-init.yaml" in log
             )
-        else:
-            assert "Rendered netplan config using netplan python API" in log
         file_perms = class_client.execute(
             "stat -c %a /etc/netplan/50-cloud-init.yaml"
         )
@@ -241,7 +243,7 @@ class TestCombined:
         """
         client = class_client
         timezone_output = client.execute(
-            'date "+%Z" --date="Thu, 03 Nov 2016 00:47:00 -0400"'
+            'date --date="Thu, 03 Nov 2016 00:47:00 -0400" "+%Z"'
         )
         assert timezone_output.strip() == "CET"
 
@@ -262,9 +264,13 @@ class TestCombined:
             # Some minimal images may not have an installed rsyslog package
             # Test user-data doesn't provide install_rsyslog: true so expect
             # warnings when not installed.
+            if CURRENT_RELEASE < NOBLE:
+                operation_name = "reload-or-try-restart"
+            else:
+                operation_name = "try-reload-or-restart"
             require_warnings.append(
-                "Failed to reload-or-try-restart rsyslog.service:"
-                " Unit rsyslog.service not found."
+                f"Failed to {operation_name} rsyslog.service: Unit"
+                " rsyslog.service not found."
             )
         # Set ignore_deprecations=True as test_deprecated_message covers this
         verify_clean_boot(
@@ -308,6 +314,7 @@ class TestCombined:
                 "azure": "DataSourceAzure [seed=/dev/sr0]",
                 "ec2": "DataSourceEc2Local",
                 "gce": "DataSourceGCELocal",
+                "ibm": "DataSourceNoCloud [seed=/dev/vdb]",
                 "oci": "DataSourceOracle",
                 "openstack": "DataSourceOpenStackLocal [net,ver=2]",
                 "qemu": "DataSourceNoCloud [seed=/dev/vda][dsmode=net]",
@@ -319,12 +326,13 @@ class TestCombined:
 
     def test_cloud_id_file_symlink(self, class_client: IntegrationInstance):
         cloud_id = class_client.execute("cloud-id").stdout
-        expected_link_output = (
-            "'/run/cloud-init/cloud-id' -> "
-            f"'/run/cloud-init/cloud-id-{cloud_id}'"
+        expected_link_regex = (
+            r"['\"]/run/cloud-init/cloud-id['\"] -> "
+            f"['\"]/run/cloud-init/cloud-id-{cloud_id}['\"]"
         )
-        assert expected_link_output == str(
-            class_client.execute("stat -c %N /run/cloud-init/cloud-id")
+        assert re.match(
+            expected_link_regex,
+            class_client.execute("stat -c %N /run/cloud-init/cloud-id"),
         )
 
     def test_run_frequency(self, class_client: IntegrationInstance):
@@ -484,7 +492,11 @@ class TestCombined:
         assert v1_data["region"] is None
 
     @pytest.mark.skipif(PLATFORM != "ec2", reason="Test is ec2 specific")
-    def test_instance_json_ec2(self, class_client: IntegrationInstance):
+    def test_instance_json_ec2(
+        self,
+        class_client: IntegrationInstance,
+        session_cloud: Ec2Cloud,
+    ):
         client = class_client
         instance_json_file = client.read_from_file(
             "/run/cloud-init/instance-data.json"
@@ -507,7 +519,7 @@ class TestCombined:
         )
         assert v1_data["instance_id"] == client.instance.name
         assert v1_data["local_hostname"].startswith("ip-")
-        assert v1_data["region"] == client.cloud.cloud_instance.region
+        assert v1_data["region"] == session_cloud.cloud_instance.region
 
     @pytest.mark.skipif(PLATFORM != "gce", reason="Test is GCE specific")
     def test_instance_json_gce(self, class_client: IntegrationInstance):

@@ -130,12 +130,6 @@ class DataSourceNoCloud(sources.DataSource):
 
         label = self.ds_cfg.get("fs_label", "cidata")
         if label is not None:
-            if label.lower() != "cidata":
-                lifecycle.deprecate(
-                    deprecated="Custom fs_label keys",
-                    deprecated_version="24.3",
-                    extra_message="This key isn't supported by ds-identify.",
-                )
             for dev in self._get_devices(label):
                 try:
                     LOG.debug("Attempting to use data from %s", dev)
@@ -167,7 +161,7 @@ class DataSourceNoCloud(sources.DataSource):
 
         # There was no indication on kernel cmdline or data
         # in the seeddir suggesting this handler should be used.
-        if len(found) == 0:
+        if not found:
             return False
 
         # The special argument "seedfrom" indicates we should
@@ -190,7 +184,7 @@ class DataSourceNoCloud(sources.DataSource):
 
             # This could throw errors, but the user told us to do it
             # so if errors are raised, let them raise
-            md_seed, ud, vd, _ = util.read_seeded(seedfrom, timeout=None)
+            md_seed, ud, vd, network = util.read_seeded(seedfrom, timeout=None)
             LOG.debug("Using seeded cache data from %s", seedfrom)
 
             # Values in the command line override those from the seed
@@ -199,6 +193,7 @@ class DataSourceNoCloud(sources.DataSource):
             )
             mydata["user-data"] = ud
             mydata["vendor-data"] = vd
+            mydata["network-config"] = network
             found.append(seedfrom)
 
         # Now that we have exhausted any other places merge in the defaults
@@ -420,7 +415,7 @@ class DataSourceNoCloudNet(DataSourceNoCloud):
 
         NoCloud historically used "nocloud-net" as its dsname
         for network timeframe (DEP_NETWORK), which supports http(s) urls.
-        For backwards compatiblity, check for that dsname.
+        For backwards compatibility, check for that dsname.
         """
         log_deprecated = partial(
             lifecycle.deprecate,
@@ -428,7 +423,7 @@ class DataSourceNoCloudNet(DataSourceNoCloud):
             deprecated_version="24.1",
             extra_message=(
                 "Use 'nocloud' instead, which uses the seedfrom protocol"
-                "scheme (http// or file://) to decide how to run."
+                "scheme (http:// or file://) to decide how to run."
             ),
         )
 

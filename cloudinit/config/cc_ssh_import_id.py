@@ -23,7 +23,7 @@ SSH_IMPORT_ID_BINARY = "ssh-import-id"
 
 meta: MetaSchema = {
     "id": "cc_ssh_import_id",
-    "distros": ["alpine", "cos", "debian", "ubuntu"],
+    "distros": ["alpine", "cos", "debian", "raspberry-pi-os", "ubuntu"],
     "frequency": PER_INSTANCE,
     "activate_by_schema_keys": [],
 }
@@ -47,7 +47,7 @@ def handle(name: str, cfg: Config, cloud: Cloud, args: list) -> None:
         return
 
     # import for "user: XXXXX"
-    if len(args) != 0:
+    if args:
         user = args[0]
         ids = []
         if len(args) > 1:
@@ -105,7 +105,7 @@ def import_ssh_ids(ids, user):
     except KeyError as exc:
         raise exc
 
-    # TODO: We have a use case that involes setting a proxy value earlier
+    # TODO: We have a use case that involves setting a proxy value earlier
     # in boot and the user wants this env used when using ssh-import-id.
     # E.g.,:
     # bootcmd:

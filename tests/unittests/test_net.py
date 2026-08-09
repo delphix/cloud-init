@@ -3215,6 +3215,8 @@ class TestNetworkManagerRendering:
             ("v6_and_v4", "yaml"),
             ("v1-dns", "yaml"),
             ("v2-mixed-routes", "yaml"),
+            ("v2-mixed-routes-reversed", "yaml"),
+            ("v2-mixed-routes-no-ipv6-addr", "yaml"),
             ("v2-dns", "yaml"),
             ("v2-dns-no-if-ips", "yaml"),
             ("v2-dns-no-dhcp", "yaml"),
@@ -3371,6 +3373,110 @@ class TestNetplanNetRendering:
                   version: 2
                 """,
                 id="default_generation",
+            ),
+            # Asserts a netconf v1 with subnet metrics for dhcp4 and dhcp6
+            # is properly rendered in Netplan v2
+            pytest.param(
+                """
+                version: 1
+                config:
+                  - type: physical
+                    name: eth0
+                    mac_address: '00:11:22:33:44:55'
+                    subnets:
+                      - type: dhcp4
+                        metric: 100
+                      - type: dhcp6
+                        metric: 200
+                """,
+                """
+                network:
+                  version: 2
+                  ethernets:
+                    eth0:
+                      dhcp4: true
+                      dhcp4-overrides:
+                        route-metric: 100
+                      dhcp6: true
+                      dhcp6-overrides:
+                        route-metric: 200
+                      match:
+                        macaddress: 00:11:22:33:44:55
+                      set-name: eth0
+                """,
+                id="subnet_metric_in_dhcp",
+            ),
+            # Asserts a netconf v1 with gateway and metric
+            # is properly rendered in Netplan v2
+            pytest.param(
+                """
+                version: 1
+                config:
+                  - type: physical
+                    name: eth0
+                    mac_address: '00:11:22:33:44:55'
+                    subnets:
+                      - type: static
+                        address: 192.168.1.10/24
+                        gateway: 192.168.1.1
+                        metric: 100
+                """,
+                """
+                network:
+                  version: 2
+                  ethernets:
+                    eth0:
+                      addresses:
+                      - 192.168.1.10/24
+                      match:
+                        macaddress: 00:11:22:33:44:55
+                      routes:
+                        - to: default
+                          via: 192.168.1.1
+                          metric: 100
+                      set-name: eth0
+                """,
+                id="gateway_with_metric",
+            ),
+            # Asserts a netconf v1 with static routes and metrics
+            # is properly rendered in Netplan v2
+            pytest.param(
+                """
+                version: 1
+                config:
+                  - type: physical
+                    name: eth0
+                    mac_address: '00:11:22:33:44:55'
+                    subnets:
+                      - type: static
+                        address: 192.168.1.10/24
+                        routes:
+                          - destination: 10.0.0.0/8
+                            gateway: 192.168.1.254
+                            metric: 100
+                          - destination: 172.16.0.0/12
+                            gateway: 192.168.1.254
+                            metric: 200
+                """,
+                """
+                network:
+                  version: 2
+                  ethernets:
+                    eth0:
+                      addresses:
+                      - 192.168.1.10/24
+                      match:
+                        macaddress: 00:11:22:33:44:55
+                      routes:
+                        - to: 10.0.0.0/8
+                          via: 192.168.1.254
+                          metric: 100
+                        - to: 172.16.0.0/12
+                          via: 192.168.1.254
+                          metric: 200
+                      set-name: eth0
+                """,
+                id="static_routes_with_metrics",
             ),
             # Asserts a netconf v1 with a physical device and two gateways
             # does not produce deprecated keys, `gateway{46}`, in Netplan v2
@@ -4404,6 +4510,14 @@ class TestEniRoundTrip:
             ("dhcpv6_only", "yaml_v2"),
             ("v1_ipv4_and_ipv6_static", "yaml_v1"),
             ("v2_ipv4_and_ipv6_static", "yaml_v2"),
+            ("v1_eni_ipv4_and_ipv6_static_dnsnameservers_only", "yaml_v1"),
+            ("v2_eni_ipv4_and_ipv6_static_dnsnameservers_only", "yaml_v2"),
+            ("v1_eni_ipv4_and_ipv6_static_dns_only_ipv4", "yaml_v1"),
+            ("v2_eni_ipv4_and_ipv6_static_dns_only_ipv4", "yaml_v2"),
+            ("v1_eni_ipv4_and_ipv6_static_dns_only_ipv6", "yaml_v1"),
+            ("v2_eni_ipv4_and_ipv6_static_dns_only_ipv6", "yaml_v2"),
+            ("v1_eni_ipv4_and_ipv6_static_dns_both_ipv4_ipv6", "yaml_v1"),
+            ("v2_eni_ipv4_and_ipv6_static_dns_both_ipv4_ipv6", "yaml_v2"),
             ("dhcpv6_stateless", "yaml"),
             ("ipv6_slaac", "yaml"),
             pytest.param(
@@ -4436,22 +4550,38 @@ class TestEniRoundTrip:
             pytest.param(
                 "v1-dns", "yaml", marks=pytest.mark.xfail(reason="GH-4219")
             ),
-            pytest.param(
-                "v2-dns", "yaml", marks=pytest.mark.xfail(reason="GH-4219")
-            ),
+            ("v2-dns", "yaml"),
+            ("v2-mixed-routes", "yaml"),
+            ("v2-mixed-routes-reversed", "yaml"),
+            ("v2-mixed-routes-no-ipv6-addr", "yaml"),
+            ("v2-dns-no-if-ips", "yaml"),
+            ("v2-dns-no-dhcp", "yaml"),
         ],
     )
-    def test_config(self, expected_name, yaml_version):
+    @mock.patch("cloudinit.subp.which")
+    def test_config(self, m_which, expected_name, yaml_version):
         entry = NETWORK_CONFIGS[expected_name]
+
+        m_which.return_value = "/sbin/ip"
         files = self._render_and_read(
             network_config=yaml.safe_load(entry[yaml_version])
         )
         assert (
-            entry["expected_eni"].splitlines()
+            entry["expected_eni_ip_cmd"].splitlines()
             == files["/etc/network/interfaces"].splitlines()
         )
 
-    def test_routes_rendered(self):
+        m_which.return_value = None
+        files = self._render_and_read(
+            network_config=yaml.safe_load(entry[yaml_version])
+        )
+        assert (
+            entry["expected_eni_route_cmd"].splitlines()
+            == files["/etc/network/interfaces"].splitlines()
+        )
+
+    @mock.patch("cloudinit.subp.which")
+    def test_routes_rendered_ip_cmd(self, m_which):
         # as reported in bug 1649652
         conf = [
             {
@@ -4496,6 +4626,85 @@ class TestEniRoundTrip:
             },
         ]
 
+        m_which.return_value = "/sbin/ip"
+        files = self._render_and_read(
+            network_config={"config": conf, "version": 1}
+        )
+        expected = [
+            "auto lo",
+            "iface lo inet loopback",
+            "auto eth0",
+            "iface eth0 inet static",
+            "    address 172.23.31.42/26",
+            "    gateway 172.23.31.2",
+            "post-up ip route add 10.0.0.0/12 via "
+            "172.23.31.1 metric 0 || true",
+            "pre-down ip route del 10.0.0.0/12 via "
+            "172.23.31.1 metric 0 || true",
+            "post-up ip route add 192.168.2.0/16 via "
+            "172.23.31.1 metric 0 || true",
+            "pre-down ip route del 192.168.2.0/16 via "
+            "172.23.31.1 metric 0 || true",
+            "post-up ip route add 10.0.200.0/16 via "
+            "172.23.31.1 metric 1 || true",
+            "pre-down ip route del 10.0.200.0/16 via "
+            "172.23.31.1 metric 1 || true",
+            "post-up ip route add 10.0.0.100/32 via "
+            "172.23.31.1 metric 1 || true",
+            "pre-down ip route del 10.0.0.100/32 via "
+            "172.23.31.1 metric 1 || true",
+        ]
+        found = files["/etc/network/interfaces"].splitlines()
+
+        assert expected == [line for line in found if line]
+
+    @mock.patch("cloudinit.subp.which")
+    def test_routes_rendered_route_cmd(self, m_which):
+        # as reported in bug 1649652
+        conf = [
+            {
+                "name": "eth0",
+                "type": "physical",
+                "subnets": [
+                    {
+                        "address": "172.23.31.42/26",
+                        "dns_nameservers": [],
+                        "gateway": "172.23.31.2",
+                        "type": "static",
+                    }
+                ],
+            },
+            {
+                "type": "route",
+                "id": 4,
+                "metric": 0,
+                "destination": "10.0.0.0/12",
+                "gateway": "172.23.31.1",
+            },
+            {
+                "type": "route",
+                "id": 5,
+                "metric": 0,
+                "destination": "192.168.2.0/16",
+                "gateway": "172.23.31.1",
+            },
+            {
+                "type": "route",
+                "id": 6,
+                "metric": 1,
+                "destination": "10.0.200.0/16",
+                "gateway": "172.23.31.1",
+            },
+            {
+                "type": "route",
+                "id": 7,
+                "metric": 1,
+                "destination": "10.0.0.100/32",
+                "gateway": "172.23.31.1",
+            },
+        ]
+
+        m_which.return_value = None
         files = self._render_and_read(
             network_config={"config": conf, "version": 1}
         )
@@ -4527,7 +4736,8 @@ class TestEniRoundTrip:
 
         assert expected == [line for line in found if line]
 
-    def test_ipv6_static_routes(self):
+    @mock.patch("cloudinit.subp.which")
+    def test_ipv6_static_routes_ip_cmd(self, m_which):
         # as reported in bug 1818669
         conf = [
             {
@@ -4569,6 +4779,87 @@ class TestEniRoundTrip:
             },
         ]
 
+        m_which.return_value = "/sbin/ip"
+        files = self._render_and_read(
+            network_config={"config": conf, "version": 1}
+        )
+        expected = [
+            "auto lo",
+            "iface lo inet loopback",
+            "auto eno3",
+            "iface eno3 inet6 static",
+            "    address fd00::12/64",
+            "    dns-nameservers fd00:2::15",
+            "    gateway fd00::1",
+            "    post-up ip -family inet6 route add fd00:12::/32 via fd00::2 "
+            "|| true",
+            "    pre-down ip -family inet6 route del fd00:12::/32 via fd00::2 "
+            "|| true",
+            "    post-up ip -family inet6 route add fd00:14::/64 via fd00::3 "
+            "|| true",
+            "    pre-down ip -family inet6 route del fd00:14::/64 via fd00::3 "
+            "|| true",
+            "    post-up ip -family inet6 route add fe00:14::/48 via "
+            "fe00::4 metric 500 || true",
+            "    pre-down ip -family inet6 route del fe00:14::/48 via "
+            "fe00::4 metric 500 || true",
+            "    post-up ip route add 192.168.23.0/24 via "
+            "192.168.23.1 metric 999 || true",
+            "    pre-down ip route del 192.168.23.0/24 via "
+            "192.168.23.1 metric 999 || true",
+            "    post-up ip route add 10.23.23.0/24 via "
+            "10.23.23.2 metric 300 || true",
+            "    pre-down ip route del 10.23.23.0/24 via "
+            "10.23.23.2 metric 300 || true",
+        ]
+        found = files["/etc/network/interfaces"].splitlines()
+
+        assert expected == [line for line in found if line]
+
+    @mock.patch("cloudinit.subp.which")
+    def test_ipv6_static_routes_route_cmd(self, m_which):
+        # as reported in bug 1818669
+        conf = [
+            {
+                "name": "eno3",
+                "type": "physical",
+                "subnets": [
+                    {
+                        "address": "fd00::12/64",
+                        "dns_nameservers": ["fd00:2::15"],
+                        "gateway": "fd00::1",
+                        "ipv6": True,
+                        "type": "static",
+                        "routes": [
+                            {
+                                "netmask": "32",
+                                "network": "fd00:12::",
+                                "gateway": "fd00::2",
+                            },
+                            {"network": "fd00:14::", "gateway": "fd00::3"},
+                            {
+                                "destination": "fe00:14::/48",
+                                "gateway": "fe00::4",
+                                "metric": 500,
+                            },
+                            {
+                                "gateway": "192.168.23.1",
+                                "metric": 999,
+                                "netmask": 24,
+                                "network": "192.168.23.0",
+                            },
+                            {
+                                "destination": "10.23.23.0/24",
+                                "gateway": "10.23.23.2",
+                                "metric": 300,
+                            },
+                        ],
+                    }
+                ],
+            },
+        ]
+
+        m_which.return_value = None
         files = self._render_and_read(
             network_config={"config": conf, "version": 1}
         )
@@ -5085,12 +5376,12 @@ class TestGetInterfaces:
 
         assert "tun0" in self._se_get_devicelist()
         found = [ent for ent in ret if "tun0" in ent]
-        assert len(found) == 0
+        assert not found
 
     def test_gi_excludes_stolen_macs(self, mocks):
         ret = net.get_interfaces()
         mocks["interface_has_own_mac"].assert_has_calls(
-            [mock.call("enp0s1"), mock.call("bond1")], any_order=True
+            [mock.call("enp0s1")], any_order=True
         )
         expected = [
             ("enp0s2", "aa:aa:aa:aa:aa:02", "e1000", "0x5"),

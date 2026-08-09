@@ -85,7 +85,7 @@ def ftp_get_return_code_from_exception(exc) -> int:
     }
     code = ftp_error_codes.get(type(exc))  # pyright: ignore
     if not code:
-        if isinstance(exc, OSError):
+        if isinstance(exc, OSError) and exc.errno:
             code = exc.errno
         else:
             LOG.warning(
@@ -101,7 +101,7 @@ def read_ftps(url: str, timeout: float = 5.0, **kwargs: dict) -> "FtpResponse":
     when using strict mode (ftps://), raise exception in event of failure
     when not using strict mode (ftp://), fall back to using unencrypted ftp
 
-    url: string containing the desination to read a file from. The url is
+    url: string containing the destination to read a file from. The url is
         parsed with urllib.urlsplit to identify username, password, host,
         path, and port in the following format:
             ftps://[username:password@]host[:port]/[path]
@@ -387,13 +387,15 @@ def _get_retry_after(retry_after: str) -> float:
     """
     try:
         to_wait = float(retry_after)
-    except ValueError:
+    except ValueError as exc:
         # Translate a date such as "Fri, 31 Dec 1999 23:59:59 GMT"
         # into seconds to wait
         try:
             time_tuple = parsedate(retry_after)
             if not time_tuple:
-                raise ValueError("Failed to parse Retry-After header value")
+                raise ValueError(
+                    "Failed to parse Retry-After header value"
+                ) from exc
             to_wait = float(time.mktime(time_tuple) - time.time())
         except ValueError:
             LOG.info(
@@ -432,8 +434,9 @@ def _handle_error(
         return None
     if error.code and error.code == 503:
         LOG.warning(
-            "Ec2 IMDS endpoint returned a 503 error. "
-            "HTTP endpoint is overloaded. Retrying."
+            "Endpoint returned a 503 error. "
+            "HTTP endpoint is overloaded. Retrying URL (%s).",
+            error.url,
         )
         if error.headers:
             return _get_retry_after(error.headers.get("Retry-After", "1"))
@@ -697,7 +700,7 @@ def dual_stack(
         # No success, return the last exception but log them all for
         # debugging
         if last_exception:
-            LOG.warning(
+            LOG.debug(
                 "Exception(s) %s during request to "
                 "%s, raising last exception",
                 exceptions,
@@ -710,7 +713,7 @@ def dual_stack(
 
     # when max_wait expires, log but don't throw (retries happen)
     except TimeoutError:
-        LOG.warning(
+        LOG.debug(
             "Timed out waiting for addresses: %s, "
             "exception(s) raised while waiting: %s",
             " ".join(addresses),
@@ -1097,7 +1100,7 @@ class OauthUrlHelper:
         return self._wrapped(readurl, args, kwargs)
 
     def _exception_cb(self, extra_exception_cb, exception):
-        ret = None
+        ret = True
         try:
             if extra_exception_cb:
                 ret = extra_exception_cb(exception)

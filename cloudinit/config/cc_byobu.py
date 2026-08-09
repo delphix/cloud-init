@@ -21,14 +21,14 @@ LOG = logging.getLogger(__name__)
 
 meta: MetaSchema = {
     "id": "cc_byobu",
-    "distros": ["ubuntu", "debian"],
+    "distros": ["ubuntu", "debian", "raspberry-pi-os"],
     "frequency": PER_INSTANCE,
     "activate_by_schema_keys": [],
 }
 
 
 def handle(name: str, cfg: Config, cloud: Cloud, args: list) -> None:
-    if len(args) != 0:
+    if args:
         value = args[0]
     else:
         value = util.get_cfg_option_str(cfg, "byobu_by_default", "")

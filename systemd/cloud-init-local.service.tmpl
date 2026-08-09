@@ -2,22 +2,20 @@
 [Unit]
 # https://docs.cloud-init.io/en/latest/explanation/boot.html
 Description=Cloud-init: Local Stage (pre-network)
-{% if variant in ["almalinux", "cloudlinux", "ubuntu", "unknown", "debian", "rhel"] %}
+{% if variant in ["almalinux", "cloudlinux", "ubuntu", "unknown", "debian", "raspberry-pi-os", "rhel"] %}
 DefaultDependencies=no
 {% endif %}
 Wants=network-pre.target
 After=hv_kvp_daemon.service
-After=systemd-remount-fs.service
 Before=network-pre.target
 Before=shutdown.target
 {% if variant in ["almalinux", "cloudlinux", "rhel"] %}
 Before=firewalld.target
 {% endif %}
-{% if variant in ["ubuntu", "unknown", "debian"] %}
+{% if variant in ["ubuntu", "unknown", "debian", "raspberry-pi-os"] %}
 Before=sysinit.target
 {% endif %}
 Conflicts=shutdown.target
-RequiresMountsFor=/var/lib/cloud
 ConditionPathExists=!/etc/cloud/cloud-init.disabled
 ConditionKernelCommandLine=!cloud-init=disabled
 ConditionEnvironment=!KERNEL_CMDLINE=cloud-init=disabled
@@ -27,7 +25,14 @@ Type=oneshot
 {% if variant in ["almalinux", "cloudlinux", "rhel"] %}
 ExecStartPre=/sbin/restorecon /run/cloud-init
 {% endif %}
-ExecStart=/usr/bin/cloud-init init --local
+# This service is a shim which preserves systemd ordering while allowing a
+# single Python process to run cloud-init's logic. This works by communicating
+# with the cloud-init process over a unix socket to tell the process that this
+# stage can start, and then wait on a return socket until the cloud-init
+# process has completed this stage. The output from the return socket is piped
+# into a shell so that the process can send a completion message (defaults to
+# "done", otherwise includes an error message) and an exit code to systemd.
+ExecStart=sh -c 'echo "start" | nc -U /run/cloud-init/share/local.sock | sh'
 RemainAfterExit=yes
 TimeoutSec=0
 

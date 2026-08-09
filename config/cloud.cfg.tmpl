@@ -10,6 +10,7 @@
                  "mariner": "MarinerOS", "rhel": "Cloud User",
                  "netbsd": "NetBSD", "openbsd": "openBSD",
                  "openmandriva": "OpenMandriva admin", "photon": "PhotonOS",
+                 "raspberry-pi-os": "Raspberry Pi OS",
                  "ubuntu": "Ubuntu", "unknown": "Ubuntu"}) %}
 {% set groups = ({"alpine": "adm, wheel", "aosc": "wheel", "arch": "wheel, users",
                   "azurelinux": "wheel",
@@ -17,6 +18,7 @@
                   "gentoo": "users, wheel", "mariner": "wheel",
                   "photon": "wheel",
                   "openmandriva": "wheel, users, systemd-journal",
+                  "raspberry-pi-os": "adm, dialout, cdrom, audio, users, sudo, video, games, plugdev, input, gpio, spi, i2c, netdev, render, lpadmin",
                   "suse": "cdrom, users",
                   "ubuntu": "adm, cdrom, dip, lxd, sudo",
                   "unknown": "adm, cdrom, dip, lxd, sudo"}) %}
@@ -24,7 +26,8 @@
                   "freebsd": "/bin/tcsh", "netbsd": "/bin/sh",
                   "openbsd": "/bin/ksh"}) %}
 {% set usernames = ({"amazon": "ec2-user", "centos": "cloud-user",
-                     "openmandriva": "omv", "rhel": "cloud-user",
+                     "openmandriva": "omv", "raspberry-pi-os": "pi",
+                     "rhel": "cloud-user",
                      "unknown": "ubuntu"}) %}
 {% if is_bsd %}
 syslog_fix_perms: root:wheel
@@ -116,7 +119,7 @@ cloud_init_modules:
 {% endif %}
   - bootcmd
   - write_files
-{% if variant not in ["netbsd", "openbsd"] %}
+{% if variant not in ["netbsd", "openbsd", "raspberry-pi-os"] %}
   - growpart
   - resizefs
 {% endif %}
@@ -179,6 +182,9 @@ cloud_config_modules:
 {% endif %}
   - ntp
   - timezone
+{% if variant == "raspberry-pi-os" %}
+  - raspberry_pi
+{% endif %}
 {% if variant not in ["azurelinux"] %}
   - disable_ec2_metadata
 {% endif %}
@@ -207,7 +213,9 @@ cloud_final_modules:
 {% if variant not in ["azurelinux"] %}
   - mcollective
   - salt_minion
+{% if variant not in ["alpine"] %}
   - reset_rmc
+{% endif %}
 {% endif %}
   - scripts_vendor
   - scripts_per_once
@@ -227,8 +235,8 @@ system_info:
   # This will affect which distro class gets used
 {% if variant in ["alpine", "amazon", "aosc", "arch", "azurelinux", "debian", "fedora",
                   "freebsd", "gentoo", "mariner", "netbsd", "openbsd",
-                  "OpenCloudOS", "openeuler", "openmandriva", "photon", "suse",
-                  "TencentOS", "ubuntu"] or is_rhel %}
+                  "OpenCloudOS", "openeuler", "openmandriva", "photon",
+                  "raspberry-pi-os", "suse", "TencentOS", "ubuntu"] or is_rhel %}
   distro: {{ variant }}
 {% elif variant == "dragonfly" %}
   distro: dragonflybsd
@@ -245,8 +253,8 @@ system_info:
 {% endif %}
 {% if variant in ["alpine", "amazon", "aosc", "arch", "azurelinux", "debian", "fedora",
                   "gentoo", "mariner", "OpenCloudOS", "openeuler",
-                  "openmandriva", "photon", "suse", "TencentOS", "ubuntu",
-                  "unknown"]
+                  "openmandriva", "photon", "raspberry-pi-os",
+                  "suse", "TencentOS", "ubuntu", "unknown"]
                  or is_bsd or is_rhel %}
     lock_passwd: True
 {% endif %}
@@ -305,6 +313,10 @@ system_info:
 {% elif variant == "openmandriva" %}
   network:
     renderers: ['network-manager', 'networkd']
+{% elif variant == "raspberry-pi-os" %}
+  network:
+    renderers: ['netplan', 'network-manager']
+    activators: ['netplan', 'network-manager']
 {% elif variant in ["ubuntu", "unknown"] %}
 {# SRU_BLOCKER: do not ship network renderers on Xenial, Bionic or Eoan #}
   network:
@@ -315,10 +327,11 @@ system_info:
   network:
     renderers: ['eni', 'netplan', 'network-manager', 'sysconfig', 'networkd']
 {% endif %}
-{% if variant == "photon" %}
+{% if variant in ["photon", "raspberry-pi-os"] %}
   # If set to true, cloud-init will not use fallback network config.
-  # In Photon, we have default network settings, hence if network settings are
-  # not explicitly given in metadata, don't use fallback network config.
+  # In Photon and Raspberry Pi OS, we have default network settings,
+  # hence if network settings are not explicitly given in metadata,
+  # don't use fallback network config.
   disable_fallback_netcfg: true
 {% endif %}
 {% if variant in ["debian", "ubuntu", "unknown"] %}
@@ -346,7 +359,7 @@ system_info:
         security: https://deb.debian.org/debian-security
 {% elif variant in ["ubuntu", "unknown"] %}
   package_mirrors:
-    - arches: [i386, amd64]
+    - arches: [arm64, i386, amd64]
       failsafe:
         primary: http://archive.ubuntu.com/ubuntu
         security: http://security.ubuntu.com/ubuntu
@@ -356,7 +369,7 @@ system_info:
           - http://%(availability_zone)s.clouds.archive.ubuntu.com/ubuntu/
           - http://%(region)s.clouds.archive.ubuntu.com/ubuntu/
         security: []
-    - arches: [arm64, armel, armhf]
+    - arches: [armel, armhf]
       failsafe:
         primary: http://ports.ubuntu.com/ubuntu-ports
         security: http://ports.ubuntu.com/ubuntu-ports
@@ -371,7 +384,7 @@ system_info:
         primary: http://ports.ubuntu.com/ubuntu-ports
         security: http://ports.ubuntu.com/ubuntu-ports
 {% endif %}
-{% if variant in ["debian", "ubuntu", "unknown"] %}
+{% if variant in ["debian", "raspberry-pi-os", "ubuntu", "unknown"] %}
   ssh_svcname: ssh
 {% elif variant in ["alpine", "amazon", "aosc", "arch", "azurelinux", "fedora",
                     "gentoo", "mariner", "OpenCloudOS", "openeuler",

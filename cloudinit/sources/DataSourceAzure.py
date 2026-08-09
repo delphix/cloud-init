@@ -11,15 +11,17 @@ import os
 import os.path
 import re
 import socket
+import warnings
 import xml.etree.ElementTree as ET  # nosec B405
 from enum import Enum
 from pathlib import Path
 from time import monotonic, sleep, time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import requests
 
 from cloudinit import net, performance, sources, ssh_util, subp, util
+from cloudinit.config import cc_mounts
 from cloudinit.event import EventScope, EventType
 from cloudinit.net import device_driver
 from cloudinit.net.dhcp import (
@@ -49,7 +51,9 @@ from cloudinit.sources.helpers.azure import (
 from cloudinit.url_helper import UrlError
 
 try:
-    import crypt  # pylint: disable=W4901
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", category=DeprecationWarning)
+        import crypt  # pylint: disable=W4901
 
     blowfish_hash: Any = functools.partial(
         crypt.crypt, salt=f"$6${util.rand_str(strlen=16)}"
@@ -332,24 +336,28 @@ class DataSourceAzure(sources.DataSource):
         self._iso_dev = None
         self._network_config = None
         self._ephemeral_dhcp_ctx: Optional[EphemeralDHCPv4] = None
-        self._route_configured_for_imds = False
-        self._route_configured_for_wireserver = False
-        self._wireserver_endpoint = DEFAULT_WIRESERVER_ENDPOINT
         self._reported_ready_marker_file = os.path.join(
             paths.cloud_dir, "data", "reported_ready"
         )
+        self._route_configured_for_imds = False
+        self._route_configured_for_wireserver = False
+        self._system_uuid = None
+        self._vm_id = None
+        self._wireserver_endpoint = DEFAULT_WIRESERVER_ENDPOINT
 
     def _unpickle(self, ci_pkl_version: int) -> None:
         super()._unpickle(ci_pkl_version)
 
         self._ephemeral_dhcp_ctx = None
         self._iso_dev = None
-        self._route_configured_for_imds = False
-        self._route_configured_for_wireserver = False
-        self._wireserver_endpoint = DEFAULT_WIRESERVER_ENDPOINT
         self._reported_ready_marker_file = os.path.join(
             self.paths.cloud_dir, "data", "reported_ready"
         )
+        self._route_configured_for_imds = False
+        self._route_configured_for_wireserver = False
+        self._system_uuid = None
+        self._vm_id = None
+        self._wireserver_endpoint = DEFAULT_WIRESERVER_ENDPOINT
 
     def __str__(self):
         root = sources.DataSource.__str__(self)
@@ -415,17 +423,13 @@ class DataSourceAzure(sources.DataSource):
                 "Bringing up networking when already configured."
             )
 
-        report_diagnostic_event(
-            "Bringing up ephemeral networking with iface=%s: %r"
-            % (iface, net.get_interfaces()),
-            logger_func=LOG.debug,
-        )
         self._ephemeral_dhcp_ctx = EphemeralDHCPv4(
             self.distro,
             iface=iface,
             dhcp_log_func=dhcp_log_cb,
         )
 
+        update_primary_nic = iface is None
         lease: Optional[Dict[str, Any]] = None
         start_time = monotonic()
         deadline = start_time + timeout_minutes * 60
@@ -436,6 +440,19 @@ class DataSourceAzure(sources.DataSource):
         ):
             while lease is None:
                 try:
+                    if update_primary_nic:
+                        iface = find_primary_nic()
+
+                    mac, driver = get_interface_details(iface)
+
+                    report_diagnostic_event(
+                        "Bringing up ephemeral networking with "
+                        "iface=%s mac=%s driver=%s: %r"
+                        % (iface, mac, driver, net.get_interfaces()),
+                        logger_func=LOG.debug,
+                    )
+
+                    self._ephemeral_dhcp_ctx.iface = iface
                     lease = self._ephemeral_dhcp_ctx.obtain_lease()
                 except NoDHCPLeaseInterfaceError:
                     # Interface not found, continue after sleeping 1 second.
@@ -458,14 +475,23 @@ class DataSourceAzure(sources.DataSource):
                 except NoDHCPLeaseError:
                     # Typical DHCP failure, continue after sleeping 1 second.
                     report_diagnostic_event(
-                        "Failed to obtain DHCP lease (iface=%s)" % iface,
+                        "Failed to obtain DHCP lease "
+                        "(iface=%s mac=%s driver=%s)" % (iface, mac, driver),
                         logger_func=LOG.error,
                     )
                     self._report_failure(
                         errors.ReportableErrorDhcpLease(
-                            duration=monotonic() - start_time, interface=iface
+                            driver=driver,
+                            duration=monotonic() - start_time,
+                            interface=iface,
+                            mac_address=mac,
                         ),
                         host_only=True,
+                    )
+                except FileNotFoundError as error:
+                    report_diagnostic_event(
+                        "File not found during DHCP %r" % error,
+                        logger_func=LOG.error,
                     )
                 except subp.ProcessExecutionError as error:
                     # udevadm settle, ip link set dev eth0 up, etc.
@@ -615,6 +641,13 @@ class DataSourceAzure(sources.DataSource):
         @raise: InvalidMetaDataException when the expected metadata service is
             unavailable, broken or disabled.
         """
+        self._query_vm_id()
+        report_diagnostic_event(
+            "Azure VM ID: %s System UUID: %s"
+            % (self._vm_id, self._system_uuid),
+            logger_func=LOG.info,
+        )
+
         crawled_data = {}
         # azure removes/ejects the cdrom containing the ovf-env.xml
         # file on reboot.  So, in order to successfully reboot we
@@ -758,21 +791,19 @@ class DataSourceAzure(sources.DataSource):
         if imds_hostname:
             LOG.debug("Hostname retrieved from IMDS: %s", imds_hostname)
             crawled_data["metadata"]["local-hostname"] = imds_hostname
-        if imds_disable_password:
+        if imds_disable_password is not None:
             LOG.debug(
                 "Disable password retrieved from IMDS: %s",
                 imds_disable_password,
             )
-            crawled_data["metadata"][
-                "disable_password"
-            ] = imds_disable_password
+            crawled_data["cfg"]["ssh_pwauth"] = not imds_disable_password
 
         if self.seed == "IMDS" and not crawled_data["files"]:
             try:
                 contents = build_minimal_ovf(
-                    username=imds_username,  # pyright: ignore
-                    hostname=imds_hostname,  # pyright: ignore
-                    disableSshPwd=imds_disable_password,  # pyright: ignore
+                    username=imds_username,
+                    hostname=imds_hostname,
+                    disable_ssh_password_auth=imds_disable_password,
                 )
                 crawled_data["files"] = {"ovf-env.xml": contents}
             except Exception as e:
@@ -1034,22 +1065,46 @@ class DataSourceAzure(sources.DataSource):
         # quickly (local check only) if self.instance_id is still valid
         return sources.instance_id_matches_system_uuid(self.get_instance_id())
 
+    def _query_vm_id(self):
+        """Query the system UUID and VM IDs, if needed.
+
+        They are initialized to None, check only if they are unset.
+
+        Raise as reportable error on failure.
+        """
+        if not self._system_uuid:
+            try:
+                self._system_uuid = identity.query_system_uuid()
+            except RuntimeError as error:
+                raise errors.ReportableErrorVmIdentification(exception=error)
+
+        if not self._vm_id:
+            try:
+                self._vm_id = identity.convert_system_uuid_to_vm_id(
+                    self._system_uuid
+                )
+            except ValueError as error:
+                raise errors.ReportableErrorVmIdentification(
+                    exception=error, system_uuid=self._system_uuid
+                )
+
     def _iid(self, previous=None):
+        self._query_vm_id()
+
         prev_iid_path = os.path.join(
             self.paths.get_cpath("data"), "instance-id"
         )
-        system_uuid = identity.query_system_uuid()
         if os.path.exists(prev_iid_path):
             previous = util.load_text_file(prev_iid_path).strip()
-            swapped_id = identity.byte_swap_system_uuid(system_uuid)
+            swapped_id = identity.byte_swap_system_uuid(self._system_uuid)
 
             # Older kernels than 4.15 will have UPPERCASE product_uuid.
             # We don't want Azure to react to an UPPER/lower difference as
             # a new instance id as it rewrites SSH host keys.
             # LP: #1835584
-            if previous.lower() in [system_uuid, swapped_id]:
+            if previous.lower() in [self._system_uuid, swapped_id]:
                 return previous
-        return system_uuid
+        return self._system_uuid
 
     @azure_ds_telemetry_reporter
     def _wait_for_nic_detach(self, nl_sock):
@@ -1350,12 +1405,13 @@ class DataSourceAzure(sources.DataSource):
         @param host_only: Only report to host (error may be recoverable).
         @return: The success status of sending the failure signal.
         """
+        encoded_report = error.as_encoded_report(vm_id=self._vm_id)
         report_diagnostic_event(
-            f"Azure datasource failure occurred: {error.as_encoded_report()}",
+            f"Azure datasource failure occurred: {encoded_report}",
             logger_func=LOG.error,
         )
         report_dmesg_to_kvp()
-        reported = kvp.report_failure_to_host(error)
+        reported = kvp.report_via_kvp(encoded_report)
         if host_only:
             return reported
 
@@ -1367,7 +1423,8 @@ class DataSourceAzure(sources.DataSource):
                     logger_func=LOG.debug,
                 )
                 report_failure_to_fabric(
-                    endpoint=self._wireserver_endpoint, error=error
+                    endpoint=self._wireserver_endpoint,
+                    encoded_report=encoded_report,
                 )
                 self._negotiated = True
                 return True
@@ -1390,7 +1447,8 @@ class DataSourceAzure(sources.DataSource):
                 # Reporting failure will fail, but it will emit telemetry.
                 pass
             report_failure_to_fabric(
-                endpoint=self._wireserver_endpoint, error=error
+                endpoint=self._wireserver_endpoint,
+                encoded_report=encoded_report,
             )
             self._negotiated = True
             return True
@@ -1415,7 +1473,7 @@ class DataSourceAzure(sources.DataSource):
         :returns: List of SSH keys, if requested.
         """
         report_dmesg_to_kvp()
-        kvp.report_success_to_host()
+        kvp.report_success_to_host(vm_id=self._vm_id)
 
         try:
             data = get_metadata_from_fabric(
@@ -1628,6 +1686,18 @@ class DataSourceAzure(sources.DataSource):
 
         return False
 
+    def _cleanup_resourcedisk_fstab(self):
+        """
+        Remove resource disk entries from fstab, which are configured
+        by cloud-init i.e. lines containing "/dev/disk/cloud/azure_resource"
+        and cloudconfig comment.
+        """
+        cc_mounts.cleanup_fstab(RESOURCE_DISK_PATH)
+
+    def clean(self):
+        # Azure-specific cleanup logic for "cloud-init clean -c datasource"
+        self._cleanup_resourcedisk_fstab()
+
 
 def _username_from_imds(imds_data):
     try:
@@ -1733,15 +1803,18 @@ def can_dev_be_reformatted(devpath, preserve_ntfs):
     # devpath of /dev/sd[a-z] or /dev/disk/cloud/azure_resource
     # where partitions are "<devpath>1" or "<devpath>-part1" or "<devpath>p1"
     partitions = _partitions_on_device(devpath)
-    if len(partitions) == 0:
+    if not partitions:
         return False, "device %s was not partitioned" % devpath
-    elif len(partitions) > 2:
+
+    partition_len = len(partitions)
+    if partition_len > 2:
         msg = "device %s had 3 or more partitions: %s" % (
             devpath,
             " ".join([p[1] for p in partitions]),
         )
         return False, msg
-    elif len(partitions) == 2:
+
+    if partition_len == 2:
         cand_part, cand_path = partitions[1]
     else:
         cand_part, cand_path = partitions[0]
@@ -1938,6 +2011,14 @@ def read_azure_ovf(contents):
 
 def encrypt_pass(password):
     return blowfish_hash(password)
+
+
+def find_primary_nic():
+    candidate_nics = net.find_candidate_nics()
+    if candidate_nics:
+        return candidate_nics[0]
+
+    return None
 
 
 @azure_ds_telemetry_reporter
@@ -2145,3 +2226,17 @@ datasources = [
 # Return a list of data sources that match this set of dependencies
 def get_datasource_list(depends):
     return sources.list_from_depends(depends, datasources)
+
+
+def get_interface_details(
+    iface: Optional[str],
+) -> Tuple[Optional[str], Optional[str]]:
+    if iface is None:
+        return None, None
+
+    interfaces = net.get_interfaces()
+    for interface_name, interface_mac, interface_driver, _ in interfaces:
+        if interface_name == iface:
+            return interface_mac, interface_driver
+
+    return None, None

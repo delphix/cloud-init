@@ -5,6 +5,9 @@ Homepage: https://cloud-init.io/
 Maintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
 Build-Depends: debhelper-compat (= 13),
                dh-python,
+               meson,
+               pkgconf,
+               bash-completion,
                iproute2,
                po-debconf,
                python3,
@@ -19,32 +22,76 @@ Build-Depends: debhelper-compat (= 13),
                python3-pytest-mock,
                python3-requests,
                python3-serial,
-               python3-setuptools,
                python3-yaml,
                python3-responses,
-               python3-passlib
+               python3-passlib,
+               udev,
+               systemd-dev
 Vcs-Browser: https://github.com/canonical/cloud-init/tree/ubuntu/devel
 Vcs-Git: https://github.com/canonical/cloud-init -b ubuntu/devel
 Standards-Version: 4.5.0
 Rules-Requires-Root: no
 
-Package: cloud-init
+Package: cloud-init-base
 Architecture: all
 Depends: cloud-guest-utils | cloud-utils,
          dhcpcd-base,
          iproute2,
+         netcat-openbsd,
          netplan.io,
          procps,
          python3,
+         python3-configobj,
          python3-debconf,
          python3-requests,
-         python3-serial,
+         python3-jinja2,
+         python3-jsonpatch,
+         python3-jsonschema,
+         python3-oauthlib,
+         python3-yaml,
          ${misc:Depends},
          ${python3:Depends}
 Recommends: eatmydata, gdisk, gnupg, python3-apt, software-properties-common
 Suggests: openssh-server, ssh-import-id
-Breaks: python3-minimal (<< 3.12.3-0ubuntu2~)
-Provides: cloud-init-base
+Replaces: cloud-init (<< 25.1.1-0ubuntu2~), cloud-init-base
+Breaks: cloud-init (<< 25.1.1-0ubuntu2~), cloud-init-base
+Description: initialization and customization tool for cloud instances
+ Cloud-init with minimal dependencies, refer to cloud-init for more
+ information.
+
+Package: cloud-init-azure
+Architecture: all
+Depends: cloud-init-base (= ${binary:Version}),
+         python3-passlib,
+         ${misc:Depends},
+Description: Azure specific cloud-init
+ This metapackage depends on cloud-init-base and additional packages for
+ Azure.
+
+Package: cloud-init-cloud-sigma
+Architecture: all
+Depends: cloud-init-base (= ${binary:Version}),
+         python3-serial,
+         ${misc:Depends},
+Description: Cloud Sigma specific cloud-init
+ This metapackage depends on cloud-init-base and additional packages for
+ Cloud Sigma.
+
+Package: cloud-init-smart-os
+Architecture: all
+Depends: cloud-init-base (= ${binary:Version}),
+         python3-serial,
+         ${misc:Depends},
+Description: Smart OS specific cloud-init
+ This metapackage depends on cloud-init-base and additional packages for
+ Smart OS.
+
+Package: cloud-init
+Architecture: all
+Depends: cloud-init-base (= ${binary:Version}),
+         python3-serial,
+         python3-passlib,
+         ${misc:Depends},
 Description: initialization and customization tool for cloud instances
  Cloud-init is the industry standard multi-distribution method for
  cross-platform cloud instance initialization. It is supported across all major
@@ -63,3 +110,5 @@ Description: initialization and customization tool for cloud instances
  access key and many other aspects of a system. Later on the cloud-init will
  also parse and process any optional user or vendor data that was passed to
  the instance.
+ .
+ This is a metapackage that includes every cloud-init dependency.
