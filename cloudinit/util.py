@@ -1284,6 +1284,16 @@ def is_resolvable(url) -> bool:
     global _DNS_REDIRECT_IP
     parsed_url = parse.urlparse(url)
     name = parsed_url.hostname
+
+    # Early return for IP addresses - no DNS resolution needed
+    with suppress(ValueError):
+        if net.is_ip_address(name):
+            return True
+    try:
+        hostname_result = socket.getaddrinfo(name, None)
+    except (socket.gaierror, socket.error):
+        return False
+
     if _DNS_REDIRECT_IP is None:
         badips = set()
         badnames = (
@@ -1307,17 +1317,11 @@ def is_resolvable(url) -> bool:
         if badresults:
             LOG.debug("detected dns redirection: %s", badresults)
 
-    try:
-        # ip addresses need no resolution
-        with suppress(ValueError):
-            if net.is_ip_address(parsed_url.netloc.strip("[]")):
-                return True
-        result = socket.getaddrinfo(name, None)
-        # check first result's sockaddr field
-        addr = result[0][4][0]
-        return addr not in _DNS_REDIRECT_IP
-    except (socket.gaierror, socket.error):
+    # check first result's sockaddr field
+    addr = hostname_result[0][4][0]
+    if addr in _DNS_REDIRECT_IP:
         return False
+    return True
 
 
 def get_hostname():
@@ -1895,6 +1899,35 @@ def unmounter(umount):
             subp.subp(umount_cmd)
 
 
+# Per fstab(5), fstab fields are whitespace-separated, so these characters
+# must be octal-escaped when they appear inside a field. Backslash must come
+# first so we don't double-escape the escapes we introduce.
+_FSTAB_ESCAPES = (
+    ("\\", "\\134"),
+    (" ", "\\040"),
+    ("\t", "\\011"),
+    ("\n", "\\012"),
+)
+
+
+def escape_fstab_field(value: str) -> str:
+    """Octal-escape special characters for safe writing to fstab."""
+    for char, escaped in _FSTAB_ESCAPES:
+        value = value.replace(char, escaped)
+    return value
+
+
+def unescape_fstab_field(value: str) -> str:
+    """Reverse escape_fstab_field.
+
+    Iterate _FSTAB_ESCAPES in reverse so backslash is decoded last; this
+    avoids mis-decoding a field whose original value contained a backslash.
+    """
+    for char, escaped in reversed(_FSTAB_ESCAPES):
+        value = value.replace(escaped, char)
+    return value
+
+
 def mounts():
     mounted = {}
     try:
@@ -1923,9 +1956,9 @@ def mounts():
                 mp = m.group(2)
                 fstype = m.group(3)
                 opts = m.group(4)
-            # If the name of the mount point contains spaces these
-            # can be escaped as '\040', so undo that..
-            mp = mp.replace("\\040", " ")
+            # Mount points may contain octal-escaped characters (e.g. a
+            # space as '\040'); undo that so callers see the real path.
+            mp = unescape_fstab_field(mp)
             mounted[dev] = {
                 "fstype": fstype,
                 "mountpoint": mp,
